@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+dist/
+build/
+*.egg-info/
+
+# Secrets and local config
+.env
+*.local.yaml
+
+# Data (downloaded, not redistributed)
+data/olist/raw/
+*.csv
+!data/olist/sample/*.csv
+
+# Eval outputs not meant for commit
+evals/reports/*.tmp
+evals/fixtures/**/*.pending
+
+# Node
+web/node_modules/
+web/dist/
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local AI session instructions
+CLAUDE.md
