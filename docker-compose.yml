@@ -35,12 +35,17 @@ services:
 
   mcp-olist:
     <<: *app
-    command: ["python", "mcp_servers/olist/placeholder.py"]
+    command: ["python", "-m", "mcp_servers.olist.server"]
     environment:
       SWITCHBOARD_RUN_TOKEN_SECRET: "${SWITCHBOARD_RUN_TOKEN_SECRET:?set SWITCHBOARD_RUN_TOKEN_SECRET in .env (at least 32 bytes)}"
+      SWITCHBOARD_TOOLS_DATABASE_URL: "postgresql://switchboard_tools:${SWITCHBOARD_TOOLS_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-switchboard}"
+      SWITCHBOARD_TENANTS_FILE: "/app/config/tenants.yaml"
       MCP_OLIST_PORT: "8001"
     ports:
       - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -52,7 +57,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
-      start_period: 5s
+      start_period: 10s
 
   api:
     <<: *app

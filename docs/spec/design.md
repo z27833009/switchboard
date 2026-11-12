@@ -396,7 +396,7 @@ To score it on the routing suite, its plan is derived from what it actually did:
 
 ### 7.1 MCP server
 
-`mcp_servers/olist` is a FastMCP server exposed over streamable HTTP. It owns a connection pool to PostgreSQL using the `switchboard_tools` role, which has `SELECT` on the `olist` schema and nothing else. Every tool runs inside `SET TRANSACTION READ ONLY` with `statement_timeout = 5s` and a hard row cap of 200 per result.
+`mcp_servers/olist` is a FastMCP server (renamed `MCPServer` in the official SDK 2.x) exposed over streamable HTTP. It owns a connection pool to PostgreSQL using the `switchboard_tools` role, which has `SELECT` on the `olist` schema and nothing else. Every tool runs inside `SET TRANSACTION READ ONLY` with `statement_timeout = 5s` and a hard row cap of 200 per result.
 
 Tools are designed to return aggregates first: `orders_late@1` returns counts and averages plus the matching rows, so the model can usually answer from the summary without reading rows.
 
@@ -1026,7 +1026,7 @@ This list is the allowlist referred to in the working agreements: a dependency n
 | API | FastAPI, uvicorn | SSE through FastAPI's `StreamingResponse`, no extra package |
 | Orchestration | langgraph | imported only in `adapters/orchestrator/langgraph_impl` |
 | Model clients | openai (official Python SDK) | for every OpenAI-compatible provider and embedder |
-| MCP | mcp (official Python SDK), using its bundled `mcp.server.fastmcp` for the server and its client for `McpToolSource` | not the separate `fastmcp` package; one SDK on both sides |
+| MCP | mcp (official Python SDK), using `mcp.server.mcpserver.MCPServer` for the server and its streamable HTTP client for `McpToolSource` | SDK 2.x renamed FastMCP to MCPServer; not the separate `fastmcp` package, one SDK on both sides |
 | Database | asyncpg; PostgreSQL 16 with pgvector via the `pgvector/pgvector` image (pg16 tag) | no ORM |
 | Observability | opentelemetry-api, opentelemetry-sdk; v1 adds the OTLP exporter | |
 | Tokens | PyJWT | ADR 0014 |

@@ -1,0 +1,93 @@
+tools:
+  - name: orders_summary
+    version: "1"
+    description: Count orders, items and revenue for a purchase-date range, optionally filtered by status.
+    risk: read
+    tenant_scoped: true
+    sensitive_args: []
+    input_schema:
+      type: object
+      properties:
+        date_from:
+          type: string
+          format: date
+        date_to:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [created, approved, invoiced, processing, shipped, delivered, unavailable, canceled]
+      required: [date_from, date_to]
+      additionalProperties: false
+
+  - name: orders_late
+    version: "1"
+    description: Count late deliveries for a purchase-date range, with average and maximum days late and the matching orders.
+    risk: read
+    tenant_scoped: true
+    sensitive_args: []
+    input_schema:
+      type: object
+      properties:
+        date_from:
+          type: string
+          format: date
+        date_to:
+          type: string
+          format: date
+        min_days_late:
+          type: integer
+          minimum: 1
+      required: [date_from, date_to]
+      additionalProperties: false
+
+  - name: order_lookup
+    version: "1"
+    description: Look up one order with its items, customer location and payment totals.
+    risk: read
+    tenant_scoped: true
+    sensitive_args: []
+    input_schema:
+      type: object
+      properties:
+        order_id:
+          type: string
+          minLength: 1
+      required: [order_id]
+      additionalProperties: false
+
+  - name: top_products
+    version: "1"
+    description: Rank products by revenue or by units sold for a purchase-date range.
+    risk: read
+    tenant_scoped: true
+    sensitive_args: []
+    input_schema:
+      type: object
+      properties:
+        date_from:
+          type: string
+          format: date
+        date_to:
+          type: string
+          format: date
+        metric:
+          type: string
+          enum: [revenue, count]
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 200
+      required: [date_from, date_to, metric, limit]
+      additionalProperties: false
+
+  - name: describe_schema
+    version: "1"
+    description: Describe the tables and columns available in the Olist schema.
+    risk: read
+    tenant_scoped: false
+    sensitive_args: []
+    input_schema:
+      type: object
+      properties: {}
+      additionalProperties: false
