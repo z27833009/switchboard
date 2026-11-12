@@ -6,7 +6,7 @@ One line per task. Status is `todo`, `doing`, `blocked` (say on what), or `done`
 
 | Task | Status | Commit | Notes |
 | --- | --- | --- | --- |
-| T1.01 | todo | | |
+| T1.01 | done | bf1b275 | Scaffold: uv 0.11.21, Python 3.12.13, ruff, mypy strict, pytest, pre-commit (local hooks), import-linter "Core imports nothing", CI lint and unit tests. CI green on push, run 43256857854 |
 | T1.02 | todo | | Record measured VRAM with both models loaded |
 | T1.03 | todo | | Data downloaded and unzipped into `data/olist/raw/` (2026-11-12). CSV data rows (excluding header), measured: customers 99441, geolocation 1000163, order_items 112650, order_payments 103886, order_reviews 99224, orders 99441, products 32951, sellers 3095, category translation 71. Purchase dates 2016-09-04 to 2018-10-17; months outside 2017-01 to 2018-08 have very few orders. All eight statuses in design 7.1 occur |
 | T1.04 | todo | | |
