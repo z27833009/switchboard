@@ -19,7 +19,7 @@ from opentelemetry import trace
 from opentelemetry.trace import SpanKind
 
 from switchboard.adapters._openai_errors import map_error
-from switchboard.core.config import ProviderConfig
+from switchboard.core.config import PriceEntry, ProviderConfig
 from switchboard.core.errors import (
     ConfigError,
     ProviderRequestError,
@@ -35,6 +35,7 @@ from switchboard.core.models import (
     ToolSpec,
     Usage,
 )
+from switchboard.core.pricing import compute_cost
 from switchboard.tracing.spans import (
     apply_request_metadata,
     apply_usage,
@@ -162,6 +163,7 @@ class OpenAICompatibleProvider:
         capabilities: ProviderCapabilities,
         timeout_s: float = 120.0,
         extra_body: dict[str, Any] | None = None,
+        price: PriceEntry | None = None,
         client: Any | None = None,
         tracer: trace.Tracer | None = None,
     ) -> None:
@@ -169,13 +171,16 @@ class OpenAICompatibleProvider:
         self._model = model
         self._capabilities = capabilities
         self._extra_body = dict(extra_body or {})
+        self._price = price
         self._tracer = tracer or trace.get_tracer("switchboard.provider.openai_compatible")
         self._client: Any = client or AsyncOpenAI(
             base_url=base_url, api_key=api_key, timeout=timeout_s
         )
 
     @classmethod
-    def from_config(cls, name: str, config: ProviderConfig) -> OpenAICompatibleProvider:
+    def from_config(
+        cls, name: str, config: ProviderConfig, price: PriceEntry | None = None
+    ) -> OpenAICompatibleProvider:
         if not config.base_url or not config.model or config.capabilities is None:
             raise ConfigError(f"provider {name!r} needs base_url, model and capabilities")
         return cls(
@@ -186,6 +191,7 @@ class OpenAICompatibleProvider:
             capabilities=config.capabilities,
             timeout_s=config.timeout_s,
             extra_body=config.extra_body,
+            price=price,
         )
 
     def capabilities(self) -> ProviderCapabilities:
@@ -302,6 +308,12 @@ class OpenAICompatibleProvider:
                 record_error(span, exc)
                 raise
             apply_usage(span, response.usage)
+            # The attribute is absent, not zero, when the provider has no price
+            # entry: an unpriced paid call must not look free (design 12.4).
+            if self._price is not None:
+                span.set_attribute(
+                    "switchboard.cost_usd", compute_cost(response.usage, self._price)
+                )
             span.set_attribute("switchboard.latency_ms", response.latency_ms)
             return response
 

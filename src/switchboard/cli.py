@@ -17,10 +17,11 @@ from switchboard.adapters.providers.factory import create_provider
 from switchboard.adapters.providers.mock import MockProvider
 from switchboard.adapters.retrievers.ingest import IngestResult, ingest_directory
 from switchboard.config import load_settings
-from switchboard.core.config import Settings
+from switchboard.core.config import PriceEntry, Settings
 from switchboard.core.errors import ConfigError, SwitchboardError
 from switchboard.core.models import AgentSpec, EvalCase
 from switchboard.core.ports import EvalDeps, EvalSuite, ModelProvider
+from switchboard.core.pricing import lookup_price
 from switchboard.data.olist import (
     DEFAULT_EXPECTED_COUNTS,
     compare_counts,
@@ -168,15 +169,16 @@ def _eval_provider(
     name: str,
     *,
     record: bool,
-) -> tuple[ModelProvider, bool, str | None]:
+) -> tuple[ModelProvider, bool, str | None, PriceEntry | None]:
     try:
         config = settings.providers.providers[name]
     except KeyError as exc:
         available = ", ".join(sorted(settings.providers.providers))
         raise ConfigError(f"unknown provider {name!r}; configured: {available}") from exc
+    price = lookup_price(settings.prices, name, config.model)
 
     if not record:
-        return create_provider(registry, name, config), False, None
+        return create_provider(registry, name, config, price), False, None, price
 
     if name != "mock":
         raise ConfigError("--record writes fixtures for the mock provider; pass --provider mock")
@@ -192,7 +194,12 @@ def _eval_provider(
         recorder_config = settings.providers.providers[recorder_name]
     except KeyError as exc:
         raise ConfigError(f"recorder provider {recorder_name!r} is not configured") from exc
-    recorder = create_provider(registry, recorder_name, recorder_config)
+    recorder = create_provider(
+        registry,
+        recorder_name,
+        recorder_config,
+        lookup_price(settings.prices, recorder_name, recorder_config.model),
+    )
     provider = MockProvider(
         name="mock",
         model=config.model or recorder_config.model or "unknown",
@@ -200,7 +207,9 @@ def _eval_provider(
         capabilities=config.capabilities,
         record_with=recorder,
     )
-    return provider, True, recorder_name
+    # The report is a mock replay, so it carries no price: the fixture run made
+    # no billable call in this process (design 12.4).
+    return provider, True, recorder_name, price
 
 
 @eval_app.command("run")
@@ -267,7 +276,7 @@ def eval_run(
                 f"cannot run --orchestrator {orchestrator!r}"
             )
 
-        chosen_provider, recording, recorded_with = _eval_provider(
+        chosen_provider, recording, recorded_with, price = _eval_provider(
             settings, registry, provider, record=record
         )
         eval_suite: EvalSuite = create_suite(
@@ -322,6 +331,8 @@ def eval_run(
                 smoke=selection.limited,
                 recording=recording,
                 recorded_with=recorded_with,
+                price=price,
+                price_verified_on=settings.prices.verified_on if price is not None else None,
             ),
             results,
         )
@@ -344,6 +355,12 @@ def eval_run(
         typer.echo(f"recorded missing fixtures with {recorded_with}")
     for name, value in report["metrics"].items():
         typer.echo(f"{name}: {value}")
+    if report["cost_usd"] is None:
+        typer.echo("cost_usd: none (no price entry for this provider)")
+    elif report["no_api_cost"]:
+        typer.echo(f"cost_usd: {report['cost_usd']} (no API cost, local provider)")
+    else:
+        typer.echo(f"cost_usd: {report['cost_usd']}")
     typer.echo(
         f"latency p50 {report['latency_ms']['p50']} ms, p95 {report['latency_ms']['p95']} ms"
     )

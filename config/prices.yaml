@@ -1,0 +1,51 @@
+# Model prices, per million tokens in USD (design.md section 12.4).
+#
+# Every value is copied from the provider's own price page on `verified_on`.
+# Never fill a row from memory: a remembered price is not a verified price, so
+# the schema rejects a nonzero row without a source URL.
+#
+# Lookup order: an entry with a matching `model` wins over an entry with
+# `model: null`, which applies to every model that provider serves. The mock
+# provider deliberately has no entry, so a mock replay reports no cost instead
+# of an invented zero.
+#
+# Provider prefixes and rates change. When a row is updated, move `verified_on`
+# forward as well; reports cite both the date and the source.
+
+verified_on: "2026-11-12"
+
+entries:
+  - provider: lmstudio
+    model: null
+    input_per_million: 0.0
+    cached_input_per_million: 0.0
+    output_per_million: 0.0
+    note: >-
+      Local model on LM Studio, no API cost. The zero rows exist so a local run
+      records cost 0.0 rather than looking unpriced.
+
+  # DeepSeek lists deepseek-flash and deepseek-v4-pro, and bills peak and
+  # off-peak rates (off-peak is half of peak). The rows below carry the peak
+  # rate so a recorded cost can never be lower than the invoice; a run between
+  # 01:00 and 04:00 or 06:00 and 10:00 UTC on a weekday bills half of it.
+  # The page no longer lists `deepseek-chat`, so it has no row; T2.07 picks the
+  # configured model name from the names the page confirms.
+  - provider: deepseek
+    model: deepseek-flash
+    input_per_million: 0.30
+    cached_input_per_million: 0.006
+    output_per_million: 1.20
+    source: https://api-docs.deepseek.com/quick_start/pricing
+    note: >-
+      Peak rate for deepseek-flash (cache miss input, cache hit input, output);
+      off-peak is half.
+
+  - provider: deepseek
+    model: deepseek-v4-pro
+    input_per_million: 1.32
+    cached_input_per_million: 0.044
+    output_per_million: 3.96
+    source: https://api-docs.deepseek.com/quick_start/pricing
+    note: >-
+      Peak rate for deepseek-v4-pro (cache miss input, cache hit input,
+      output); off-peak is half.

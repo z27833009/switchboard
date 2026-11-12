@@ -22,7 +22,7 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, Literal, cast
 
 import asyncpg
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
@@ -41,6 +41,8 @@ from switchboard.api.schemas import (
     AuditRow,
     AuditStatus,
     ChatResponse,
+    RunAggregateResponse,
+    RunAggregateRow,
     RunsResponse,
     RunSummary,
     TraceResponse,
@@ -143,6 +145,9 @@ async def execute_run(
         session_id=request.session_id,
         query=request.query,
         orchestrator=orchestrator.name,
+        # The provider a tenant is configured with. Recorded so `GET /runs`
+        # can aggregate cost per provider (AC-19b).
+        provider=tenant.provider,
     )
     try:
         result = await orchestrator.run(request, context)
@@ -285,17 +290,36 @@ async def _load_run(deps: AppDeps, run_id: str, tenant_id: str) -> dict[str, Any
     return row
 
 
-@router.get("/runs", response_model=RunsResponse)
+@router.get("/runs", response_model=RunsResponse | RunAggregateResponse)
 async def list_runs(
     request: Request,
     tenant_id: str = Query(min_length=1, description="Tenant whose runs to list."),
     limit: int = Query(default=50, ge=1, le=200),
-) -> RunsResponse:
-    """The run list of one tenant, newest first."""
+    group_by: Annotated[
+        Literal["day", "provider"] | None,
+        Query(description="Aggregate cost and tokens per UTC day or per provider."),
+    ] = None,
+) -> RunsResponse | RunAggregateResponse:
+    """The run list of one tenant, newest first, or its cost buckets (AC-19b).
+
+    Without ``group_by`` the response is the run list, unchanged. With
+    ``group_by=day`` or ``group_by=provider`` the response holds one bucket per
+    day (UTC) or provider with the run count, input, cached input and output
+    tokens and the summed cost. ``limit`` only applies to the run list; a
+    bucket covers every run of the tenant.
+    """
     deps = _deps(request.app)
     tenant = _tenant(deps, tenant_id)
-    rows = await deps.store.list_runs(tenant_id=tenant.tenant_id, limit=limit)
-    return RunsResponse(runs=[RunSummary.from_row(row) for row in rows], count=len(rows))
+    if group_by is None:
+        rows = await deps.store.list_runs(tenant_id=tenant.tenant_id, limit=limit)
+        return RunsResponse(runs=[RunSummary.from_row(row) for row in rows], count=len(rows))
+    groups = await deps.store.aggregate_runs(tenant_id=tenant.tenant_id, group_by=group_by)
+    return RunAggregateResponse(
+        group_by=group_by,
+        tenant_id=tenant.tenant_id,
+        groups=[RunAggregateRow.from_row(row) for row in groups],
+        count=len(groups),
+    )
 
 
 @router.get("/runs/{run_id}", response_model=RunSummary)

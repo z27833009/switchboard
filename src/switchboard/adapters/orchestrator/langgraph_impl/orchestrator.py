@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 from switchboard.agents.base import zero_usage
 from switchboard.agents.merge import MergeAgent
-from switchboard.core.config import Limits
+from switchboard.core.config import Limits, PriceEntry
 from switchboard.core.errors import PlanValidationError, SwitchboardError
 from switchboard.core.models import (
     AgentResult,
@@ -32,6 +32,7 @@ from switchboard.core.models import (
     Usage,
 )
 from switchboard.core.ports import Agent, AgentDeps, ContextPolicy, Embedder, ModelProvider
+from switchboard.core.pricing import compute_cost
 from switchboard.core.validation import validate_plan
 from switchboard.gate import evaluate_gate
 from switchboard.registry import Registry
@@ -78,6 +79,9 @@ class RunState(TypedDict, total=False):
     feedback: str | None
     errors: Annotated[list[ErrorRecord], add_errors]
     supervisor_usage: Annotated[Usage, add_usage]
+    # Every agent invocation, including a first attempt that the gate rejected.
+    # The cost of those calls is real, so the run total must include them.
+    spent_usage: Annotated[Usage, add_usage]
     cache_hit: bool
     result: RunResult | None
 
@@ -104,6 +108,7 @@ class LangGraphOrchestrator:
         retriever: Any = None,
         cache: Any = None,
         tracer: Any = None,
+        price: PriceEntry | None = None,
     ) -> None:
         self._provider = provider
         self._context_policy = context_policy
@@ -112,6 +117,7 @@ class LangGraphOrchestrator:
         self._tool_sources = list(tool_sources or [])
         self._retriever = retriever
         self._cache = cache
+        self._price = price
         self._tracer = tracer or trace.get_tracer("switchboard.orchestrator.langgraph")
         self._agents = self._load_agents(registry)
         self._graph = self._build_graph()
@@ -420,6 +426,7 @@ class LangGraphOrchestrator:
             )
             return {
                 "results": {name: result},
+                "spent_usage": result.usage,
                 "errors": [
                     ErrorRecord(
                         kind=type(exc).__name__,
@@ -437,6 +444,7 @@ class LangGraphOrchestrator:
             )
             return {
                 "results": {name: result},
+                "spent_usage": result.usage,
                 "errors": [
                     ErrorRecord(
                         kind=type(exc).__name__,
@@ -445,7 +453,7 @@ class LangGraphOrchestrator:
                     )
                 ],
             }
-        return {"results": {name: result}}
+        return {"results": {name: result}, "spent_usage": result.usage}
 
     def _merge(self, state: RunState) -> dict[str, Any]:
         plan = state.get("plan")
@@ -563,9 +571,11 @@ class LangGraphOrchestrator:
         ctx = state["ctx"]
         answer = state.get("answer")
         verdict = state.get("verdict")
-        usage = state.get("supervisor_usage", zero_usage())
-        if answer is not None:
-            usage = usage.plus(answer.usage)
+        # Supervisor calls plus every agent call the run made, including an
+        # attempt the gate rejected: those tokens were spent and billed.
+        usage = state.get("supervisor_usage", zero_usage()).plus(
+            state.get("spent_usage", zero_usage())
+        )
         status: RunStatus = "ok"
         if answer is None or answer.partial:
             status = "partial"
@@ -593,6 +603,11 @@ class LangGraphOrchestrator:
                 answer=answer,
                 status=status,
                 usage=usage,
+                # One price row covers every call of a v1 run, because a run
+                # uses one provider. The total is computed from the summed
+                # usage so cached and uncached input keep their own rates
+                # (design 12.4).
+                cost_usd=compute_cost(usage, self._price) if self._price is not None else None,
                 cache_hit=state.get("cache_hit", False),
                 attempts=state.get("attempts", 0),
                 gate=verdict,
@@ -645,6 +660,7 @@ class LangGraphOrchestrator:
             "feedback": None,
             "errors": [],
             "supervisor_usage": zero_usage(),
+            "spent_usage": zero_usage(),
             "cache_hit": False,
         }
         try:

@@ -12,7 +12,7 @@ import json
 import uuid
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 import asyncpg
 
@@ -20,8 +20,8 @@ from switchboard.core.models import RunResult
 from switchboard.tracing.runs import insert_run
 
 RUN_COLUMNS = """
-    id, tenant_id, session_id, query, orchestrator, plan, answer, citations, errors,
-    status, cache_hit, attempts, input_tokens, cached_input_tokens,
+    id, tenant_id, session_id, query, orchestrator, provider, plan, answer, citations,
+    errors, status, cache_hit, attempts, input_tokens, cached_input_tokens,
     output_tokens, cost_usd, started_at, ended_at, trace_complete
 """
 
@@ -42,8 +42,9 @@ UPDATE public.runs SET
     input_tokens = $9,
     cached_input_tokens = $10,
     output_tokens = $11,
-    ended_at = $12,
-    trace_complete = $13
+    cost_usd = $12,
+    ended_at = $13,
+    trace_complete = $14
 WHERE id = $1
 """
 
@@ -54,6 +55,40 @@ WHERE tenant_id = $1
 ORDER BY started_at DESC
 LIMIT $2
 """
+
+# Aggregation for `GET /runs?group_by=`. Days are UTC because started_at is a
+# timestamptz and a report should not move with the server's local timezone.
+# `provider` is null on rows written before T2.06; they are grouped as
+# "unknown" instead of disappearing. A null cost is counted, not summed, so a
+# group with unpriced runs shows it rather than looking fully priced.
+AGGREGATE_RUNS_SQL = {
+    "day": """
+        SELECT to_char((started_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS bucket,
+               count(*)::int AS run_count,
+               coalesce(sum(input_tokens), 0)::bigint AS input_tokens,
+               coalesce(sum(cached_input_tokens), 0)::bigint AS cached_input_tokens,
+               coalesce(sum(output_tokens), 0)::bigint AS output_tokens,
+               sum(cost_usd) AS cost_usd,
+               count(*) FILTER (WHERE cost_usd IS NULL)::int AS unpriced_runs
+        FROM public.runs
+        WHERE tenant_id = $1
+        GROUP BY bucket
+        ORDER BY bucket DESC
+    """,
+    "provider": """
+        SELECT coalesce(provider, 'unknown') AS bucket,
+               count(*)::int AS run_count,
+               coalesce(sum(input_tokens), 0)::bigint AS input_tokens,
+               coalesce(sum(cached_input_tokens), 0)::bigint AS cached_input_tokens,
+               coalesce(sum(output_tokens), 0)::bigint AS output_tokens,
+               sum(cost_usd) AS cost_usd,
+               count(*) FILTER (WHERE cost_usd IS NULL)::int AS unpriced_runs
+        FROM public.runs
+        WHERE tenant_id = $1
+        GROUP BY bucket
+        ORDER BY bucket ASC
+    """,
+}
 
 # Tenant scoping of a single read is part of the query, not a check in the
 # route, so every caller of the store gets it (design.md section 11).
@@ -86,6 +121,21 @@ def run_row(row: Mapping[str, Any]) -> dict[str, Any]:
     payload["citations"] = decode_json(payload.get("citations"), [])
     payload["errors"] = decode_json(payload.get("errors"), [])
     cost = payload.get("cost_usd")
+    # sums of numeric come back as Decimal; the API and the report speak float.
+    payload["cost_usd"] = float(cost) if cost is not None else None
+    return payload
+
+
+def aggregate_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    """One bucket of ``GET /runs?group_by=``; cost stays None when unpriced."""
+    payload = dict(row)
+    payload["bucket"] = str(payload["bucket"])
+    payload["run_count"] = int(payload["run_count"])
+    payload["input_tokens"] = int(payload["input_tokens"])
+    payload["cached_input_tokens"] = int(payload["cached_input_tokens"])
+    payload["output_tokens"] = int(payload["output_tokens"])
+    payload["unpriced_runs"] = int(payload.get("unpriced_runs") or 0)
+    cost = payload.get("cost_usd")
     payload["cost_usd"] = float(cost) if cost is not None else None
     return payload
 
@@ -110,11 +160,16 @@ class RunStore(Protocol):
         session_id: str | None,
         query: str,
         orchestrator: str,
+        provider: str | None = None,
     ) -> None: ...
 
     async def finish_run(self, result: RunResult, *, trace_complete: bool) -> None: ...
 
     async def list_runs(self, *, tenant_id: str, limit: int = 50) -> list[dict[str, Any]]: ...
+
+    async def aggregate_runs(
+        self, *, tenant_id: str, group_by: Literal["day", "provider"]
+    ) -> list[dict[str, Any]]: ...
 
     async def get_run(self, run_id: str, *, tenant_id: str) -> dict[str, Any] | None: ...
 
@@ -135,6 +190,7 @@ class PgRunStore:
         session_id: str | None,
         query: str,
         orchestrator: str,
+        provider: str | None = None,
     ) -> None:
         await insert_run(
             self._pool,
@@ -143,6 +199,7 @@ class PgRunStore:
             query=query,
             orchestrator=orchestrator,
             session_id=session_id,
+            provider=provider,
         )
 
     async def finish_run(self, result: RunResult, *, trace_complete: bool) -> None:
@@ -165,6 +222,7 @@ class PgRunStore:
             result.usage.input_tokens,
             result.usage.cached_input_tokens,
             result.usage.output_tokens,
+            result.cost_usd,
             ended_at,
             trace_complete,
         )
@@ -172,6 +230,16 @@ class PgRunStore:
     async def list_runs(self, *, tenant_id: str, limit: int = 50) -> list[dict[str, Any]]:
         rows = await self._pool.fetch(LIST_RUNS_SQL, tenant_id, limit)
         return [run_row(row) for row in rows]
+
+    async def aggregate_runs(
+        self, *, tenant_id: str, group_by: Literal["day", "provider"]
+    ) -> list[dict[str, Any]]:
+        try:
+            sql = AGGREGATE_RUNS_SQL[group_by]
+        except KeyError as exc:
+            raise ValueError(f"unknown run aggregation {group_by!r}") from exc
+        rows = await self._pool.fetch(sql, tenant_id)
+        return [aggregate_row(row) for row in rows]
 
     async def get_run(self, run_id: str, *, tenant_id: str) -> dict[str, Any] | None:
         row = await self._pool.fetchrow(GET_RUN_SQL, uuid.UUID(run_id), tenant_id)
@@ -195,8 +263,10 @@ def rows_are_complete(name_rows: Sequence[Mapping[str, Any]]) -> bool:
 
 
 __all__ = [
+    "AGGREGATE_RUNS_SQL",
     "PgRunStore",
     "RunStore",
+    "aggregate_row",
     "decode_json",
     "parse_run_id",
     "rows_are_complete",

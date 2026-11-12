@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from switchboard.core.config import (
     PlatformConfig,
+    PricesConfig,
     ProvidersConfig,
     Settings,
     TenantsConfig,
@@ -27,7 +28,11 @@ from switchboard.registry import AGENTS, Registry
 
 
 def read_yaml(path: Path) -> Any:
-    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ConfigError(f"{path}: {exc}") from exc
+    payload = yaml.safe_load(text)
     return {} if payload is None else payload
 
 
@@ -93,13 +98,14 @@ def validate_tenant_permissions(
 
 
 def load_settings(config_dir: Path, env: Mapping[str, str] | None = None) -> Settings:
-    """Read platform.yaml, providers.yaml and tenants.yaml, then validate them."""
+    """Read platform.yaml, providers.yaml, tenants.yaml and prices.yaml, then validate."""
     source = dict(os.environ) if env is None else dict(env)
     platform = load_model(config_dir / "platform.yaml", PlatformConfig, source)
     providers = load_model(config_dir / "providers.yaml", ProvidersConfig, source)
     tenants = load_model(config_dir / "tenants.yaml", TenantsConfig, source)
+    prices = load_model(config_dir / "prices.yaml", PricesConfig, source)
     try:
-        settings = Settings(platform=platform, providers=providers, tenants=tenants)
+        settings = Settings(platform=platform, providers=providers, tenants=tenants, prices=prices)
     except ValueError as exc:
         raise ConfigError(f"{config_dir}: {exc}") from exc
     validate_tenant_permissions(

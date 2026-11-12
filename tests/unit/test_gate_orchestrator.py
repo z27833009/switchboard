@@ -175,6 +175,10 @@ async def test_an_ungrounded_number_triggers_one_retry_with_feedback() -> None:
     check_errors = [error for error in result.errors if error.kind == "CheckFailed"]
     assert len(check_errors) == 1
     assert check_errors[0].retryable is True
+    # The rejected attempt was billed too: one supervisor call (5/2) and two
+    # data agent calls (10/4 each), not just the attempt that produced the
+    # final answer (AC-19a).
+    assert result.usage == Usage(input_tokens=25, cached_input_tokens=0, output_tokens=10)
 
 
 async def test_empty_evidence_triggers_one_replan_with_a_different_plan() -> None:
@@ -214,6 +218,8 @@ async def test_empty_evidence_triggers_one_replan_with_a_different_plan() -> Non
     assert "must differ" in replan_prompt
     assert result.gate is not None
     assert result.gate.passed is True
+    # Both plans were paid for: two supervisor calls and one call per branch.
+    assert result.usage == Usage(input_tokens=30, cached_input_tokens=0, output_tokens=12)
 
 
 async def test_the_attempts_limit_stops_a_second_corrective_action() -> None:

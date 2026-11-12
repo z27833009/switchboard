@@ -51,10 +51,24 @@ def write_config(directory: Path) -> None:
         "tracing": {"exporter": "none"},
         "limits": {"max_plan_size": 3},
     }
+    prices = {
+        "verified_on": "2026-11-12",
+        "entries": [
+            {
+                "provider": "lmstudio",
+                "model": None,
+                "input_per_million": 0.0,
+                "cached_input_per_million": 0.0,
+                "output_per_million": 0.0,
+                "note": "no API cost",
+            }
+        ],
+    }
     for name, payload in (
         ("providers.yaml", providers),
         ("tenants.yaml", tenants),
         ("platform.yaml", platform),
+        ("prices.yaml", prices),
     ):
         (directory / name).write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
 

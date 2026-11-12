@@ -15,7 +15,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from switchboard.core.config import ProviderConfig
+from switchboard.core.config import PriceEntry, ProviderConfig
 from switchboard.core.errors import ConfigError, FixtureMissError
 from switchboard.core.models import (
     CompletionRequest,
@@ -99,7 +99,11 @@ class MockProvider:
         self._recorder = record_with
 
     @classmethod
-    def from_config(cls, name: str, config: ProviderConfig) -> MockProvider:
+    def from_config(
+        cls, name: str, config: ProviderConfig, price: PriceEntry | None = None
+    ) -> MockProvider:
+        # ``price`` is accepted so the provider factory has one signature; a
+        # replay makes no billable call, so the mock never records a cost.
         if not config.fixtures:
             raise ConfigError(f"provider {name!r} needs a fixtures directory")
         return cls(

@@ -104,10 +104,13 @@ class DocsAgent(BaseAgent):
             )
         answer = response.text or ""
         citations = registry.parse(answer)
+        # The rewrite calls run on the same provider, so their tokens belong to
+        # the run's accounting as well (AC-19a).
+        usage = response.usage.plus(run.usage)
         return AgentResult(
             answer=answer,
             citations=citations,
             evidence=evidence,
-            usage=response.usage,
+            usage=usage,
             partial=not citations,
         )

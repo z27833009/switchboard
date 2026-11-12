@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import UTC
 from typing import Any
 
 from tests.fakes import (
@@ -23,6 +24,7 @@ from tests.fakes import (
 
 from switchboard.api.step_events import StepEventPublisher
 from switchboard.core.config import TenantsConfig
+from switchboard.core.models import Usage
 
 
 def parse_sse(body: str) -> list[tuple[str, dict[str, Any]]]:
@@ -168,6 +170,131 @@ async def test_run_reads_require_and_honour_the_tenant(harness: AppHarness) -> N
 
     seller_runs = await harness.client.get("/runs", params={"tenant_id": "seller_a"})
     assert run_id not in {run["run_id"] for run in seller_runs.json()["runs"]}
+
+
+async def test_runs_store_cost_and_aggregate_by_day_and_provider(
+    tenants: TenantsConfig,
+) -> None:
+    """AC-19a and AC-19b through HTTP, with a priced fake orchestrator."""
+    publisher = StepEventPublisher()
+    store = MemoryRunStore()
+    provider = make_provider(publisher, store)
+    try:
+        orchestrator = FakeOrchestrator(
+            tracer=provider.get_tracer("switchboard.test.fake"),
+            usage=Usage(input_tokens=1000, cached_input_tokens=200, output_tokens=500),
+            cost_usd=0.0008412,
+        )
+        built = build_harness(
+            tenants=tenants,
+            store=store,
+            publisher=publisher,
+            provider=provider,
+            orchestrator=orchestrator,
+        )
+        try:
+            first = await built.client.post(
+                "/chat", json={"query": "first costed", "tenant_id": "default"}
+            )
+            second = await built.client.post(
+                "/chat", json={"query": "second costed", "tenant_id": "default"}
+            )
+            assert first.status_code == 200 and second.status_code == 200
+            assert first.json()["cost_usd"] == 0.0008412
+
+            detail = await built.client.get(
+                f"/runs/{first.json()['run_id']}", params={"tenant_id": "default"}
+            )
+            assert detail.status_code == 200, detail.text
+            assert detail.json()["cost_usd"] == 0.0008412
+            assert detail.json()["provider"] == "lmstudio"
+            assert detail.json()["cached_input_tokens"] == 200
+
+            # The default shape is the run list, unchanged by T2.06.
+            listed = await built.client.get("/runs", params={"tenant_id": "default"})
+            assert listed.status_code == 200
+            assert listed.json()["count"] == 2
+            assert {row["run_id"] for row in listed.json()["runs"]} == {
+                first.json()["run_id"],
+                second.json()["run_id"],
+            }
+            assert all(row["cost_usd"] == 0.0008412 for row in listed.json()["runs"])
+
+            by_provider = await built.client.get(
+                "/runs", params={"tenant_id": "default", "group_by": "provider"}
+            )
+            assert by_provider.status_code == 200, by_provider.text
+            body = by_provider.json()
+            assert body["group_by"] == "provider"
+            assert body["tenant_id"] == "default"
+            assert body["count"] == 1
+            assert body["groups"] == [
+                {
+                    "bucket": "lmstudio",
+                    "run_count": 2,
+                    "input_tokens": 2000,
+                    "cached_input_tokens": 400,
+                    "output_tokens": 1000,
+                    "cost_usd": 0.0016824,
+                    "unpriced_runs": 0,
+                }
+            ]
+
+            by_day = await built.client.get(
+                "/runs", params={"tenant_id": "default", "group_by": "day"}
+            )
+            assert by_day.status_code == 200, by_day.text
+            started = store.runs[first.json()["run_id"]]["started_at"]
+            expected_day = started.astimezone(UTC).date().isoformat()
+            assert by_day.json()["count"] == 1
+            assert by_day.json()["groups"] == [
+                {
+                    "bucket": expected_day,
+                    "run_count": 2,
+                    "input_tokens": 2000,
+                    "cached_input_tokens": 400,
+                    "output_tokens": 1000,
+                    "cost_usd": 0.0016824,
+                    "unpriced_runs": 0,
+                }
+            ]
+
+            bad_group = await built.client.get(
+                "/runs", params={"tenant_id": "default", "group_by": "week"}
+            )
+            assert bad_group.status_code == 422
+            no_tenant = await built.client.get("/runs", params={"group_by": "provider"})
+            assert no_tenant.status_code == 422
+            unknown_tenant = await built.client.get(
+                "/runs", params={"tenant_id": "acme", "group_by": "provider"}
+            )
+            assert unknown_tenant.status_code == 404
+            other_tenant = await built.client.get(
+                "/runs", params={"tenant_id": "seller_a", "group_by": "provider"}
+            )
+            assert other_tenant.status_code == 200
+            assert other_tenant.json()["groups"] == []
+        finally:
+            await built.client.aclose()
+    finally:
+        provider.shutdown()
+
+
+async def test_unpriced_runs_are_counted_not_billed(harness: AppHarness) -> None:
+    """A run without a price entry has a null cost, never a silent zero."""
+    posted = await harness.client.post(
+        "/chat", json={"query": "no price entry", "tenant_id": "default"}
+    )
+    assert posted.status_code == 200
+    assert posted.json()["cost_usd"] is None
+
+    body = (
+        await harness.client.get("/runs", params={"tenant_id": "default", "group_by": "provider"})
+    ).json()
+    assert body["groups"][0]["bucket"] == "lmstudio"
+    assert body["groups"][0]["cost_usd"] is None
+    assert body["groups"][0]["unpriced_runs"] == 1
+    assert body["groups"][0]["run_count"] == 1
 
 
 async def test_trace_tree_has_every_node_and_attribute(harness: AppHarness) -> None:

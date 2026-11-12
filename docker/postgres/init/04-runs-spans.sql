@@ -55,6 +55,12 @@ ALTER TABLE public.runs
 ALTER TABLE public.runs
     ADD COLUMN IF NOT EXISTS errors jsonb NOT NULL DEFAULT '[]'::jsonb;
 
+-- Added in T2.06: the provider the tenant is configured with, so GET /runs can
+-- aggregate cost per provider (design 12.4). Rows written before this column
+-- existed keep null and are grouped as "unknown".
+ALTER TABLE public.runs
+    ADD COLUMN IF NOT EXISTS provider text;
+
 -- The run row is inserted before any span can reference it (design 12.2). The
 -- span table is append-only: no UPDATE or DELETE grant for any role.
 CREATE TABLE IF NOT EXISTS public.spans (

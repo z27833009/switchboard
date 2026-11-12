@@ -318,6 +318,9 @@ class RunResult(BaseModel):
     answer: AgentResult | None = None
     status: RunStatus = "running"
     usage: Usage = Field(default_factory=lambda: Usage(input_tokens=0, output_tokens=0))
+    # USD cost of the run from config/prices.yaml (design 12.4); None when the
+    # provider has no price entry, never a silent zero for a paid provider.
+    cost_usd: float | None = None
     cache_hit: bool = False
     attempts: int = Field(default=0, ge=0)
     gate: GateVerdict | None = None

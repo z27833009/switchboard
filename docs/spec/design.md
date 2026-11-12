@@ -227,7 +227,7 @@ class TenantContext(BaseModel):
 
 There is no `Route` enum. The routing decision carries no self-reported confidence: a model's self-assessed confidence is not calibrated and nothing in the design consumed it, so it was removed rather than logged as if it meant something.
 
-`RunResult` carries the final `plan`, the `previous_plan` set on a re-plan, the final `gate` verdict, `attempts` and `errors`, so a caller can see what the gate rejected and which corrective action ran (6.8).
+`RunResult` carries the final `plan`, the `previous_plan` set on a re-plan, the final `gate` verdict, `attempts` and `errors`, so a caller can see what the gate rejected and which corrective action ran (6.8). It also carries `cost_usd`: the run's USD cost computed from the summed `usage` and the price row for its provider (12.4), or `None` when that provider has no row.
 
 Dependencies are injected through `AgentDeps` and `RunContext` (provider, embedder, tool sources, retriever, cache, context policy, tracer), never imported globally.
 
@@ -754,7 +754,15 @@ The author's `langgraph-visualizer` project can be attached as an optional devel
 
 ### 12.4 Cost accounting (v1)
 
-`config/prices.yaml` holds input, cached input and output prices per million tokens per provider and model, with a `verified_on` date and the source URL. Values are copied from the provider's price page when a comparison run is prepared, never from memory. The provider adapter computes cost per call from usage (cached input tokens at the cached rate) and writes it on the span; the run aggregates it. Local models cost zero and the report labels them "no API cost" rather than "free".
+`config/prices.yaml` holds input, cached input and output prices per million tokens per provider and model, with a `verified_on` date and the source URL. Values are copied from the provider's price page when a comparison run is prepared, never from memory. A row with a nonzero price and no source URL fails validation, so an unverified number cannot sit in the table. A row with `model: null` applies to every model of that provider (the local zero row); a matching model row wins over it. The schema is `PricesConfig` and `PriceEntry` in `core/config.py`, loaded by `load_settings` like the other three files.
+
+The math is `core/pricing.py`, a pure module: `compute_cost(usage, entry)` bills `input_tokens - cached_input_tokens` at the input rate, `cached_input_tokens` at the cached rate and `output_tokens` at the output rate, per million tokens. It is the single implementation used by the provider adapter, the orchestrator and the report writer. A provider with no row yields `None`: the chat span omits `switchboard.cost_usd` rather than writing zero, and a run or report stores null cost. A local model such as LM Studio has an explicit zero row, so its span, run and report say 0.0 and the report labels it "no API cost" rather than "free".
+
+The provider adapter resolves its row once at construction (through `create_provider`) and writes the per-call cost on the `chat <model>` span. The orchestrator computes the run total once at finish from the summed usage, which is exact because a v1 run uses one provider. The summed usage counts every model call the run made, including a first attempt the gate rejected, a re-plan and the conditional retrieval rewrites, so a discarded attempt is still billed. If a run can later mix providers (the T2.07 fallback), the run total must move to summing the per-call costs; the span attribute stays the per-call record either way. The API persists the total in `runs.cost_usd` and records the tenant's configured provider in `runs.provider` so the number can be grouped.
+
+`GET /runs?tenant_id=...&group_by=day|provider` groups the tenant's runs into UTC days or providers and returns, per bucket, the run count, input, cached input and output tokens, the summed `cost_usd` and `unpriced_runs`. The sum is null when no run in the bucket is priced, and `unpriced_runs` counts the null-cost rows, so an aggregate never passes an incomplete sum off as the full cost. Rows written before the `provider` column existed group as `unknown`. Without `group_by`, `GET /runs` keeps the run-list shape.
+
+DeepSeek publishes peak and off-peak rates (off-peak is half). The committed rows carry the peak rate so a recorded cost cannot be lower than the invoice; the row notes say so. The page listed `deepseek-flash` and `deepseek-v4-pro` on the verification date and no longer lists `deepseek-chat`, so only the two listed names have rows.
 
 ### 12.5 Step event stream
 
@@ -831,6 +839,7 @@ erDiagram
     text session_id
     text query
     text orchestrator
+    text provider
     text plan
     text answer
     jsonb citations
@@ -1074,7 +1083,7 @@ Feedback (v1): `POST /runs/{id}/feedback` stores a rating and a note. `switchboa
 
 ### 20.2 Runner
 
-`switchboard eval run --suite <name> --provider <name> [--orchestrator <name>] [--limit n] [--record]` executes cases concurrently (bounded, default 4), applies a per-case timeout, times each case, collects usage including cached input tokens, scores, and writes `evals/reports/<suite>-<provider>.md` and `.json`. The JSON report carries the dataset version, split, orchestrator, provider, model, metrics, p50 and p95 latency, input, cached input and output tokens and one row per case. A run with `--limit` is marked as a smoke run in both files. `--provider mock --record` records missing fixtures through the real provider named by the default tenant; a plain mock run replays them with no network. `--provider deepseek` prints the estimated cost from the price table and the case count and refuses to proceed without `--confirm-cost` or above the cap in `platform.yaml`.
+`switchboard eval run --suite <name> --provider <name> [--orchestrator <name>] [--limit n] [--record]` executes cases concurrently (bounded, default 4), applies a per-case timeout, times each case, collects usage including cached input tokens, scores, and writes `evals/reports/<suite>-<provider>.md` and `.json`. The JSON report carries the dataset version, split, orchestrator, provider, model, metrics, p50 and p95 latency, input, cached input and output tokens and one row per case. It also carries `cost_usd`, computed from the run's summed usage and the provider's price row, plus the row itself (`price`: rates, `verified_on`, `source`) and `no_api_cost` for a zero-price local provider; `cost_usd` and `price` are null when the provider has no row, and a mock replay has no row on purpose. A report is never backfilled: a report written before the price table keeps its null. A run with `--limit` is marked as a smoke run in both files. `--provider mock --record` records missing fixtures through the real provider named by the default tenant; a plain mock run replays them with no network. `--provider deepseek` prints the estimated cost from the price table and the case count and refuses to proceed without `--confirm-cost` or above the cap in `platform.yaml`.
 
 Suites receive `EvalDeps(provider)`. The routing suite builds the production supervisor request from the shared `switchboard.routing` helpers and the toolcall suite sends the five manifest tool specs with the data agent prompt prefix; both make one completion per case and do not run the agents or execute tools. This keeps 60 routing and 40 toolcall cases within the local-model budget and lets the mock provider replay them in CI. The gate suite makes no model call: it runs the same deterministic checks as the orchestrator and reports the model as `deterministic`, so its result depends only on the dataset and the code.
 

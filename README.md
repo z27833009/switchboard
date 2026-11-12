@@ -19,7 +19,7 @@ Dataset v1, qwen3-8b on LM Studio, full default split with no limit, run on 2026
 | Routing (plan graph) | Plan accuracy 0.9231, above the 0.75 local target (Jaccard 0.9359, ambiguous cases 0.6000) | p50 4466.0 ms, p95 5551.7 ms |
 | Tool call | Tool name and argument accuracy both 0.9500, above the 0.60 local target; 0.95 calls per case, no redundant calls | p50 3407.5 ms, p95 3747.8 ms |
 
-Reports: [routing](evals/reports/routing-lmstudio.md), [tool call](evals/reports/toolcall-lmstudio.md). Latency is one model call per case, not an end-to-end run. Cost is not in USD: local models have no API cost, and no price table exists until v1. The mock reports under [evals/reports/](evals/reports/) replay recorded model output, so the CI gate measures the pipeline, not the model.
+Reports: [routing](evals/reports/routing-lmstudio.md), [tool call](evals/reports/toolcall-lmstudio.md). Latency is one model call per case, not an end-to-end run. The LM Studio runs have no API cost: `config/prices.yaml` records zero for the local provider, and a new run or report computes its USD cost from that table, including cached input tokens at the cached rate. The committed reports predate the price table and keep a null cost rather than a backfilled number. The mock reports under [evals/reports/](evals/reports/) replay recorded model output, so the CI gate measures the pipeline, not the model.
 
 ## Quick start
 

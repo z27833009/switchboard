@@ -33,6 +33,7 @@ from switchboard.api.audit import PgAuditStore
 from switchboard.api.deps import AppDeps
 from switchboard.api.step_events import StepEventProcessor, StepEventPublisher
 from switchboard.api.store import PgRunStore
+from switchboard.core.config import PriceEntry
 from switchboard.core.models import (
     AgentResult,
     ChatRequest,
@@ -42,6 +43,7 @@ from switchboard.core.models import (
     RunResult,
     Usage,
 )
+from switchboard.core.pricing import compute_cost
 from switchboard.tracing import PostgresSpanExporter, TracingHandle
 from switchboard.tracing.spans import agent_span, run_span, set_attributes, supervisor_span
 
@@ -317,3 +319,116 @@ async def test_failed_run_persists_its_errors_and_is_marked_incomplete() -> None
     errors = run_row["errors"]
     assert isinstance(errors, str)
     assert json.loads(errors)[0]["kind"] == "RuntimeError"
+
+
+async def test_cost_and_provider_persist_and_aggregate_in_sql() -> None:
+    """AC-19a and AC-19b against the real runs table and the SQL buckets."""
+    price = PriceEntry(
+        provider="deepseek",
+        model="deepseek-flash",
+        input_per_million=0.30,
+        cached_input_per_million=0.006,
+        output_per_million=1.20,
+        source="https://api-docs.deepseek.com/quick_start/pricing",
+    )
+    usage = Usage(input_tokens=1_000_000, cached_input_tokens=250_000, output_tokens=500_000)
+    cost = compute_cost(usage, price)
+    assert cost == pytest.approx(0.8265)
+
+    pool = await asyncpg.create_pool(dsn=APP_URL, min_size=1, max_size=2)
+    store = PgRunStore(pool)
+    started = datetime.now(UTC)
+    run_id = str(uuid.uuid4())
+    tenant = "default"
+    try:
+        before_day = {
+            row["bucket"]: row
+            for row in await store.aggregate_runs(tenant_id=tenant, group_by="day")
+        }
+        before_provider = {
+            row["bucket"]: row
+            for row in await store.aggregate_runs(tenant_id=tenant, group_by="provider")
+        }
+        await store.start_run(
+            run_id=run_id,
+            tenant_id=tenant,
+            session_id=None,
+            query="cost aggregation probe",
+            orchestrator="scripted",
+            provider="deepseek",
+        )
+        await store.finish_run(
+            RunResult(
+                run_id=run_id,
+                tenant_id=tenant,
+                query="cost aggregation probe",
+                status="ok",
+                usage=usage,
+                cost_usd=cost,
+                started_at=started,
+                ended_at=datetime.now(UTC),
+            ),
+            trace_complete=True,
+        )
+
+        row = await store.get_run(run_id, tenant_id=tenant)
+        assert row is not None
+        assert row["provider"] == "deepseek"
+        assert row["cost_usd"] == pytest.approx(cost)
+        assert row["input_tokens"] == 1_000_000
+        assert row["cached_input_tokens"] == 250_000
+        assert row["output_tokens"] == 500_000
+
+        # The bucket grows by exactly this run; earlier probes may exist.
+        by_provider = {
+            item["bucket"]: item
+            for item in await store.aggregate_runs(tenant_id=tenant, group_by="provider")
+        }
+        previous_provider = before_provider.get(
+            "deepseek",
+            {
+                "run_count": 0,
+                "input_tokens": 0,
+                "cached_input_tokens": 0,
+                "output_tokens": 0,
+                "cost_usd": 0.0,
+                "unpriced_runs": 0,
+            },
+        )
+        after_provider = by_provider["deepseek"]
+        assert after_provider["run_count"] == previous_provider["run_count"] + 1
+        assert (
+            after_provider["input_tokens"] == previous_provider["input_tokens"] + usage.input_tokens
+        )
+        assert (
+            after_provider["cached_input_tokens"]
+            == previous_provider["cached_input_tokens"] + usage.cached_input_tokens
+        )
+        assert (
+            after_provider["output_tokens"]
+            == previous_provider["output_tokens"] + usage.output_tokens
+        )
+        assert after_provider["cost_usd"] == pytest.approx(
+            (previous_provider["cost_usd"] or 0.0) + cost
+        )
+        assert after_provider["unpriced_runs"] == 0
+
+        # The day bucket grows by exactly this run.
+        day = started.astimezone(UTC).date().isoformat()
+        after_day = {
+            item["bucket"]: item
+            for item in await store.aggregate_runs(tenant_id=tenant, group_by="day")
+        }
+        previous = before_day.get(day, {"run_count": 0, "cost_usd": 0.0})
+        assert after_day[day]["run_count"] == previous["run_count"] + 1
+        assert after_day[day]["cost_usd"] == pytest.approx((previous["cost_usd"] or 0.0) + cost)
+
+        # Another tenant sees neither the row nor a bucket for it.
+        assert await store.get_run(run_id, tenant_id="seller_a") is None
+        seller_buckets = {
+            item["bucket"]
+            for item in await store.aggregate_runs(tenant_id="seller_a", group_by="provider")
+        }
+        assert "deepseek" not in seller_buckets
+    finally:
+        await pool.close()

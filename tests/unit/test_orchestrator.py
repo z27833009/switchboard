@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from switchboard.adapters.orchestrator.langgraph_impl import LangGraphOrchestrator
-from switchboard.core.config import Limits
+from switchboard.core.config import Limits, PriceEntry
 from switchboard.core.context import ClearOldestToolResults
 from switchboard.core.errors import ToolExecutionError
 from switchboard.core.models import (
@@ -114,6 +114,7 @@ def make(
     agents: list[StubAgent],
     *,
     limits: Limits | None = None,
+    price: PriceEntry | None = None,
 ) -> LangGraphOrchestrator:
     registry = Registry([FakeEntryPoint(agent.spec.name, AGENTS, agent) for agent in agents])
     return LangGraphOrchestrator(
@@ -121,6 +122,7 @@ def make(
         registry=registry,
         context_policy=ClearOldestToolResults(),
         limits=limits or Limits(run_timeout_s=5.0),
+        price=price,
     )
 
 
@@ -134,6 +136,30 @@ async def test_direct_plan_runs_one_agent() -> None:
     assert result.answer.answer == "direct answer"
     assert result.status == "ok"
     assert result.usage.input_tokens == 6
+    # No price row means no cost, not a silent zero (design 12.4).
+    assert result.cost_usd is None
+
+
+async def test_a_priced_run_carries_its_cost() -> None:
+    provider = PlanProvider([{"agents": ["direct"], "reason": "small talk"}])
+    price = PriceEntry(
+        provider="fake",
+        model=None,
+        input_per_million=1.0,
+        cached_input_per_million=0.1,
+        output_per_million=2.0,
+        source="https://example.invalid/prices",
+    )
+    orchestrator = make(provider, [StubAgent("direct")], price=price)
+    result = await orchestrator.run(ChatRequest(query="hello", tenant_id="default"), context())
+
+    usage = result.usage
+    expected = (
+        (usage.input_tokens - usage.cached_input_tokens) * 1.0
+        + usage.cached_input_tokens * 0.1
+        + usage.output_tokens * 2.0
+    ) / 1_000_000
+    assert result.cost_usd == pytest.approx(expected)
 
 
 @pytest.mark.parametrize(("agent_name", "plan_label"), [("docs", "docs"), ("data", "data")])

@@ -14,8 +14,8 @@ import asyncpg
 
 INSERT_RUN_SQL = """
 INSERT INTO public.runs (
-    id, tenant_id, session_id, query, orchestrator, status, started_at
-) VALUES ($1, $2, $3, $4, $5, 'running', now())
+    id, tenant_id, session_id, query, orchestrator, provider, status, started_at
+) VALUES ($1, $2, $3, $4, $5, $6, 'running', now())
 ON CONFLICT (id) DO NOTHING
 """
 
@@ -28,6 +28,7 @@ async def insert_run(
     query: str,
     orchestrator: str,
     session_id: str | None = None,
+    provider: str | None = None,
 ) -> None:
     """Insert the run row with status ``running`` at the start of a run."""
     await pool.execute(
@@ -37,4 +38,5 @@ async def insert_run(
         session_id,
         query,
         orchestrator,
+        provider,
     )

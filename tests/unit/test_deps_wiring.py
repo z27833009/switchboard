@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Any, cast
 
 import asyncpg
@@ -15,6 +16,8 @@ from switchboard.core.config import (
     EmbedderConfig,
     Limits,
     PlatformConfig,
+    PriceEntry,
+    PricesConfig,
     ProviderConfig,
     ProvidersConfig,
     Settings,
@@ -47,13 +50,16 @@ class Entry:
 
 
 class FakeProvider:
-    def __init__(self, *, name: str, model: str) -> None:
+    def __init__(self, *, name: str, model: str, price: PriceEntry | None = None) -> None:
         self.name = name
         self.model = model
+        self.price = price
 
     @classmethod
-    def from_config(cls, name: str, config: ProviderConfig) -> FakeProvider:
-        return cls(name=name, model=config.model or "")
+    def from_config(
+        cls, name: str, config: ProviderConfig, price: PriceEntry | None = None
+    ) -> FakeProvider:
+        return cls(name=name, model=config.model or "", price=price)
 
 
 class FakeRetriever:
@@ -103,6 +109,19 @@ def settings_for(retriever: str = "fake") -> Settings:
                 )
             }
         ),
+        prices=PricesConfig(
+            verified_on=date(2026, 11, 12),
+            entries=[
+                PriceEntry(
+                    provider="fake",
+                    model="fake-model",
+                    input_per_million=1.0,
+                    cached_input_per_million=0.1,
+                    output_per_million=2.0,
+                    source="https://example.invalid/prices",
+                )
+            ],
+        ),
     )
 
 
@@ -127,6 +146,9 @@ def test_orchestrators_are_built_per_provider_with_registered_components() -> No
     provider = cast(FakeProvider, built.kwargs["provider"])
     assert provider.name == "fake"
     assert provider.model == "fake-model"
+    assert provider.price is not None
+    assert provider.price.input_per_million == 1.0
+    assert built.kwargs["price"] is provider.price
     assert isinstance(built.kwargs["context_policy"], ClearOldestToolResults)
     assert built.kwargs["limits"].run_timeout_s == 12
     assert isinstance(built.kwargs["retriever"], FakeRetriever)

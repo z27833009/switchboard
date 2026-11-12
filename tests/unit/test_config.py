@@ -54,6 +54,17 @@ tenants:
     seller_ids: ["seller-1"]
 """
 
+PRICES = """
+verified_on: "2026-11-12"
+entries:
+  - provider: lmstudio
+    model: null
+    input_per_million: 0.0
+    cached_input_per_million: 0.0
+    output_per_million: 0.0
+    note: no API cost
+"""
+
 MANIFEST = REPO / "mcp_servers" / "olist" / "manifest.yaml"
 
 ENV = {
@@ -65,11 +76,17 @@ ENV = {
 
 
 def write_config(
-    directory: Path, *, platform: str = PLATFORM, providers: str = PROVIDERS, tenants: str = TENANTS
+    directory: Path,
+    *,
+    platform: str = PLATFORM,
+    providers: str = PROVIDERS,
+    tenants: str = TENANTS,
+    prices: str = PRICES,
 ) -> Path:
     (directory / "platform.yaml").write_text(textwrap.dedent(platform), encoding="utf-8")
     (directory / "providers.yaml").write_text(textwrap.dedent(providers), encoding="utf-8")
     (directory / "tenants.yaml").write_text(textwrap.dedent(tenants), encoding="utf-8")
+    (directory / "prices.yaml").write_text(textwrap.dedent(prices), encoding="utf-8")
     return directory
 
 
@@ -94,6 +111,8 @@ def test_load_settings_substitutes_and_validates(tmp_path: Path) -> None:
     assert settings.platform.limits.max_plan_size == 2
     assert settings.providers.providers["lmstudio"].model == "qwen3-8b"
     assert settings.providers.embedders["lmstudio"].dimension == 8
+    assert settings.prices.verified_on.isoformat() == "2026-11-12"
+    assert settings.prices.lookup("lmstudio", "qwen3-8b") is not None
 
     context = tenant_context("default", settings.tenants)
     assert context.allowed_agents == {"direct", "docs"}
@@ -188,10 +207,58 @@ def test_committed_config_files_load() -> None:
     )
     assert settings.platform.limits.fallback_plan == ["docs", "data"]
     assert settings.platform.embedder == "lmstudio"
+    local = settings.prices.lookup("lmstudio", "qwen3-8b")
+    assert local is not None and local.is_zero
+    deepseek = settings.prices.lookup("deepseek", "deepseek-flash")
+    assert deepseek is not None
+    assert deepseek.source == "https://api-docs.deepseek.com/quick_start/pricing"
+    assert settings.prices.lookup("mock") is None
     assert set(settings.tenants.tenants) == {"default", "seller_a"}
     assert settings.tenants.tenants["seller_a"].seller_ids == ["955fee9216a65b617aa5c0531780ce60"]
     assert settings.tenants.tenants["default"].retrieval.search == "hybrid"
     assert settings.tenants.tenants["default"].retrieval.rewrite is True
+
+
+def test_a_missing_price_file_is_a_config_error(tmp_path: Path) -> None:
+    write_config(tmp_path)
+    (tmp_path / "prices.yaml").unlink()
+    with pytest.raises(ConfigError, match=r"prices\.yaml"):
+        load_settings(tmp_path, ENV)
+
+
+def test_a_paid_price_row_needs_a_source(tmp_path: Path) -> None:
+    prices = """
+verified_on: "2026-11-12"
+entries:
+  - provider: paid
+    model: paid-model
+    input_per_million: 1.0
+    cached_input_per_million: 0.1
+    output_per_million: 2.0
+"""
+    with pytest.raises(ConfigError, match="needs a source"):
+        load_settings(write_config(tmp_path, prices=prices), ENV)
+
+
+def test_duplicate_price_rows_are_rejected(tmp_path: Path) -> None:
+    prices = (
+        PRICES
+        + """
+  - provider: lmstudio
+    model: null
+    input_per_million: 0.0
+    cached_input_per_million: 0.0
+    output_per_million: 0.0
+"""
+    )
+    with pytest.raises(ConfigError, match="duplicate price entry"):
+        load_settings(write_config(tmp_path, prices=prices), ENV)
+
+
+def test_a_negative_price_is_rejected(tmp_path: Path) -> None:
+    prices = PRICES.replace("input_per_million: 0.0", "input_per_million: -1.0")
+    with pytest.raises(ConfigError, match="greater than or equal to 0"):
+        load_settings(write_config(tmp_path, prices=prices), ENV)
 
 
 def test_retrieval_settings_default_to_the_phase_one_path() -> None:

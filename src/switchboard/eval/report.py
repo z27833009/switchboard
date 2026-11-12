@@ -1,8 +1,8 @@
 """Markdown and JSON eval reports (design.md sections 20.2 and 20.3).
 
 Every number in a report comes from the run that produced it. A value that was
-not measured (cost, before the price table in T2.06) is ``null`` and the
-markdown says so, rather than a guessed number.
+not measured is ``null`` and the markdown says so, rather than a guessed number:
+cost is null when the provider has no entry in ``config/prices.yaml``.
 """
 
 from __future__ import annotations
@@ -10,12 +10,14 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from switchboard.core.config import PriceEntry
 from switchboard.core.guardrails import PATTERN_BY_ID, PATTERN_SET_VERSION
 from switchboard.core.models import Usage
+from switchboard.core.pricing import compute_cost
 from switchboard.eval.runner import CaseRun
 from switchboard.eval.scorers.routing import plan_label
 from switchboard.gate import CHECK_NAMES
@@ -37,6 +39,10 @@ class ReportMeta:
     smoke: bool
     recording: bool = False
     recorded_with: str | None = None
+    # The price row for the provider and model, or None when the table has no
+    # entry. The date comes from the table so the report can cite its source.
+    price: PriceEntry | None = None
+    price_verified_on: date | None = None
 
 
 def percentile(values: list[int], percent: float) -> float:
@@ -421,6 +427,23 @@ def build_report(meta: ReportMeta, results: list[CaseRun]) -> dict[str, Any]:
     runner_latencies = [result.runner_latency_ms for result in results]
     usage = _usage_totals(results)
     errors = [result.case.id for result in results if result.outcome.error]
+    cost = compute_cost(usage, meta.price) if meta.price is not None else None
+    price = (
+        None
+        if meta.price is None
+        else {
+            "provider": meta.price.provider,
+            "model": meta.price.model,
+            "input_per_million": meta.price.input_per_million,
+            "cached_input_per_million": meta.price.cached_input_per_million,
+            "output_per_million": meta.price.output_per_million,
+            "verified_on": (
+                meta.price_verified_on.isoformat() if meta.price_verified_on is not None else None
+            ),
+            "source": meta.price.source,
+            "note": meta.price.note,
+        }
+    )
 
     if meta.suite == "routing":
         metrics = _routing_metrics(results)
@@ -457,7 +480,9 @@ def build_report(meta: ReportMeta, results: list[CaseRun]) -> dict[str, Any]:
             "output_tokens": usage.output_tokens,
             "total_tokens": usage.total_tokens,
         },
-        "cost_usd": None,
+        "cost_usd": cost,
+        "price": price,
+        "no_api_cost": bool(meta.price is not None and meta.price.is_zero),
         "error_count": len(errors),
         "error_case_ids": errors,
     }
@@ -893,10 +918,27 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"{usage['output_tokens']} | {usage['total_tokens']} |"
     )
     lines.append("")
-    lines.append(
-        "Cost is not reported as USD: no price table exists until T2.06, so the JSON value is "
-        "null. A local model such as LM Studio has no API cost."
-    )
+    if report["cost_usd"] is None:
+        lines.append(
+            f"Cost is not reported: provider `{report['provider']}` has no entry in "
+            "`config/prices.yaml`, so the JSON value is null rather than an invented "
+            "zero. A mock replay makes no billable API call."
+        )
+    elif report["no_api_cost"]:
+        lines.append(
+            f"Cost: USD {report['cost_usd']:.6f} for this run. The provider is local "
+            "(LM Studio), so the run has no API cost; the price table records zero for "
+            "it on purpose."
+        )
+    else:
+        price = report["price"] or {}
+        basis = f"verified on {price.get('verified_on') or 'an unrecorded date'}"
+        if price.get("source"):
+            basis += f", {price['source']}"
+        lines.append(
+            f"Cost: USD {report['cost_usd']:.6f} for this run, from `config/prices.yaml` "
+            f"({basis}). Cached input tokens are billed at the cached rate."
+        )
     lines.append("")
 
     if "confusion_matrix" in report:

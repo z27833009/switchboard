@@ -15,7 +15,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from httpx import ASGITransport, AsyncClient
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
@@ -61,6 +61,7 @@ class MemoryRunStore:
         session_id: str | None,
         query: str,
         orchestrator: str,
+        provider: str | None = None,
     ) -> None:
         self.runs[run_id] = {
             "id": run_id,
@@ -68,6 +69,7 @@ class MemoryRunStore:
             "session_id": session_id,
             "query": query,
             "orchestrator": orchestrator,
+            "provider": provider,
             "plan": None,
             "answer": None,
             "citations": [],
@@ -103,6 +105,7 @@ class MemoryRunStore:
                 "input_tokens": result.usage.input_tokens,
                 "cached_input_tokens": result.usage.cached_input_tokens,
                 "output_tokens": result.usage.output_tokens,
+                "cost_usd": result.cost_usd,
                 "ended_at": result.ended_at or datetime.now(UTC),
                 "trace_complete": trace_complete,
             }
@@ -112,6 +115,44 @@ class MemoryRunStore:
         rows = [dict(row) for row in self.runs.values() if row["tenant_id"] == tenant_id]
         rows.sort(key=lambda row: row["started_at"], reverse=True)
         return rows[:limit]
+
+    async def aggregate_runs(
+        self, *, tenant_id: str, group_by: Literal["day", "provider"]
+    ) -> list[dict[str, Any]]:
+        """The same buckets and ordering as ``AGGREGATE_RUNS_SQL`` (design 12.4)."""
+        buckets: dict[str, list[dict[str, Any]]] = {}
+        for row in self.runs.values():
+            if row["tenant_id"] != tenant_id:
+                continue
+            if group_by == "day":
+                started = row["started_at"]
+                bucket = (
+                    started.astimezone(UTC).date().isoformat()
+                    if isinstance(started, datetime)
+                    else str(started)[:10]
+                )
+            else:
+                bucket = str(row.get("provider") or "unknown")
+            buckets.setdefault(bucket, []).append(row)
+
+        aggregates: list[dict[str, Any]] = []
+        for bucket, rows in buckets.items():
+            costs = [row["cost_usd"] for row in rows if row["cost_usd"] is not None]
+            aggregates.append(
+                {
+                    "bucket": bucket,
+                    "run_count": len(rows),
+                    "input_tokens": sum(int(row.get("input_tokens", 0)) for row in rows),
+                    "cached_input_tokens": sum(
+                        int(row.get("cached_input_tokens", 0)) for row in rows
+                    ),
+                    "output_tokens": sum(int(row.get("output_tokens", 0)) for row in rows),
+                    "cost_usd": round(sum(costs), 8) if costs else None,
+                    "unpriced_runs": sum(1 for row in rows if row["cost_usd"] is None),
+                }
+            )
+        aggregates.sort(key=lambda item: item["bucket"], reverse=group_by == "day")
+        return aggregates
 
     async def get_run(self, run_id: str, *, tenant_id: str) -> dict[str, Any] | None:
         row = self.runs.get(run_id)
@@ -209,12 +250,16 @@ class FakeOrchestrator:
         status: RunStatus = "ok",
         tool_name: str = "orders_summary@1",
         total_rows: int = 7262,
+        usage: Usage | None = None,
+        cost_usd: float | None = None,
     ) -> None:
         self._tracer = tracer
         self._agents = agents
         self._status = status
         self._tool_name = tool_name
         self._total_rows = total_rows
+        self._usage = usage or Usage(input_tokens=150, output_tokens=20)
+        self._cost_usd = cost_usd
         self.queries: list[str] = []
 
     async def run(self, request: ChatRequest, ctx: RunContext) -> RunResult:
@@ -284,7 +329,8 @@ class FakeOrchestrator:
                 usage=Usage(input_tokens=120, output_tokens=12),
             ),
             status=self._status,
-            usage=Usage(input_tokens=150, output_tokens=20),
+            usage=self._usage,
+            cost_usd=self._cost_usd,
             errors=(
                 [ErrorRecord(kind="ToolExecutionError", message="one branch failed")]
                 if self._status == "partial"

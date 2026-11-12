@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
+from datetime import date
 from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -224,12 +225,79 @@ class TenantsConfig(BaseModel):
         return values
 
 
+class PriceEntry(BaseModel):
+    """One provider/model price row, per million tokens in USD (design 12.4).
+
+    ``model`` is null when the price applies to every model that provider
+    serves, which is how the local zero price is written. A specific model row
+    wins over the provider-wide row in ``PricesConfig.lookup``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str = Field(min_length=1)
+    model: str | None = None
+    input_per_million: float = Field(ge=0)
+    cached_input_per_million: float = Field(ge=0)
+    output_per_million: float = Field(ge=0)
+    source: str | None = None
+    note: str | None = None
+
+    @property
+    def is_zero(self) -> bool:
+        """True when every rate is zero, as for a model served on this machine."""
+        return not (
+            self.input_per_million or self.cached_input_per_million or self.output_per_million
+        )
+
+
+class PricesConfig(BaseModel):
+    """The price table read from ``config/prices.yaml`` (design 12.4).
+
+    Every value comes from the provider's price page on ``verified_on``; a paid
+    row without a source URL is rejected, because a remembered price is not a
+    verified price.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    verified_on: date
+    entries: list[PriceEntry] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _check_entries(self) -> Self:
+        seen: set[tuple[str, str | None]] = set()
+        for entry in self.entries:
+            key = (entry.provider, entry.model)
+            if key in seen:
+                label = entry.provider if entry.model is None else f"{entry.provider}/{entry.model}"
+                raise ValueError(f"duplicate price entry for {label}")
+            seen.add(key)
+            if not entry.is_zero and not (entry.source or "").strip():
+                label = entry.provider if entry.model is None else f"{entry.provider}/{entry.model}"
+                raise ValueError(f"price entry for {label} has a nonzero price and needs a source")
+        return self
+
+    def lookup(self, provider: str, model: str | None = None) -> PriceEntry | None:
+        """The most specific row for a provider and model, or None."""
+        fallback: PriceEntry | None = None
+        for entry in self.entries:
+            if entry.provider != provider:
+                continue
+            if entry.model is None:
+                fallback = entry
+            elif model is not None and entry.model == model:
+                return entry
+        return fallback
+
+
 class Settings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     platform: PlatformConfig
     providers: ProvidersConfig
     tenants: TenantsConfig
+    prices: PricesConfig
 
     @model_validator(mode="after")
     def references_exist(self) -> Self:

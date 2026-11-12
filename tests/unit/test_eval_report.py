@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from dataclasses import replace
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
 
+from switchboard.core.config import PriceEntry
 from switchboard.core.models import EvalCase, EvalOutcome, Score, Usage
 from switchboard.eval.report import (
     ReportMeta,
@@ -193,9 +195,64 @@ def test_markdown_states_metadata_smoke_and_missing_cost() -> None:
     assert "Orchestrator: `langgraph`" in markdown
     assert "**Smoke run:**" in markdown
     assert "Cost is not reported" in markdown
-    assert "no API cost" in markdown
+    assert "config/prices.yaml" in markdown
     assert "| plan_accuracy | 1.0000 |" in markdown
     assert "| r001 | query r001 | data | data | yes |" in markdown
+
+
+def test_report_cost_uses_the_cached_input_rate() -> None:
+    price = PriceEntry(
+        provider="deepseek",
+        model="deepseek-flash",
+        input_per_million=0.30,
+        cached_input_per_million=0.006,
+        output_per_million=1.20,
+        source="https://api-docs.deepseek.com/quick_start/pricing",
+    )
+    priced = replace(
+        meta(),
+        provider="deepseek",
+        model="deepseek-flash",
+        price=price,
+        price_verified_on=date(2026, 11, 12),
+    )
+    report = build_report(
+        priced,
+        [
+            routing_result("r001", ["data"], ["data"]),
+            routing_result("r002", ["docs"], ["docs"]),
+            routing_result("r003", ["data"], ["data"]),
+        ],
+    )
+
+    # 30 input / 6 cached / 9 output tokens: 24 uncached, 6 cached, 9 output.
+    expected = (24 * 0.30 + 6 * 0.006 + 9 * 1.20) / 1_000_000
+    assert report["cost_usd"] == pytest.approx(expected, rel=1e-12)
+    assert report["no_api_cost"] is False
+    assert report["price"]["verified_on"] == "2026-11-12"
+    assert report["price"]["source"] == "https://api-docs.deepseek.com/quick_start/pricing"
+    markdown = render_markdown(report)
+    assert "Cost: USD" in markdown
+    assert "https://api-docs.deepseek.com/quick_start/pricing" in markdown
+    assert "Cached input tokens are billed at the cached rate" in markdown
+
+
+def test_report_zero_price_is_no_api_cost() -> None:
+    price = PriceEntry(
+        provider="lmstudio",
+        model=None,
+        input_per_million=0.0,
+        cached_input_per_million=0.0,
+        output_per_million=0.0,
+    )
+    local = replace(meta(), provider="lmstudio", price=price, price_verified_on=date(2026, 11, 12))
+    report = build_report(local, [routing_result("r001", ["data"], ["data"])])
+
+    assert report["cost_usd"] == 0.0
+    assert report["no_api_cost"] is True
+    markdown = render_markdown(report)
+    assert "no API cost" in markdown
+    assert "Cost: USD 0.000000" in markdown
 
 
 def test_write_report_writes_both_files(tmp_path: Path) -> None:

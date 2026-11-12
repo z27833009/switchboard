@@ -28,6 +28,7 @@ from switchboard.core.config import Settings, TenantsConfig
 from switchboard.core.context import ClearOldestToolResults
 from switchboard.core.errors import ConfigError
 from switchboard.core.ports import ContextPolicy, Orchestrator
+from switchboard.core.pricing import lookup_price
 from switchboard.registry import (
     ORCHESTRATORS,
     RETRIEVERS,
@@ -126,7 +127,8 @@ def build_orchestrators(
             provider_config = settings.providers.providers[provider_name]
         except KeyError as exc:
             raise ConfigError(f"unknown provider {provider_name!r}") from exc
-        provider = create_provider(registry, provider_name, provider_config)
+        price = lookup_price(settings.prices, provider_name, provider_config.model)
+        provider = create_provider(registry, provider_name, provider_config, price)
         orchestrators[provider_name] = cast(
             Orchestrator,
             orchestrator_class(
@@ -137,6 +139,7 @@ def build_orchestrators(
                 embedder=embedder,
                 tool_sources=tool_sources,
                 retriever=retriever,
+                price=price,
             ),
         )
     return orchestrators

@@ -37,6 +37,7 @@ class ChatResponse(BaseModel):
     plan: RoutingDecision | None = None
     citations: list[Citation] = Field(default_factory=list)
     usage: Usage = Field(default_factory=lambda: Usage(input_tokens=0, output_tokens=0))
+    cost_usd: float | None = None
     cache_hit: bool = False
     attempts: int = 0
     errors: list[ErrorRecord] = Field(default_factory=list)
@@ -62,6 +63,7 @@ class ChatResponse(BaseModel):
             plan=result.plan,
             citations=answer.citations if answer is not None else [],
             usage=result.usage,
+            cost_usd=result.cost_usd,
             cache_hit=result.cache_hit,
             attempts=result.attempts,
             errors=result.errors,
@@ -79,6 +81,7 @@ class RunSummary(BaseModel):
     session_id: str | None = None
     query: str
     orchestrator: str
+    provider: str | None = None
     plan: str | None = None
     status: RunStatus
     cache_hit: bool = False
@@ -110,6 +113,7 @@ class RunSummary(BaseModel):
             session_id=cast(str | None, row.get("session_id")),
             query=str(row["query"]),
             orchestrator=str(row["orchestrator"]),
+            provider=cast(str | None, row.get("provider")),
             plan=cast(str | None, row.get("plan")),
             status=cast(RunStatus, row["status"]),
             cache_hit=bool(row.get("cache_hit", False)),
@@ -130,6 +134,44 @@ class RunSummary(BaseModel):
 class RunsResponse(BaseModel):
     runs: list[RunSummary]
     count: int
+
+
+class RunAggregateRow(BaseModel):
+    """One day or provider bucket of ``GET /runs?group_by=`` (AC-19b).
+
+    ``cost_usd`` is the sum of the runs that have a price entry and is null
+    when none does. ``unpriced_runs`` counts the rest, so an aggregate never
+    passes an incomplete sum off as the full cost.
+    """
+
+    bucket: str
+    run_count: int
+    input_tokens: int = 0
+    cached_input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float | None = None
+    unpriced_runs: int = 0
+
+    @classmethod
+    def from_row(cls, row: Mapping[str, Any]) -> RunAggregateRow:
+        return cls(
+            bucket=str(row["bucket"]),
+            run_count=int(row["run_count"]),
+            input_tokens=int(row.get("input_tokens", 0)),
+            cached_input_tokens=int(row.get("cached_input_tokens", 0)),
+            output_tokens=int(row.get("output_tokens", 0)),
+            cost_usd=cast(float | None, row.get("cost_usd")),
+            unpriced_runs=int(row.get("unpriced_runs", 0)),
+        )
+
+
+class RunAggregateResponse(BaseModel):
+    """``GET /runs?group_by=day|provider`` for one tenant."""
+
+    group_by: Literal["day", "provider"]
+    tenant_id: str
+    groups: list[RunAggregateRow] = Field(default_factory=list)
+    count: int = 0
 
 
 class AuditRow(BaseModel):
@@ -223,6 +265,8 @@ __all__ = [
     "AuditRow",
     "AuditStatus",
     "ChatResponse",
+    "RunAggregateResponse",
+    "RunAggregateRow",
     "RunSummary",
     "RunsResponse",
     "TraceResponse",
