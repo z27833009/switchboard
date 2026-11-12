@@ -443,7 +443,7 @@ tenants:
       allow: ["docs", "data"]
     tools:
       allow: ["orders_summary@1", "order_lookup@1"]
-    seller_ids: ["3442f8959a84dea7ee197c632cb2df15"]
+    seller_ids: ["955fee9216a65b617aa5c0531780ce60"]
 ```
 
 Tools not listed under `allow` or `ask` are denied.

@@ -135,4 +135,4 @@ def test_committed_config_files_load() -> None:
     assert settings.platform.limits.fallback_plan == ["docs", "data"]
     assert settings.platform.embedder == "lmstudio"
     assert set(settings.tenants.tenants) == {"default", "seller_a"}
-    assert settings.tenants.tenants["seller_a"].seller_ids == ["3442f8959a84dea7ee197c632cb2df15"]
+    assert settings.tenants.tenants["seller_a"].seller_ids == ["955fee9216a65b617aa5c0531780ce60"]

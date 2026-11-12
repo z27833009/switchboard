@@ -1,0 +1,19 @@
+{
+  "suite": "toolcall",
+  "metric": "both_accuracy",
+  "dataset_version": "v1",
+  "split": "all",
+  "case_count": 40,
+  "provider": "mock",
+  "model": "qwen3-8b",
+  "source_report": "evals/reports/toolcall-mock.json",
+  "metrics": {
+    "tool_name_accuracy": 0.95,
+    "argument_accuracy": 0.95,
+    "both_accuracy": 0.95,
+    "tool_calls_per_case": 0.95,
+    "redundant_call_rate": 0.0,
+    "cases_with_redundant_calls": 0.0,
+    "case_pass_rate": 0.95
+  }
+}

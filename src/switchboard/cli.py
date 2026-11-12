@@ -28,6 +28,7 @@ from switchboard.data.olist import (
     read_expected,
 )
 from switchboard.eval.datasets import dataset_path
+from switchboard.eval.gate import DEFAULT_MAX_DROP, default_report_path, evaluate_gate
 from switchboard.eval.manifest import DEFAULT_TOOL_MANIFEST, load_tool_specs
 from switchboard.eval.report import ReportMeta, build_report, write_report
 from switchboard.eval.runner import (
@@ -334,6 +335,60 @@ def eval_run(
     typer.echo(f"wall time {elapsed:.2f} s")
     typer.echo(f"wrote {markdown_path}")
     typer.echo(f"wrote {json_path}")
+
+
+@eval_app.command("gate")
+def eval_gate(
+    suite: Annotated[str, typer.Option("--suite", help="Suite name: routing or toolcall.")],
+    baseline: Annotated[
+        Path,
+        typer.Option(
+            "--baseline",
+            help="Committed baseline JSON, for example evals/baselines/routing.json.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ],
+    max_drop: Annotated[
+        float,
+        typer.Option(
+            "--max-drop",
+            help="Largest allowed drop from the baseline before the gate fails.",
+        ),
+    ] = DEFAULT_MAX_DROP,
+    report: Annotated[
+        Path | None,
+        typer.Option(
+            "--report",
+            help="Current report JSON; defaults to evals/reports/<suite>-mock.json.",
+        ),
+    ] = None,
+) -> None:
+    """Compare a report against a committed baseline and fail on a regression."""
+    report_path = report if report is not None else default_report_path(suite)
+    try:
+        result = evaluate_gate(
+            suite=suite,
+            baseline_path=baseline,
+            report_path=report_path,
+            max_drop=max_drop,
+        )
+    except SwitchboardError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    typer.echo(f"suite {result.suite}, metric {result.metric}")
+    typer.echo(f"baseline {result.baseline:.4f} ({baseline})")
+    typer.echo(f"current {result.current:.4f} ({report_path})")
+    typer.echo(f"drop {result.drop:.4f}, allowed {result.max_drop:.4f}")
+    if not result.passed:
+        typer.echo(
+            f"gate failed: {result.metric} dropped {result.drop:.4f}, "
+            f"more than the allowed {result.max_drop:.4f}",
+            err=True,
+        )
+        raise typer.Exit(1)
+    typer.echo("gate passed")
 
 
 if __name__ == "__main__":

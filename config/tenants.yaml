@@ -19,4 +19,4 @@ tenants:
     tools:
       allow: ["orders_summary@1", "order_lookup@1"]
       ask: []
-    seller_ids: ["3442f8959a84dea7ee197c632cb2df15"]
+    seller_ids: ["955fee9216a65b617aa5c0531780ce60"]

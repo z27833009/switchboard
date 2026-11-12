@@ -39,8 +39,9 @@ pytestmark = [
     ),
 ]
 
-ORDER_ID = "e481f51cbdc54678b7cc49136f2d6af7"
-SELLER_A = "3442f8959a84dea7ee197c632cb2df15"
+# Both ids occur in the committed 1000-order sample, so this test behaves the
+# same against the sample in CI and the full download locally.
+ORDER_ID = "044bcd01474ba715e7cb11d5a70ccf0e"
 
 
 def mint(tenant_id: str = "default", ttl_s: int = 60) -> tuple[str, str]:
@@ -149,8 +150,10 @@ async def test_calls_every_tool_and_writes_audit_rows() -> None:
             assert len(body["rows"]) <= 200
             uuid.UUID(body["audit_id"])
             if name == "orders_late@1":
-                assert body["total_rows"] > 200
-                assert len(body["rows"]) == 200
+                # The sample has 65 late orders; against the full download this
+                # branch also proves the 200-row cap.
+                assert body["total_rows"] > 0
+                assert len(body["rows"]) == min(body["total_rows"], 200)
 
     rows = await audit_rows(run_id)
     assert [row["tool_name"] for row in rows] == [name.split("@")[0] for name in calls]

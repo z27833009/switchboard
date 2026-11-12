@@ -1,0 +1,17 @@
+{
+  "suite": "routing",
+  "metric": "plan_accuracy",
+  "dataset_version": "v1",
+  "split": "test",
+  "case_count": 39,
+  "provider": "mock",
+  "model": "qwen3-8b",
+  "source_report": "evals/reports/routing-mock.json",
+  "metrics": {
+    "plan_accuracy": 0.5385,
+    "plan_jaccard": 0.6667,
+    "case_pass_rate": 0.5385,
+    "unambiguous_plan_accuracy": 0.5294,
+    "ambiguous_plan_accuracy": 0.6
+  }
+}

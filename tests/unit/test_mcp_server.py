@@ -31,7 +31,7 @@ def test_tenants_carry_allowlists_and_seller_scope() -> None:
         "orders_summary@1",
         "order_lookup@1",
     }
-    assert tenants["seller_a"].seller_ids == ("3442f8959a84dea7ee197c632cb2df15",)
+    assert tenants["seller_a"].seller_ids == ("955fee9216a65b617aa5c0531780ce60",)
 
 
 def test_manifest_file_reloads_identically() -> None:

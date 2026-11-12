@@ -4,6 +4,8 @@
 
 Switchboard takes a user question, lets a supervisor decide whether to answer directly, search documents, query a business database through MCP tools, or do several of these in parallel, and then shows you exactly what happened and what it cost. Adding a new agent, tool, model provider, retriever, cache strategy or evaluation suite means implementing one interface and registering it, not changing core code.
 
+[![CI](https://github.com/z27833009/switchboard/actions/workflows/ci.yml/badge.svg)](https://github.com/z27833009/switchboard/actions/workflows/ci.yml)
+
 > Status: **planning**. The specification is complete and under review. No application code exists yet. Every metric mentioned in the docs is a target until it is measured and the status column says so.
 
 ## Why this exists
@@ -38,6 +40,10 @@ cd switchboard
 cp .env.example .env
 docker compose up
 ```
+
+## Continuous integration
+
+CI runs lint, type checks, unit and contract tests, the integration tests against a PostgreSQL 16 service and a locally started Olist MCP server, and the routing and toolcall eval suites on the `mock` provider. The mock provider replays recorded model output, so the eval gate measures the pipeline (parsing, plan validation, tool normalization, scoring), not the model. A prompt change alters the fixture keys, which forces a re-record against a real model and produces a new report. The gate compares against the committed files in [evals/baselines/](evals/baselines/) and fails on a drop larger than 0.05; baselines are updated by committing a new file. See [ADR 0008](docs/adr/0008-evaluation-strategy.md).
 
 ## License
 
