@@ -43,6 +43,9 @@ mock = "switchboard.adapters.embedders.mock:MockEmbedder"
 [project.entry-points."switchboard.tool_sources"]
 mcp = "switchboard.adapters.tools.mcp_client:McpToolSource"
 
+[project.entry-points."switchboard.retrievers"]
+pgvector = "switchboard.adapters.retrievers.pgvector:PgVectorRetriever"
+
 [dependency-groups]
 dev = [
   "import-linter==2.16",
