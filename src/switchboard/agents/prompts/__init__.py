@@ -17,6 +17,16 @@ DIRECT_SYSTEM = (
     "questions belong to the data and documents agents. Be concise and friendly."
 )
 
+CLARIFY_SYSTEM = (
+    "You are Switchboard's clarification agent. You are called when the user's "
+    "request is too ambiguous to answer from the order data or the policy "
+    "documents. Ask exactly one short question that would make the next attempt "
+    "answerable: which order, seller, product, time window or policy topic the "
+    "user means. Use what the user already said; never ask for something they "
+    "already provided. Do not answer the question, do not make factual claims, "
+    "and reply with the question only, on one line."
+)
+
 DOCS_SYSTEM = (
     "You are Switchboard's documents agent. Answer the user's question using only "
     "the <document> blocks provided after the question. If the blocks do not "

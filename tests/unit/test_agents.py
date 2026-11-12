@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import pytest
 
+from switchboard.agents.clarify import FALLBACK_QUESTION, ClarifyAgent, clean_question
 from switchboard.agents.data import DataAgent
 from switchboard.agents.direct import DirectAgent
 from switchboard.agents.docs import DocsAgent
@@ -28,6 +29,7 @@ from switchboard.core.models import (
     ToolCall,
     ToolResult,
     ToolSpec,
+    Turn,
     Usage,
 )
 from switchboard.core.ports import AgentDeps
@@ -423,5 +425,41 @@ async def test_result_page_tool_source_rejects_unknown_results() -> None:
 
 def test_registry_resolves_the_agent_entry_points() -> None:
     registry = Registry()
-    assert set(registry.names(AGENTS)) == {"direct", "docs", "data"}
+    assert set(registry.names(AGENTS)) == {"direct", "docs", "data", "clarify"}
     assert registry.load(AGENTS, "direct") is DirectAgent
+    assert registry.load(AGENTS, "clarify") is ClarifyAgent
+
+
+async def test_clarify_agent_returns_one_question_and_the_marker() -> None:
+    provider = FakeProvider([completion("Which month do you mean?\nMarch or April?")])
+    clarify_task = AgentTask(
+        query="How many were late?",
+        history=[Turn(role="user", content="Tell me about late orders")],
+        budget=Budget(max_tool_steps=0, max_tokens=256),
+    )
+    result = await ClarifyAgent().run(clarify_task, deps(provider))
+
+    assert result.answer == "Which month do you mean?"
+    assert result.answer.count("?") == 1
+    assert result.needs_clarification is True
+    assert result.partial is False
+    assert result.citations == []
+    # The history reaches the model before the question (design.md 6.4).
+    sent = provider.requests[0].messages
+    assert [message.role for message in sent] == ["system", "user", "user"]
+    assert sent[1].content == "Tell me about late orders"
+
+
+async def test_clarify_agent_falls_back_when_the_model_returns_nothing() -> None:
+    provider = FakeProvider([completion("  ")])
+    result = await ClarifyAgent().run(task(), deps(provider))
+
+    assert result.answer == FALLBACK_QUESTION
+    assert result.answer.endswith("?")
+    assert result.needs_clarification is True
+
+
+def test_clean_question_keeps_one_line_and_one_question() -> None:
+    assert clean_question('  "Which seller?"  ') == "Which seller?"
+    assert clean_question("Tell me the month.") == "Tell me the month?"
+    assert clean_question("\n\n") == ""

@@ -128,6 +128,26 @@ def _failed_result(
     )
 
 
+async def request_with_history(deps: AppDeps, request: ChatRequest) -> ChatRequest:
+    """Attach the session's stored turns, when the request names a session.
+
+    Server-side history is authoritative: a request with a ``session_id`` gets
+    the last ``deps.history_turns`` completed runs of that tenant and session
+    (oldest first), and any client-supplied ``history`` is ignored. That way the
+    browser only has to keep a session id, and a client cannot inject turns.
+    Without a ``session_id`` the client history is used unchanged (design.md
+    6.3, AC-23a).
+    """
+    if not request.session_id:
+        return request
+    turns = await deps.store.load_session_turns(
+        tenant_id=request.tenant_id,
+        session_id=request.session_id,
+        limit=deps.history_turns,
+    )
+    return request.model_copy(update={"history": turns})
+
+
 async def execute_run(
     deps: AppDeps,
     request: ChatRequest,
@@ -139,6 +159,9 @@ async def execute_run(
     """One run: run row, orchestrator, flush, final row (design 5 and 12.2)."""
     orchestrator = deps.orchestrator_for(tenant.provider)
     context = _run_context(deps, tenant, run_id, trace_parent)
+    # Loaded before the new run row exists, so the current query is not part of
+    # its own history.
+    request = await request_with_history(deps, request)
     await deps.store.start_run(
         run_id=run_id,
         tenant_id=tenant.tenant_id,
@@ -525,5 +548,6 @@ __all__ = [
     "health",
     "list_audit",
     "list_runs",
+    "request_with_history",
     "require_run_token_secret",
 ]

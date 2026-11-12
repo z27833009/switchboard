@@ -135,6 +135,32 @@ async def test_routing_suite_executes_and_scores_a_valid_plan() -> None:
     assert len(provider.requests) == 1
 
 
+async def test_routing_suite_measures_only_the_agents_the_dataset_labels() -> None:
+    """A new registered agent cannot move a frozen dataset version (T2.09)."""
+    clarify = AgentSpec(
+        name="clarify",
+        description="asks one clarifying question",
+        cacheable=False,
+        exclusive=True,
+    )
+    suite = RoutingSuite(agent_specs=[*specs(), clarify], max_plan_size=3)
+    cases = suite.load("v1")
+    case = next(item for item in cases if item.id == "r003")
+    provider = ScriptedProvider(response(parsed={"agents": ["data"], "reason": "orders"}))
+
+    outcome = await suite.execute(case, EvalDeps(provider=provider))
+
+    assert outcome.plan == ["data"]
+    request = provider.requests[0]
+    assert request.response_schema is not None
+    assert request.response_schema["properties"]["agents"]["items"]["enum"] == [
+        "data",
+        "direct",
+        "docs",
+    ]
+    assert "clarify" not in request.messages[1].content
+
+
 async def test_routing_suite_records_an_invalid_plan() -> None:
     suite = RoutingSuite(agent_specs=specs(), max_plan_size=3)
     provider = ScriptedProvider(response(parsed={"agents": ["bogus"], "reason": "x"}))

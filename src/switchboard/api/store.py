@@ -1,9 +1,13 @@
 """Run and span persistence (design.md sections 12.2 and 14).
 
 ``RunStore`` is the small surface the API needs: start a run, finish it, list
-runs, read one run and read the spans of one run. ``PgRunStore`` is the
-production implementation on the application-role pool; tests use a memory
-store so HTTP and SSE tests run without PostgreSQL.
+runs, read one run, read the spans of one run, and load the recent turns of one
+session. ``PgRunStore`` is the production implementation on the application-role
+pool; tests use a memory store so HTTP and SSE tests run without PostgreSQL.
+
+Session turns are read with the tenant and the session id in SQL, so a request
+can never see another tenant's or another session's turns (design.md 11 and
+section 6.3), and they are returned oldest first.
 """
 
 from __future__ import annotations
@@ -16,7 +20,7 @@ from typing import Any, Literal, Protocol
 
 import asyncpg
 
-from switchboard.core.models import RunResult
+from switchboard.core.models import RunResult, Turn
 from switchboard.tracing.runs import insert_run
 
 RUN_COLUMNS = """
@@ -102,6 +106,27 @@ WHERE run_id = $1
 ORDER BY start_time, span_id
 """
 
+# The last N turns of one session: one completed run is one turn, so the newest
+# ``limit`` rows are selected first and then returned oldest first. Both the
+# tenant and the session id are in the WHERE clause, so neither can leak
+# (design.md sections 6.3 and 11). A run still running, or one that stored no
+# answer, is not a turn.
+SESSION_TURNS_SQL = """
+SELECT query, answer
+FROM (
+    SELECT id, query, answer, started_at
+    FROM public.runs
+    WHERE tenant_id = $1
+      AND session_id = $2
+      AND status <> 'running'
+      AND answer IS NOT NULL
+      AND answer <> ''
+    ORDER BY started_at DESC, id DESC
+    LIMIT $3
+) AS recent
+ORDER BY started_at ASC, id ASC
+"""
+
 
 def decode_json(value: Any, default: Any) -> Any:
     """asyncpg returns jsonb as text unless a codec is installed."""
@@ -149,6 +174,21 @@ def span_row(row: Mapping[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def session_turns(rows: Sequence[Mapping[str, Any]]) -> list[Turn]:
+    """Turn stored run rows into user and assistant turns, oldest first."""
+    turns: list[Turn] = []
+    for row in rows:
+        query = row.get("query")
+        answer = row.get("answer")
+        if not isinstance(query, str) or not query.strip():
+            continue
+        if not isinstance(answer, str) or not answer.strip():
+            continue
+        turns.append(Turn(role="user", content=query))
+        turns.append(Turn(role="assistant", content=answer))
+    return turns
+
+
 class RunStore(Protocol):
     """What the API needs from run storage, implemented by the pool and tests."""
 
@@ -172,6 +212,10 @@ class RunStore(Protocol):
     ) -> list[dict[str, Any]]: ...
 
     async def get_run(self, run_id: str, *, tenant_id: str) -> dict[str, Any] | None: ...
+
+    async def load_session_turns(
+        self, *, tenant_id: str, session_id: str, limit: int
+    ) -> list[Turn]: ...
 
     async def fetch_spans(self, run_id: str) -> list[dict[str, Any]]: ...
 
@@ -245,6 +289,14 @@ class PgRunStore:
         row = await self._pool.fetchrow(GET_RUN_SQL, uuid.UUID(run_id), tenant_id)
         return None if row is None else run_row(row)
 
+    async def load_session_turns(
+        self, *, tenant_id: str, session_id: str, limit: int
+    ) -> list[Turn]:
+        if limit <= 0:
+            return []
+        rows = await self._pool.fetch(SESSION_TURNS_SQL, tenant_id, session_id, limit)
+        return session_turns(rows)
+
     async def fetch_spans(self, run_id: str) -> list[dict[str, Any]]:
         rows = await self._pool.fetch(FETCH_SPANS_SQL, uuid.UUID(run_id))
         return [span_row(row) for row in rows]
@@ -264,6 +316,7 @@ def rows_are_complete(name_rows: Sequence[Mapping[str, Any]]) -> bool:
 
 __all__ = [
     "AGGREGATE_RUNS_SQL",
+    "SESSION_TURNS_SQL",
     "PgRunStore",
     "RunStore",
     "aggregate_row",
@@ -271,5 +324,6 @@ __all__ = [
     "parse_run_id",
     "rows_are_complete",
     "run_row",
+    "session_turns",
     "span_row",
 ]

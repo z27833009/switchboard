@@ -53,6 +53,7 @@ pgvector = "switchboard.adapters.retrievers.pgvector:PgVectorRetriever"
 direct = "switchboard.agents.direct:DirectAgent"
 docs = "switchboard.agents.docs:DocsAgent"
 data = "switchboard.agents.data:DataAgent"
+clarify = "switchboard.agents.clarify:ClarifyAgent"
 
 [project.entry-points."switchboard.orchestrators"]
 langgraph = "switchboard.adapters.orchestrator.langgraph_impl:LangGraphOrchestrator"

@@ -56,6 +56,9 @@ class AppDeps:
     tenants: TenantsConfig
     run_token_secret: str
     run_timeout_s: float
+    # How many completed turns of a session the API gives the orchestrator
+    # (limits.history_turns in config/platform.yaml, design.md 6.3).
+    history_turns: int = 3
     publisher: StepEventPublisher = field(default_factory=StepEventPublisher)
     tracing: TracerFlusher | None = None
     health: HealthCheck | None = None
@@ -205,6 +208,7 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
         tenants=settings.tenants,
         run_token_secret=secret,
         run_timeout_s=settings.platform.limits.run_timeout_s,
+        history_turns=settings.platform.limits.history_turns,
         publisher=publisher,
         tracing=tracing,
         closer=close,

@@ -6,7 +6,8 @@
 # checked against mcp_servers/olist/manifest.yaml).
 #
 #   provider:  name of a provider in providers.yaml
-#   agents.allow: registered agent names the supervisor may plan with
+#   agents.allow: registered agent names the supervisor may plan with; clarify
+#                 asks one question and ends the run with needs_clarification
 #   tools.allow:  tool wire names the tenant may call without approval
 #   tools.ask:    tool wire names that would need human approval (v2); this
 #                 phase denies them, same as tools missing from both lists
@@ -24,7 +25,7 @@ tenants:
   default:
     provider: lmstudio
     agents:
-      allow: ["direct", "docs", "data"]
+      allow: ["direct", "docs", "data", "clarify"]
     tools:
       allow:
         - orders_summary@1
@@ -42,7 +43,7 @@ tenants:
   seller_a:
     provider: lmstudio
     agents:
-      allow: ["docs", "data"]
+      allow: ["docs", "data", "clarify"]
     tools:
       allow:
         - orders_summary@1

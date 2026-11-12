@@ -249,7 +249,10 @@ class LangGraphOrchestrator:
         schema = plan_schema([spec.name for spec in available], self._limits.max_plan_size)
         messages = [
             Message(role="system", content=SUPERVISOR_SYSTEM),
-            Message(role="user", content=supervisor_prompt(available, request.query)),
+            Message(
+                role="user",
+                content=supervisor_prompt(available, request.query, request.history),
+            ),
         ]
         if previous is not None:
             gate_reason = verdict.reason if verdict is not None else "the plan was rejected"
@@ -626,6 +629,18 @@ class LangGraphOrchestrator:
                 answer = answer.model_copy(
                     update={"answer": answer.answer.rstrip() + note, "partial": True}
                 )
+        # A single-agent plan whose answer is a question back to the user ends
+        # the run as needs_clarification. The marker is on the result, not on an
+        # agent name, so a new agent needs no change here (design.md 6.4).
+        plan = state.get("plan")
+        if (
+            answer is not None
+            and answer.needs_clarification
+            and plan is not None
+            and len(plan.agents) == 1
+            and (verdict is None or verdict.passed)
+        ):
+            status = "needs_clarification"
         return {
             "result": RunResult(
                 run_id=ctx.run_id,

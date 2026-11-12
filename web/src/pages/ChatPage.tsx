@@ -87,6 +87,12 @@ function AnswerPanel({ result }: { result: ChatResponse }) {
       </div>
       <p className="meta">
         run <code>{result.run_id}</code> tenant <code>{result.tenant_id}</code>
+        {result.session_id !== null ? (
+          <>
+            {" "}
+            session <code>{result.session_id}</code>
+          </>
+        ) : null}
         {plan !== null ? ` plan ${plan.agents.join("+") || "(none)"}` : " no plan"}
         {result.cache_hit ? " cache hit" : ""}
       </p>
@@ -137,6 +143,56 @@ function AnswerPanel({ result }: { result: ChatResponse }) {
   );
 }
 
+function ClarifyPanel({ result }: { result: ChatResponse }) {
+  // needs_clarification is not an answer: the agent asked a question back, so
+  // the panel shows the question and the status, never answer styling.
+  return (
+    <section className="panel panel-clarify">
+      <div className="panel-header">
+        <h3>Clarification needed</h3>
+        <StatusBadge status={result.status} />
+      </div>
+      <p className="meta">
+        run <code>{result.run_id}</code> tenant <code>{result.tenant_id}</code>
+        {result.session_id !== null ? (
+          <>
+            {" "}
+            session <code>{result.session_id}</code>
+          </>
+        ) : null}
+        {result.plan !== null ? ` plan ${result.plan.agents.join("+") || "(none)"}` : " no plan"}
+      </p>
+      <p className="clarify-question">
+        {result.answer !== null && result.answer !== ""
+          ? result.answer
+          : "The agent asked for clarification without a question."}
+      </p>
+      <p className="muted">
+        Answer in the same conversation and the stored turn is used as context for the next request. This
+        run ended as <code>needs_clarification</code>; it is not a factual answer and has no citations.
+      </p>
+      <ErrorList errors={result.errors} />
+      <p className="links">
+        <a href={`#/runs/${encodeURIComponent(result.run_id)}`}>Open run</a>
+      </p>
+    </section>
+  );
+}
+
+function newSessionId(): string {
+  // One id per conversation, generated here so the server-side turns of this
+  // browser session are the ones the next request receives (T2.09).
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 function StreamingAnswerPanel({ text }: { text: string }) {
   return (
     <section className="panel">
@@ -152,6 +208,7 @@ function StreamingAnswerPanel({ text }: { text: string }) {
 export function ChatPage() {
   const [tenant, setTenant] = useState(TENANTS[0]);
   const [query, setQuery] = useState("");
+  const [sessionId, setSessionId] = useState<string>(() => newSessionId());
   const [steps, setSteps] = useState<StepEvent[]>([]);
   const [streamedAnswer, setStreamedAnswer] = useState("");
   const [result, setResult] = useState<ChatResponse | null>(null);
@@ -165,6 +222,18 @@ export function ChatPage() {
       controllerRef.current?.abort();
     };
   }, []);
+
+  function startNewConversation() {
+    if (streaming) {
+      return;
+    }
+    setSessionId(newSessionId());
+    setSteps([]);
+    setStreamedAnswer("");
+    setResult(null);
+    setError(null);
+    setEndedWithoutResult(false);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -183,7 +252,7 @@ export function ChatPage() {
     let sawRunFinished = false;
     try {
       await postChatStream(
-        { query: trimmed, tenant_id: tenant },
+        { query: trimmed, tenant_id: tenant, session_id: sessionId },
         (step) => {
           if (step.type === "answer.delta") {
             // Deltas go straight to the live answer. The step timeline keeps
@@ -247,6 +316,12 @@ export function ChatPage() {
             {streaming ? "Running..." : "Send"}
           </button>
         </form>
+        <p className="meta session-line">
+          session <code>{sessionId}</code>{" "}
+          <button type="button" className="link-button" onClick={startNewConversation} disabled={streaming}>
+            New conversation
+          </button>
+        </p>
         {streaming ? <p className="muted">Waiting for steps. Each step appears when the API publishes it.</p> : null}
       </section>
 
@@ -270,13 +345,19 @@ export function ChatPage() {
       {result === null && streamedAnswer !== "" ? (
         <StreamingAnswerPanel text={streamedAnswer} />
       ) : null}
-      {result !== null ? <AnswerPanel result={result} /> : null}
+      {result !== null && result.status === "needs_clarification" ? (
+        <ClarifyPanel result={result} />
+      ) : null}
+      {result !== null && result.status !== "needs_clarification" ? (
+        <AnswerPanel result={result} />
+      ) : null}
 
       {steps.length === 0 && !streaming && error === null && !endedWithoutResult ? (
         <section className="panel">
           <p className="muted">
             Send a question to stream the run. Answer text appears as it is generated and is replaced
-            by the final answer, with its citations, after run.finished.
+            by the final answer, with its citations, after run.finished. Follow-ups such as "And in
+            April?" reuse this conversation through the session id shown above.
           </p>
         </section>
       ) : null}
@@ -284,10 +365,13 @@ export function ChatPage() {
       <details className="panel raw-details">
         <summary>How this page talks to the API</summary>
         <p>
-          The page posts <code>{`{query, tenant_id}`}</code> to <code>/api/chat/stream</code> and renders
-          the server-sent events as they arrive. <code>answer.delta</code> events fill the live answer;
-          <code>run.finished</code> carries the final answer and its citations. Nothing on this page is
-          generated by the browser beyond formatting the payloads.
+          The page posts <code>{`{query, tenant_id, session_id}`}</code> to <code>/api/chat/stream</code> and
+          renders the server-sent events as they arrive. The session id is generated once per conversation and
+          sent on every request, so the API can give the last stored turns to the supervisor and agents.
+          <code>answer.delta</code> events fill the live answer; <code>run.finished</code> carries the final
+          answer, its status and its citations. A <code>needs_clarification</code> status means the run ended
+          with a question back to you, not an answer. Nothing on this page is generated by the browser beyond
+          formatting the payloads.
         </p>
       </details>
     </div>

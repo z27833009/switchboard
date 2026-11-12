@@ -196,6 +196,7 @@ class AgentResult(BaseModel):
     usage: Usage
     cost_usd: float | None = None   # sum of this agent's calls (12.4)
     partial: bool = False      # set when evidence was missing or a branch failed
+    needs_clarification: bool = False  # v1: answer is a question back to the user
 
 class EvidenceRef(BaseModel):
     kind: Literal["document", "tool"]
@@ -233,6 +234,10 @@ There is no `Route` enum. The routing decision carries no self-reported confiden
 `RunResult` carries the final `plan`, the `previous_plan` set on a re-plan, the final `gate` verdict, `attempts` and `errors`, so a caller can see what the gate rejected and which corrective action ran (6.8). It also carries `cost_usd`: the run's USD cost computed from the summed `usage` and the price row for its provider (12.4), or `None` when that provider has no row.
 
 Dependencies are injected through `AgentDeps` and `RunContext` (provider, embedder, tool sources, retriever, cache, context policy, tracer, and in v1 the answer delta sink), never imported globally. `AgentDeps.answer_delta` is `None` unless the caller wants live answer tokens; an agent that has one attaches it to a streamed answer call and the provider calls it with each text fragment (8.1).
+
+Sessions (v1). `ChatRequest.session_id` is optional. When it is set, the API loads the last `limits.history_turns` completed runs of that tenant and session from the `runs` table, oldest first, as user and assistant `Turn`s, and puts them in `ChatRequest.history`; a client-supplied `history` is ignored in that case, so server-side stored history is authoritative and a browser only has to keep a session id. Without a session id the client history is passed through unchanged. The orchestrator gives the same `AgentTask.history` to the supervisor prompt and to every agent, which is what lets a follow-up such as "And in April?" be resolved (6.3, 9.3). The tenant and session id are both in the SQL filter (11).
+
+`AgentResult.needs_clarification` is the generic v1 marker for an answer that is a question back to the user. The orchestrator sets `RunStatus` `needs_clarification` when a single-agent plan produced such a result; it never checks an agent name, so a new clarification agent is one class plus one entry point (6.4).
 
 ## 5. Request flow
 
@@ -343,6 +348,8 @@ The model can only choose agents that exist and that the tenant may use. After p
 
 On a re-plan (6.8) the prompt includes the previous plan and the gate's reason, and the new plan must differ from the previous one.
 
+With history (v1) the dynamic user message also carries the recent turns, after the agent list and instructions and before the question, with one instruction to resolve the new question against them. The static system prompt and the prefix it forms never change with history, and without history the message is byte-identical to the Phase 1 prompt, so the routing eval fixtures and their measurement do not move (8.5, 20.2).
+
 Adding an agent is one class with an `AgentSpec` and one entry point. The supervisor prompt, the schema, the graph and the cache rule pick it up without change.
 
 ### 6.4 Agent contract
@@ -365,6 +372,8 @@ Phase 1 agents:
 | `docs` | cacheable, needs retriever | Retrieves chunks, answers with document citations. v1 adds query rewriting (9.3) |
 | `data` | not cacheable, needs tools | Bounded tool loop over the tenant's MCP tools plus the platform tool `result_page@1`, answers with tool citations |
 | `clarify` (v1) | not cacheable, exclusive | Returns one clarifying question; the run ends with status `needs_clarification` |
+
+An agent marks a question-back result with `AgentResult.needs_clarification`, not with a name the orchestrator knows. `MergeAgent` returns the single result unchanged, so an exclusive clarification plan keeps its marker; a merged multi-agent answer never does.
 
 `MergeAgent` is not routable. The orchestrator calls it when a plan has more than one agent; it combines answers, keeps all citations and states which source is missing if a branch was partial.
 
@@ -700,6 +709,7 @@ Logical isolation, enforced at every layer:
 | Cache | tenant id in the key |
 | Traces and runs | tenant id attribute on every span; `GET /runs`, `GET /runs/{id}` and `GET /runs/{id}/trace` require `tenant_id` and filter on it, and another tenant's run answers 404 like a missing one |
 | Audit | tenant id column, taken from the token |
+| Sessions | the history query filters on `tenant_id` and `session_id` together, so turns never cross a tenant or a session; a reused session id under another tenant reads an empty history |
 
 The tenant schema (AC-11a):
 
@@ -788,7 +798,7 @@ DeepSeek publishes peak and off-peak rates (off-peak is half). The committed row
 | `answer.delta` | provider answer stream (v1) | text fragment |
 | `run.finished` | after flush | final payload as in `POST /chat` |
 
-v1 ships answer token streaming. The orchestrator is built with a run-scoped delta sink (in the API, `StepEventProcessor.publish_answer_delta`), puts it in `AgentDeps`, an agent attaches it to an answer call, and the provider calls it for each fragment. Only agent answer calls without tools stream: supervisor plans and tool-call rounds stay non-streaming. Eval runs and unit tests leave the sink unset, so their provider calls and results do not change. `run.finished` is always the last event and its final answer replaces the streamed text in the UI; fragments are live only and are not stored in the trace, so the final answer and its citations remain the source of truth.
+v1 ships answer token streaming. The orchestrator is built with a run-scoped delta sink (in the API, `StepEventProcessor.publish_answer_delta`), puts it in `AgentDeps`, an agent attaches it to an answer call, and the provider calls it for each fragment. Only agent answer calls without tools stream: supervisor plans and tool-call rounds stay non-streaming. Eval runs and unit tests leave the sink unset, so their provider calls and results do not change. `run.finished` is always the last event and its final answer replaces the streamed text in the UI; fragments are live only and are not stored in the trace, so the final answer and its citations remain the source of truth. The final payload carries the run status, so a clarification run ends with `needs_clarification` and its answer is the question, which the chat page renders as a clarification rather than an answer.
 
 ## 13. Security
 

@@ -7,9 +7,10 @@ only core models (design.md section 6.3).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
-from switchboard.core.models import AgentSpec
+from switchboard.core.models import AgentSpec, Turn
 
 SUPERVISOR_SYSTEM = (
     "You are Switchboard's routing supervisor. Choose every registered agent "
@@ -42,13 +43,33 @@ def plan_schema(names: list[str], max_items: int) -> dict[str, Any]:
     }
 
 
-def supervisor_prompt(available: list[AgentSpec], query: str) -> str:
+def supervisor_prompt(
+    available: list[AgentSpec],
+    query: str,
+    history: Sequence[Turn] | None = None,
+) -> str:
+    """The dynamic part of the supervisor request.
+
+    The static system prompt comes first and is never touched here (design.md
+    8.5). The recent turns sit between the instructions and the question, so a
+    follow-up such as "And in April?" can be resolved against them; without
+    history the output is byte-identical to the Phase 1 prompt, which keeps the
+    routing eval fixtures and their measurement unchanged.
+    """
     lines = ["Available agents:"]
     lines.extend(f"- {spec.name}: {spec.description}" for spec in available)
     lines.append(
         "Choose every agent whose evidence the question needs, and only those. "
         "Return a JSON object with an agents array and a reason."
     )
+    turns = list(history or [])
+    if turns:
+        lines.append("Recent turns in this session, oldest first:")
+        lines.extend(f"{turn.role}: {turn.content}" for turn in turns)
+        lines.append(
+            "Resolve the new question against those turns: it may refer back to "
+            "their dates, orders, products or policy topic."
+        )
     lines.append(f"Question: {query}")
     return "\n".join(lines)
 

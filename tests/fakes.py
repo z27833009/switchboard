@@ -31,6 +31,7 @@ from switchboard.api.step_events import (
     StepEventProcessor,
     StepEventPublisher,
 )
+from switchboard.api.store import session_turns
 from switchboard.config import load_model
 from switchboard.core.config import TenantsConfig
 from switchboard.core.models import (
@@ -42,6 +43,7 @@ from switchboard.core.models import (
     RunContext,
     RunResult,
     RunStatus,
+    Turn,
     Usage,
 )
 from switchboard.tracing.pg_exporter import span_to_row
@@ -165,6 +167,24 @@ class MemoryRunStore:
             return None
         return dict(row)
 
+    async def load_session_turns(
+        self, *, tenant_id: str, session_id: str, limit: int
+    ) -> list[Turn]:
+        """The same filter and ordering as ``SESSION_TURNS_SQL`` (design 6.3)."""
+        rows = [
+            row
+            for row in self.runs.values()
+            if row["tenant_id"] == tenant_id
+            and row["session_id"] == session_id
+            and row["status"] != "running"
+            and isinstance(row.get("answer"), str)
+            and row["answer"] != ""
+        ]
+        rows.sort(key=lambda row: (row["started_at"], row["id"]), reverse=True)
+        selected = rows[:limit] if limit > 0 else []
+        selected.reverse()
+        return session_turns(selected)
+
     async def fetch_spans(self, run_id: str) -> list[dict[str, Any]]:
         return [dict(span) for span in self.spans if span.get("run_id") == run_id]
 
@@ -277,9 +297,11 @@ class FakeOrchestrator:
         else:
             self._answer_text = "There were 7262 orders in March 2018 (t1)."
         self.queries: list[str] = []
+        self.histories: list[list[Turn]] = []
 
     async def run(self, request: ChatRequest, ctx: RunContext) -> RunResult:
         self.queries.append(request.query)
+        self.histories.append(list(request.history))
         started = datetime.now(UTC)
         with run_span(
             self._tracer,
@@ -409,6 +431,7 @@ def build_harness(
     orchestrator: Any,
     flush: Any = None,
     sensitive_args: Mapping[str, Sequence[str]] | None = None,
+    history_turns: int = 3,
 ) -> AppHarness:
     """Build an app with fakes and a client bound to it (no lifespan, no IO)."""
     deps = AppDeps(
@@ -418,6 +441,7 @@ def build_harness(
         tenants=tenants,
         run_token_secret=SECRET,
         run_timeout_s=30.0,
+        history_turns=history_turns,
         publisher=publisher,
         tracing=flush,
         health=fake_health,

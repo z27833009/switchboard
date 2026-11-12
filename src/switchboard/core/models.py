@@ -266,6 +266,10 @@ class AgentResult(BaseModel):
     # when the provider has no price entry (design.md 12.4).
     cost_usd: float | None = Field(default=None, ge=0)
     partial: bool = False
+    # This answer is a question back to the user, not an answer (design.md 6.4).
+    # The orchestrator turns a single-agent plan whose result carries this flag
+    # into RunResult.status "needs_clarification"; it never checks agent names.
+    needs_clarification: bool = False
 
 
 class RunContext(BaseModel):
