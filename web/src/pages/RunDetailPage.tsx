@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { errorMessage, getJson, isAbortError } from "../api";
 import type { RunSummary } from "../api";
 import { CitationChips, ErrorList, StatusBadge } from "../components/Badges";
+import { FeedbackForm } from "../components/Feedback";
 import { TENANTS } from "../config";
 import { formatDateTime, formatLatency, formatTokens } from "../format";
 
@@ -94,6 +95,12 @@ export function RunDetailPage({
               citations={run.citations}
             />
             <ErrorList errors={run.errors} />
+            <FeedbackForm
+              key={run.run_id}
+              runId={run.run_id}
+              tenantId={run.tenant_id}
+              latest={run.latest_feedback}
+            />
 
             <p className="links">
               <a

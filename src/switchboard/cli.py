@@ -31,6 +31,14 @@ from switchboard.data.olist import (
 from switchboard.eval.cost_guard import estimate_eval_cost
 from switchboard.eval.datasets import dataset_path
 from switchboard.eval.gate import DEFAULT_MAX_DROP, default_report_path, evaluate_gate
+from switchboard.eval.harvest import (
+    DEFAULT_CANDIDATE_DIR,
+    HarvestResult,
+    require_database_url,
+)
+from switchboard.eval.harvest import (
+    harvest as harvest_feedback,
+)
 from switchboard.eval.manifest import DEFAULT_TOOL_MANIFEST, load_tool_specs
 from switchboard.eval.report import ReportMeta, build_report, write_report
 from switchboard.eval.runner import (
@@ -510,6 +518,65 @@ def eval_gate(
         )
         raise typer.Exit(1)
     typer.echo("gate passed")
+
+
+@eval_app.command("harvest")
+def eval_harvest(
+    since: Annotated[
+        datetime,
+        typer.Option(
+            "--since",
+            formats=["%Y-%m-%d"],
+            help="Harvest feedback written on or after this UTC date (YYYY-MM-DD).",
+        ),
+    ],
+    tenant: Annotated[
+        str | None,
+        typer.Option("--tenant", help="Only this tenant's feedback; default is every tenant."),
+    ] = None,
+    out: Annotated[
+        Path,
+        typer.Option("--out", help="Directory for the unlabeled candidate JSONL file."),
+    ] = DEFAULT_CANDIDATE_DIR,
+    database_url: Annotated[
+        str,
+        typer.Option(
+            "--database-url",
+            envvar="SWITCHBOARD_DATABASE_URL",
+            help="Application-role database URL that can read feedback and runs.",
+        ),
+    ] = "",
+) -> None:
+    """Write negatively rated runs to a candidate file (AC-24b).
+
+    Only the run's newest feedback row counts, and only a rating of -1 is
+    exported. The file name carries the since date and the tenant, and the file
+    is rewritten on every run, so a second harvest writes the same bytes rather
+    than a duplicate. Frozen datasets and baselines are never touched.
+    """
+    try:
+        url = require_database_url(database_url)
+    except ConfigError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    async def run_harvest() -> HarvestResult:
+        pool = await asyncpg.create_pool(dsn=url, min_size=1, max_size=2)
+        try:
+            return await harvest_feedback(pool, since=since, tenant_id=tenant, directory=Path(out))
+        finally:
+            await pool.close()
+
+    try:
+        result = asyncio.run(run_harvest())
+    except (SwitchboardError, OSError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    typer.echo(f"feedback rows since {result.since.date().isoformat()}: {result.feedback_rows}")
+    typer.echo(f"tenant: {result.tenant_id or 'all tenants'}")
+    typer.echo(f"negative candidates: {result.candidates}")
+    typer.echo(f"wrote {result.path}")
 
 
 if __name__ == "__main__":

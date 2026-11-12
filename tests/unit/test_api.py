@@ -550,6 +550,7 @@ async def test_openapi_and_docs_render(harness: AppHarness) -> None:
         "/chat/stream",
         "/runs",
         "/runs/{run_id}",
+        "/runs/{run_id}/feedback",
         "/runs/{run_id}/trace",
         "/health",
     }

@@ -1,9 +1,10 @@
 """Run and span persistence (design.md sections 12.2 and 14).
 
 ``RunStore`` is the small surface the API needs: start a run, finish it, list
-runs, read one run, read the spans of one run, and load the recent turns of one
-session. ``PgRunStore`` is the production implementation on the application-role
-pool; tests use a memory store so HTTP and SSE tests run without PostgreSQL.
+runs, read one run, read the spans of one run, load the recent turns of one
+session, append a feedback row and read the latest one. ``PgRunStore`` is the
+production implementation on the application-role pool; tests use a memory store
+so HTTP and SSE tests run without PostgreSQL.
 
 Session turns are read with the tenant and the session id in SQL, so a request
 can never see another tenant's or another session's turns (design.md 11 and
@@ -98,6 +99,26 @@ AGGREGATE_RUNS_SQL = {
 # route, so every caller of the store gets it (design.md section 11).
 GET_RUN_SQL = f"SELECT {RUN_COLUMNS} FROM public.runs WHERE id = $1 AND tenant_id = $2"
 
+# Feedback is append-only (05-feedback.sql): the API inserts and reads, and a
+# new rating is a new row. Both statements carry the tenant, and the table's
+# composite foreign key rejects a row that would point at another tenant's run
+# (design.md sections 11 and 14).
+FEEDBACK_COLUMNS = "id, run_id, tenant_id, rating, note, created_at"
+
+INSERT_FEEDBACK_SQL = f"""
+INSERT INTO public.feedback (run_id, tenant_id, rating, note)
+VALUES ($1, $2, $3, $4)
+RETURNING {FEEDBACK_COLUMNS}
+"""
+
+LATEST_FEEDBACK_SQL = f"""
+SELECT {FEEDBACK_COLUMNS}
+FROM public.feedback
+WHERE run_id = $1 AND tenant_id = $2
+ORDER BY created_at DESC, id DESC
+LIMIT 1
+"""
+
 FETCH_SPANS_SQL = f"""
 SELECT {SPAN_COLUMNS}
 FROM public.spans
@@ -174,6 +195,15 @@ def span_row(row: Mapping[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def feedback_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    """One feedback row in the shape the API returns."""
+    payload = dict(row)
+    payload["id"] = str(payload["id"])
+    payload["run_id"] = str(payload["run_id"])
+    payload["rating"] = int(payload["rating"])
+    return payload
+
+
 def session_turns(rows: Sequence[Mapping[str, Any]]) -> list[Turn]:
     """Turn stored run rows into user and assistant turns, oldest first."""
     turns: list[Turn] = []
@@ -218,6 +248,12 @@ class RunStore(Protocol):
     ) -> list[Turn]: ...
 
     async def fetch_spans(self, run_id: str) -> list[dict[str, Any]]: ...
+
+    async def add_feedback(
+        self, *, run_id: str, tenant_id: str, rating: int, note: str | None
+    ) -> dict[str, Any]: ...
+
+    async def latest_feedback(self, *, run_id: str, tenant_id: str) -> dict[str, Any] | None: ...
 
 
 class PgRunStore:
@@ -301,6 +337,20 @@ class PgRunStore:
         rows = await self._pool.fetch(FETCH_SPANS_SQL, uuid.UUID(run_id))
         return [span_row(row) for row in rows]
 
+    async def add_feedback(
+        self, *, run_id: str, tenant_id: str, rating: int, note: str | None
+    ) -> dict[str, Any]:
+        row = await self._pool.fetchrow(
+            INSERT_FEEDBACK_SQL, uuid.UUID(run_id), tenant_id, rating, note
+        )
+        if row is None:  # pragma: no cover - RETURNING always yields the row
+            raise RuntimeError("the feedback row was not returned")
+        return feedback_row(row)
+
+    async def latest_feedback(self, *, run_id: str, tenant_id: str) -> dict[str, Any] | None:
+        row = await self._pool.fetchrow(LATEST_FEEDBACK_SQL, uuid.UUID(run_id), tenant_id)
+        return None if row is None else feedback_row(row)
+
 
 def parse_run_id(run_id: str) -> str:
     """Reject a malformed run id the same way as an unknown one."""
@@ -321,6 +371,7 @@ __all__ = [
     "RunStore",
     "aggregate_row",
     "decode_json",
+    "feedback_row",
     "parse_run_id",
     "rows_are_complete",
     "run_row",

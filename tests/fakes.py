@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -59,6 +60,7 @@ class MemoryRunStore:
         self.runs: dict[str, dict[str, Any]] = {}
         self.spans: list[dict[str, Any]] = []
         self.audit_rows: list[dict[str, Any]] = []
+        self.feedback: list[dict[str, Any]] = []
 
     async def start_run(
         self,
@@ -187,6 +189,35 @@ class MemoryRunStore:
 
     async def fetch_spans(self, run_id: str) -> list[dict[str, Any]]:
         return [dict(span) for span in self.spans if span.get("run_id") == run_id]
+
+    async def add_feedback(
+        self, *, run_id: str, tenant_id: str, rating: int, note: str | None
+    ) -> dict[str, Any]:
+        """Append a row; a mismatched run and tenant is refused like the FK."""
+        run = self.runs.get(run_id)
+        if run is None or run["tenant_id"] != tenant_id:
+            raise LookupError("feedback target run not found")
+        row = {
+            "id": str(uuid.uuid4()),
+            "run_id": run_id,
+            "tenant_id": tenant_id,
+            "rating": int(rating),
+            "note": note,
+            "created_at": datetime.now(UTC),
+        }
+        self.feedback.append(row)
+        return dict(row)
+
+    async def latest_feedback(self, *, run_id: str, tenant_id: str) -> dict[str, Any] | None:
+        rows = [
+            row
+            for row in self.feedback
+            if row["run_id"] == run_id and row["tenant_id"] == tenant_id
+        ]
+        if not rows:
+            return None
+        rows.sort(key=lambda row: (row["created_at"], row["id"]), reverse=True)
+        return dict(rows[0])
 
     async def list_audit(self, query: AuditQuery) -> list[dict[str, Any]]:
         """The same tenant filter, ordering and offset as ``LIST_AUDIT_SQL``."""

@@ -21,6 +21,7 @@ data/olist/raw/
 # Eval outputs not meant for commit
 evals/reports/*.tmp
 evals/fixtures/**/*.pending
+evals/candidates/*.jsonl
 
 # Node
 web/node_modules/

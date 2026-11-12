@@ -79,6 +79,19 @@ export interface RunSummary {
   answer: string | null;
   citations: Citation[];
   errors: ErrorRecord[];
+  // Only GET /runs/{id} loads it; the run list leaves it null.
+  latest_feedback: FeedbackSummary | null;
+}
+
+// Feedback is append-only: -1 negative, 1 positive, and the newest row is the
+// run's current verdict (POST /runs/{id}/feedback).
+export interface FeedbackSummary {
+  id: string;
+  run_id: string;
+  tenant_id: string;
+  rating: -1 | 1;
+  note: string | null;
+  created_at: string;
 }
 
 export interface RunsResponse {
@@ -159,6 +172,22 @@ export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T>
   const response = await fetch(`${API_BASE}${path}`, {
     signal,
     headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new ApiError(await describeHttpError(response), response.status);
+  }
+  return (await response.json()) as T;
+}
+
+export async function postJson<T>(path: string, payload: unknown, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
   });
   if (!response.ok) {
     throw new ApiError(await describeHttpError(response), response.status);

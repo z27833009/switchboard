@@ -23,7 +23,12 @@ from pathlib import Path
 import asyncpg
 
 DEFAULT_INIT_DIR = Path("docker/postgres/init")
-SQL_FILES = ("02-platform.sql", "03-documents.sql", "04-runs-spans.sql")
+SQL_FILES = (
+    "02-platform.sql",
+    "03-documents.sql",
+    "04-runs-spans.sql",
+    "05-feedback.sql",
+)
 ROLES = (
     ("switchboard_app", "SWITCHBOARD_APP_DB_PASSWORD"),
     ("switchboard_tools", "SWITCHBOARD_TOOLS_DB_PASSWORD"),

@@ -1,8 +1,10 @@
-"""Response models for the API.
+"""Request and response models for the API.
 
-Requests are validated with the core models (``ChatRequest``). These models
-only describe what the API returns, so the database rows and the client payload
-stay separate from the domain contract in ``core.models``.
+Requests are validated with the core models (``ChatRequest``). The feedback
+body lives here because it is an API contract and not a domain model: nothing
+inside a run needs it. These models only describe what the API accepts and
+returns, so the database rows and the client payload stay separate from the
+domain contract in ``core.models``.
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any, Literal, cast
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from switchboard.core.models import (
     Citation,
@@ -24,6 +26,64 @@ from switchboard.core.models import (
 
 AuditStatus = Literal["ok", "error", "denied"]
 REDACTED_ARGUMENT = "[redacted]"
+# Feedback: -1 is a negative rating, 1 is positive (design.md sections 14 and
+# 20.1). Zero carries no signal and every other value is rejected.
+FeedbackRating = Literal[-1, 1]
+FEEDBACK_NOTE_MAX_CHARS = 2000
+
+
+class FeedbackSubmission(BaseModel):
+    """The body of ``POST /runs/{id}/feedback`` (AC-24a).
+
+    ``rating`` is -1 or 1 and nothing else; a note is optional, at most
+    ``FEEDBACK_NOTE_MAX_CHARS`` characters, and is trimmed, so a blank note is
+    stored as no note rather than as an empty string.
+    """
+
+    rating: FeedbackRating
+    note: str | None = Field(default=None, max_length=FEEDBACK_NOTE_MAX_CHARS)
+
+    @field_validator("rating", mode="before")
+    @classmethod
+    def rating_is_an_integer(cls, value: object) -> object:
+        """Reject booleans, floats and strings: a rating is a JSON integer."""
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError("rating must be the integer -1 or 1")
+        return value
+
+    @field_validator("note")
+    @classmethod
+    def blank_note_is_no_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+
+class FeedbackSummary(BaseModel):
+    """One stored feedback row, as the write and the run detail return it.
+
+    Feedback is append-only, so ``GET /runs/{id}`` shows the newest row as the
+    run's current verdict; a change of mind adds a row instead of editing one.
+    """
+
+    id: str
+    run_id: str
+    tenant_id: str
+    rating: FeedbackRating
+    note: str | None = None
+    created_at: datetime
+
+    @classmethod
+    def from_row(cls, row: Mapping[str, Any]) -> FeedbackSummary:
+        return cls(
+            id=str(row["id"]),
+            run_id=str(row["run_id"]),
+            tenant_id=str(row["tenant_id"]),
+            rating=cast(FeedbackRating, int(row["rating"])),
+            note=cast(str | None, row.get("note")),
+            created_at=cast(datetime, row["created_at"]),
+        )
 
 
 class ChatResponse(BaseModel):
@@ -96,9 +156,17 @@ class RunSummary(BaseModel):
     answer: str | None = None
     citations: list[Citation] = Field(default_factory=list)
     errors: list[ErrorRecord] = Field(default_factory=list)
+    # Newest feedback row for this run; only ``GET /runs/{id}`` loads it, so
+    # the run list stays one query (design.md section 14).
+    latest_feedback: FeedbackSummary | None = None
 
     @classmethod
-    def from_row(cls, row: Mapping[str, Any]) -> RunSummary:
+    def from_row(
+        cls,
+        row: Mapping[str, Any],
+        *,
+        latest_feedback: Mapping[str, Any] | None = None,
+    ) -> RunSummary:
         citations = [
             Citation.model_validate(item)
             for item in cast(list[dict[str, Any]], row.get("citations") or [])
@@ -128,6 +196,9 @@ class RunSummary(BaseModel):
             answer=cast(str | None, row.get("answer")),
             citations=citations,
             errors=errors,
+            latest_feedback=(
+                None if latest_feedback is None else FeedbackSummary.from_row(latest_feedback)
+            ),
         )
 
 
@@ -260,11 +331,15 @@ class TraceResponse(BaseModel):
 
 
 __all__ = [
+    "FEEDBACK_NOTE_MAX_CHARS",
     "REDACTED_ARGUMENT",
     "AuditResponse",
     "AuditRow",
     "AuditStatus",
     "ChatResponse",
+    "FeedbackRating",
+    "FeedbackSubmission",
+    "FeedbackSummary",
     "RunAggregateResponse",
     "RunAggregateRow",
     "RunSummary",

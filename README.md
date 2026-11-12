@@ -96,6 +96,8 @@ docker compose exec -T postgres psql -U switchboard -d switchboard \
   -f /docker-entrypoint-initdb.d/03-documents.sql
 docker compose exec -T postgres psql -U switchboard -d switchboard \
   -f /docker-entrypoint-initdb.d/04-runs-spans.sql
+docker compose exec -T postgres psql -U switchboard -d switchboard \
+  -f /docker-entrypoint-initdb.d/05-feedback.sql
 ```
 
 ### 5. Load data
@@ -153,6 +155,8 @@ Invoke-RestMethod -Uri http://localhost:8000/chat -Method Post `
 ```
 
 The first request after loading the model can be slow while LM Studio loads it; the first measured routing run had p95 68.27 s from the one-time load. Later model calls in the committed reports took about 2.4 to 3.4 s.
+
+Rate an answer with the thumbs up or down under the answer, or on the run page, with an optional note. Ratings are stored per tenant and append-only. `uv run --env-file .env switchboard eval harvest --since 2026-11-01` writes the negatively rated runs of that date onward to `evals/candidates/` as unlabeled cases; [evals/candidates/README.md](evals/candidates/README.md) states the format. The command never edits a frozen dataset.
 
 ### Troubleshooting
 

@@ -12,6 +12,7 @@ import {
 } from "../api";
 import type { ChatResponse, StepEvent } from "../api";
 import { CitationChips, ErrorList, StatusBadge } from "../components/Badges";
+import { FeedbackForm } from "../components/Feedback";
 import { TENANTS } from "../config";
 import { formatDateTime, formatDuration, formatTokens } from "../format";
 
@@ -139,6 +140,12 @@ function AnswerPanel({ result }: { result: ChatResponse }) {
         <a href={`#/runs/${encodeURIComponent(result.run_id)}/trace`}>Open trace</a>
         <a href={`#/runs/${encodeURIComponent(result.run_id)}`}>Open run</a>
       </p>
+      <FeedbackForm
+        key={result.run_id}
+        runId={result.run_id}
+        tenantId={result.tenant_id}
+        latest={null}
+      />
     </section>
   );
 }

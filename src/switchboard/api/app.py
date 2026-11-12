@@ -41,6 +41,8 @@ from switchboard.api.schemas import (
     AuditRow,
     AuditStatus,
     ChatResponse,
+    FeedbackSubmission,
+    FeedbackSummary,
     RunAggregateResponse,
     RunAggregateRow,
     RunsResponse,
@@ -351,9 +353,45 @@ async def get_run(
     run_id: str,
     tenant_id: str = Query(min_length=1, description="Tenant that owns the run."),
 ) -> RunSummary:
-    """One run with its final answer and citations, for its tenant only."""
+    """One run with its final answer, citations and newest feedback, for its tenant."""
     deps = _deps(request.app)
-    return RunSummary.from_row(await _load_run(deps, run_id, tenant_id))
+    row = await _load_run(deps, run_id, tenant_id)
+    feedback = await deps.store.latest_feedback(
+        run_id=str(row["id"]), tenant_id=str(row["tenant_id"])
+    )
+    return RunSummary.from_row(row, latest_feedback=feedback)
+
+
+@router.post("/runs/{run_id}/feedback", response_model=FeedbackSummary, status_code=201)
+async def post_run_feedback(
+    request: Request,
+    payload: FeedbackSubmission,
+    run_id: str,
+    tenant_id: str = Query(min_length=1, description="Tenant that owns the run."),
+) -> FeedbackSummary:
+    """Store a rating and an optional note for one run (AC-24a).
+
+    The tenant is required and the run is loaded with it, so another tenant's
+    run is a 404 and never receives feedback (design.md section 11). The row
+    copies the run's own tenant, and the table's composite foreign key rejects
+    a mismatched pair. Feedback is append-only: there is no update and no
+    delete route, so a change of mind adds a row and the newest row is the
+    run's current verdict (design.md sections 14 and 20.1).
+    """
+    deps = _deps(request.app)
+    row = await _load_run(deps, run_id, tenant_id)
+    try:
+        created = await deps.store.add_feedback(
+            run_id=str(row["id"]),
+            tenant_id=str(row["tenant_id"]),
+            rating=payload.rating,
+            note=payload.note,
+        )
+    except asyncpg.ForeignKeyViolationError as exc:
+        # The run was removed between the read and the insert. Same answer as an
+        # unknown run, never a 500 and never a row for a missing run.
+        raise HTTPException(status_code=404, detail="run not found") from exc
+    return FeedbackSummary.from_row(created)
 
 
 @router.get("/runs/{run_id}/trace", response_model=TraceResponse)
@@ -548,6 +586,7 @@ __all__ = [
     "health",
     "list_audit",
     "list_runs",
+    "post_run_feedback",
     "request_with_history",
     "require_run_token_secret",
 ]

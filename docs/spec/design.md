@@ -944,6 +944,8 @@ The Olist tables live in a separate schema `olist` loaded from the public CSV fi
 
 `GET /audit` reads `tool_audit` through `switchboard_app`. `tenant_id` is required and applied in SQL, so another tenant's rows are invisible; `run_id`, `tool_name`, `status`, `from`, `to`, `limit` (1 to 200, default 50) and `offset` narrow the rows, which are ordered newest first. The response carries the stored redacted arguments only, and the API applies the manifest's `sensitive_args` again on read, so a raw sensitive argument cannot leave the process (AC-18a, AC-18b).
 
+Feedback is append-only. `POST /runs/{id}/feedback?tenant_id=<id>` takes `{"rating": -1 | 1, "note": "optional, at most 2000 characters"}` and stores one row with the run's own tenant; zero, every other rating and a boolean or a string are rejected with 422. The run is read tenant-scoped before the insert, so another tenant's run is a 404 and never receives a rating, and a composite foreign key on `(run_id, tenant_id)` refuses a mismatched pair even outside the route. There is no update and no delete route: 405 is the only answer. The newest row is a run's verdict, `GET /runs/{id}` returns it as `latest_feedback`, and the run list does not load it, so listing stays one query. `switchboard_app` has SELECT and INSERT on `feedback` and nothing else, and `switchboard_tools` has no access.
+
 ## 15. Error handling
 
 Error taxonomy in `core/errors.py`:
@@ -1101,7 +1103,7 @@ Dataset versions are per suite when a suite is added later: `v2/gate.jsonl` hold
 
 `v4/injection.jsonl` holds the 40 injection samples and leaves `v1/`, `v2/` and `v3/` untouched: 20 malicious samples, each labeled with the pattern id it was written for, and 20 benign near-misses, including two deliberate false-positive traps. The suite runs the deterministic scanner in `core/guardrails.py` and reports detection rate, false positive rate and per-pattern precision and recall; labels are constructed and audited, not blind human labels. All 40 are in the `test` split because there is no prompt to tune. Details in `evals/datasets/v4/README.md`.
 
-Feedback (v1): `POST /runs/{id}/feedback` stores a rating and a note. `switchboard eval harvest --since <date>` exports negatively rated runs to `evals/candidates/` as unlabeled cases. A human labels them; labeled cases enter the next dataset version, never the current one.
+Feedback (v1): `POST /runs/{id}/feedback` stores a rating of -1 or 1 and an optional note of at most 2000 characters. It is append-only, so a changed rating is a new row and the newest one is the run's verdict. `switchboard eval harvest --since <date> [--tenant <id>]` exports the runs whose newest feedback is negative and whose feedback was written on or after that UTC date, one unlabeled case per run, to `evals/candidates/feedback-<since>-<tenant|all>.jsonl`. A candidate carries `candidate_id` (`candidate-<run_id>`), `run_id`, `tenant_id`, `query`, `answer`, `plan`, `status`, `rating`, `note`, `run_started_at`, `run_ended_at` and `rated_at`, and no expected label of any kind. The command rewrites the file from the current rows on every run, so running it twice writes the same bytes instead of appending a duplicate, and it never modifies a frozen dataset or a baseline. A human labels the candidates; labeled cases enter the next dataset version, never the current one.
 
 ### 20.2 Runner
 
