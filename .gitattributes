@@ -1,0 +1,7 @@
+# Text files enter the build context and the Linux containers with LF endings.
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
+*.gguf binary
+*.zip binary

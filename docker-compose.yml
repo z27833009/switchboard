@@ -1,0 +1,112 @@
+name: switchboard
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: docker/app.Dockerfile
+  image: switchboard-app:local
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-switchboard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-switchboard}
+      SWITCHBOARD_APP_DB_PASSWORD: ${SWITCHBOARD_APP_DB_PASSWORD:?set SWITCHBOARD_APP_DB_PASSWORD in .env}
+      SWITCHBOARD_TOOLS_DB_PASSWORD: ${SWITCHBOARD_TOOLS_DB_PASSWORD:?set SWITCHBOARD_TOOLS_DB_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-switchboard} -d ${POSTGRES_DB:-switchboard}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  mcp-olist:
+    <<: *app
+    command: ["python", "mcp_servers/olist/placeholder.py"]
+    environment:
+      SWITCHBOARD_RUN_TOKEN_SECRET: "${SWITCHBOARD_RUN_TOKEN_SECRET:?set SWITCHBOARD_RUN_TOKEN_SECRET in .env (at least 32 bytes)}"
+      MCP_OLIST_PORT: "8001"
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=3).read()",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  api:
+    <<: *app
+    command:
+      [
+        "uvicorn",
+        "switchboard.api.app:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+      ]
+    environment:
+      SWITCHBOARD_RUN_TOKEN_SECRET: "${SWITCHBOARD_RUN_TOKEN_SECRET:?set SWITCHBOARD_RUN_TOKEN_SECRET in .env (at least 32 bytes)}"
+      SWITCHBOARD_DATABASE_URL: "postgresql://switchboard_app:${SWITCHBOARD_APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-switchboard}"
+      SWITCHBOARD_TOOLS_URL: "http://mcp-olist:8001"
+      LMSTUDIO_BASE_URL: "${LMSTUDIO_BASE_URL:-http://host.docker.internal:18080/v1}"
+      LMSTUDIO_MODEL: "${LMSTUDIO_MODEL:-qwen3-8b}"
+      LMSTUDIO_EMBEDDING_MODEL: "${LMSTUDIO_EMBEDDING_MODEL:-bge-m3}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mcp-olist:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5).read()",
+        ]
+      interval: 10s
+      timeout: 6s
+      retries: 20
+      start_period: 10s
+
+  web:
+    image: nginx:1.31.8-alpine
+    restart: unless-stopped
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+    ports:
+      - "8080:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+volumes:
+  postgres-data:
