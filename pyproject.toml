@@ -40,6 +40,9 @@ mock = "switchboard.adapters.providers.mock:MockProvider"
 openai_compatible = "switchboard.adapters.embedders.openai_compat:OpenAICompatibleEmbedder"
 mock = "switchboard.adapters.embedders.mock:MockEmbedder"
 
+[project.entry-points."switchboard.tool_sources"]
+mcp = "switchboard.adapters.tools.mcp_client:McpToolSource"
+
 [dependency-groups]
 dev = [
   "import-linter==2.16",

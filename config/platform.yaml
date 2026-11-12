@@ -2,7 +2,7 @@ orchestrator: langgraph
 tool_sources:
   - name: olist
     adapter: mcp
-    url: ${MCP_OLIST_URL}
+    url: ${MCP_OLIST_URL}/mcp
 retriever: pgvector
 cache: none
 embedder: lmstudio

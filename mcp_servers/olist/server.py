@@ -127,6 +127,19 @@ def sanitise_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in arguments.items() if key not in IDENTITY_ARGUMENTS}
 
 
+def tool_meta(wire_name: str) -> dict[str, Any]:
+    """Metadata carried over MCP so the client can rebuild a ToolSpec."""
+    definition = MANIFEST[wire_name]
+    return {
+        "switchboard": {
+            "version": definition.version,
+            "risk": definition.risk,
+            "tenant_scoped": definition.tenant_scoped,
+            "sensitive_args": list(definition.sensitive_args),
+        }
+    }
+
+
 def _check_range(date_from: date, date_to: date) -> None:
     if date_from > date_to:
         raise ToolArgumentError("date_from must be on or before date_to")
@@ -217,6 +230,7 @@ async def _call_tool(
 @mcp.tool(
     name="orders_summary@1",
     description=MANIFEST["orders_summary@1"].description,
+    meta=tool_meta("orders_summary@1"),
 )
 async def orders_summary(
     ctx: Context[Any, Any],
@@ -244,6 +258,7 @@ async def orders_summary(
 @mcp.tool(
     name="orders_late@1",
     description=MANIFEST["orders_late@1"].description,
+    meta=tool_meta("orders_late@1"),
 )
 async def orders_late(
     ctx: Context[Any, Any],
@@ -272,6 +287,7 @@ async def orders_late(
 @mcp.tool(
     name="order_lookup@1",
     description=MANIFEST["order_lookup@1"].description,
+    meta=tool_meta("order_lookup@1"),
 )
 async def order_lookup(
     ctx: Context[Any, Any],
@@ -290,6 +306,7 @@ async def order_lookup(
 @mcp.tool(
     name="top_products@1",
     description=MANIFEST["top_products@1"].description,
+    meta=tool_meta("top_products@1"),
 )
 async def top_products(
     ctx: Context[Any, Any],
@@ -319,6 +336,7 @@ async def top_products(
 @mcp.tool(
     name="describe_schema@1",
     description=MANIFEST["describe_schema@1"].description,
+    meta=tool_meta("describe_schema@1"),
 )
 async def describe_schema(ctx: Context[Any, Any]) -> dict[str, Any]:
     return await _call_tool(
