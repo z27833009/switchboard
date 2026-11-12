@@ -46,6 +46,11 @@ mcp = "switchboard.adapters.tools.mcp_client:McpToolSource"
 [project.entry-points."switchboard.retrievers"]
 pgvector = "switchboard.adapters.retrievers.pgvector:PgVectorRetriever"
 
+[project.entry-points."switchboard.agents"]
+direct = "switchboard.agents.direct:DirectAgent"
+docs = "switchboard.agents.docs:DocsAgent"
+data = "switchboard.agents.data:DataAgent"
+
 [dependency-groups]
 dev = [
   "import-linter==2.16",

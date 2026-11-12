@@ -120,11 +120,14 @@ class AgentDeps:
 
     provider: ModelProvider
     context_policy: ContextPolicy
+    ctx: RunContext
     embedder: Embedder | None = None
     tool_sources: list[ToolSource] = field(default_factory=list)
     retriever: Retriever | None = None
     cache: Cache | None = None
     tracer: Any = None
+    model_view_rows: int = 20
+    context_fill: float = 0.7
 
 
 @dataclass(frozen=True)

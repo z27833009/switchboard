@@ -937,7 +937,7 @@ switchboard/
   src/switchboard/
     config.py        YAML parsing via PyYAML; core/config.py holds the schema
     core/            ports.py  models.py  errors.py  registry.py  config.py  context.py  guardrails.py
-    agents/          direct.py  docs.py  data.py  clarify.py (v1)  merge.py  citations.py  prompts/
+    agents/          direct.py  docs.py  data.py  clarify.py (v1)  merge.py  citations.py  results.py  prompts/
     gate/            checks.py (v1)
     adapters/
       orchestrator/  langgraph_impl/  agent_loop/ (v1)
