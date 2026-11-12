@@ -13,7 +13,11 @@ cache: none
 embedder: lmstudio
 context_policy: clear_oldest_tool_results
 tracing:
-  exporter: postgres
+  # postgres writes to public.spans (the default); otlp sends the same spans
+  # to a collector such as Jaeger; none leaves the OTel API a no-op. The
+  # substitution lets `docker compose --profile tracing` switch both the API
+  # and the MCP server through the container environment (design 12.2).
+  exporter: ${SWITCHBOARD_TRACING_EXPORTER:-postgres}
 # One eval run against a paid provider must estimate at or below this (USD) and
 # carry --confirm-cost; see design 20.2.
 cost_cap_usd: 5.0

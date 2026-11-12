@@ -47,6 +47,7 @@ from switchboard.tracing import (
     configure_tracing,
     extract_traceparent,
     force_flush_async,
+    load_tracing_options,
     record_error,
     set_attributes,
     tool_span_name,
@@ -122,10 +123,15 @@ async def lifespan(_: MCPServer[ServerState]) -> AsyncIterator[ServerState]:
     global _STATE
     created = await ServerState.create()
     _STATE = created
+    # The same platform.yaml switch the API reads: postgres by default, otlp
+    # while the tracing compose profile is up (design 12.2).
+    config_dir = Path(os.environ.get("SWITCHBOARD_CONFIG_DIR", "config"))
+    tracing_options = load_tracing_options(config_dir / "platform.yaml", os.environ)
     tracing: TracingHandle | None = configure_tracing(
         service_name="mcp-olist",
         dsn=created.dsn,
-        exporter=os.environ.get("SWITCHBOARD_TRACING_EXPORTER", "postgres"),
+        exporter=tracing_options.exporter,
+        otlp_endpoint=tracing_options.otlp_endpoint,
     )
     try:
         yield created

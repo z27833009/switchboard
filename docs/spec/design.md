@@ -761,6 +761,8 @@ The guardrail attributes on `retrieve` and `execute_tool` come from `core/guardr
 
 A custom `PostgresSpanExporter` (batched through the SDK's `BatchSpanProcessor`) writes spans to the `spans` table. Because the API, the orchestrator and the eval CLI are one process, there is no collector in Phase 1. The MCP server runs its own exporter with the same table and continues the run's trace from the `traceparent` header, so tool spans attach to the run's trace. v1 adds an OTLP exporter and a Jaeger container to show that the same spans render in a standard tool (one config switch).
 
+`config/platform.yaml` selects the exporter: `postgres` (the default), `otlp` or `none`. The API and the MCP server both resolve it through `switchboard/tracing/config.py` before they build their tracer provider, so one file drives both processes; the committed value is `${SWITCHBOARD_TRACING_EXPORTER:-postgres}` so the compose profile can switch both without editing a tracked file. `otlp` builds an OTLP/HTTP span exporter bound to `OTEL_EXPORTER_OTLP_ENDPOINT` (a base URL such as `http://jaeger:4318` is normalized to `/v1/traces`) and replaces the PostgreSQL exporter for that process: the trace page reads the `spans` table, so it is empty while OTLP is selected and Jaeger is the trace view. Selecting `otlp` does not make startup depend on the collector: the batch processor exports in the background and retries, so the API and the MCP server start with Jaeger absent. `none` leaves the OTel API a no-op. The exporter choice is never inferred from the presence of Jaeger.
+
 Batch export is asynchronous, so a trace read immediately after a run could be incomplete. Three rules prevent that:
 
 1. The `runs` row is inserted with status `running` when the run starts, before any span can reference it.
@@ -1138,7 +1140,7 @@ This list is the allowlist referred to in the working agreements: a dependency n
 | Model clients | openai (official Python SDK) | for every OpenAI-compatible provider and embedder |
 | MCP | mcp (official Python SDK), using `mcp.server.mcpserver.MCPServer` for the server and its streamable HTTP client for `McpToolSource` | SDK 2.x renamed FastMCP to MCPServer; not the separate `fastmcp` package, one SDK on both sides |
 | Database | asyncpg; PostgreSQL 16 with pgvector via the `pgvector/pgvector` image (pg16 tag) | no ORM |
-| Observability | opentelemetry-api, opentelemetry-sdk; v1 adds the OTLP exporter | |
+| Observability | opentelemetry-api, opentelemetry-sdk; v1 adds the official OTLP/HTTP exporter (opentelemetry-exporter-otlp-proto-http) | the OTLP exporter is used only when `tracing.exporter: otlp`; PostgreSQL stays the default |
 | Tokens | PyJWT | ADR 0014 |
 | Config | PyYAML | env substitution and the schema are hand-written in core/config.py; YAML parsing lives in switchboard/config.py so core stays standard library plus pydantic |
 | CLI | typer | |

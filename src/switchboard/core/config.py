@@ -77,7 +77,9 @@ class ToolSourceConfig(BaseModel):
 class TracingSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    exporter: Literal["none", "postgres", "otlp"] = "none"
+    # postgres keeps the Phase 1 exporter; otlp sends to a collector such as
+    # Jaeger; none leaves the OTel API a no-op (design.md section 12.2).
+    exporter: Literal["none", "postgres", "otlp"] = "postgres"
 
 
 class Limits(BaseModel):

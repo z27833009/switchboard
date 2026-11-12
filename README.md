@@ -158,6 +158,18 @@ The first request after loading the model can be slow while LM Studio loads it; 
 
 Rate an answer with the thumbs up or down under the answer, or on the run page, with an optional note. Ratings are stored per tenant and append-only. `uv run --env-file .env switchboard eval harvest --since 2026-11-01` writes the negatively rated runs of that date onward to `evals/candidates/` as unlabeled cases; [evals/candidates/README.md](evals/candidates/README.md) states the format. The command never edits a frozen dataset.
 
+### Traces in Jaeger (optional)
+
+The default span exporter is the PostgreSQL `spans` table, which the trace page reads. The same spans can go to Jaeger through the optional `tracing` compose profile. It is one switch and the default stack never depends on it:
+
+```powershell
+$env:SWITCHBOARD_TRACING_EXPORTER="otlp"; docker compose --profile tracing up -d
+```
+
+On bash or macOS, the same line is `SWITCHBOARD_TRACING_EXPORTER=otlp docker compose --profile tracing up -d`. The profile writes `tracing.exporter: otlp` through the environment for both the API and the MCP server, and the containers send OTLP/HTTP to `http://jaeger:4318`. Run a chat request as above, open http://localhost:16686, select the `switchboard-api` service and search by the run id or the `switchboard.run_id` tag. The tool span also appears from the `mcp-olist` service, in the same trace.
+
+To return to the default, run `Remove-Item Env:SWITCHBOARD_TRACING_EXPORTER` in that PowerShell session (or unset it in bash), then `docker compose up -d` and `docker compose --profile tracing down`. While `otlp` is selected the run trace page and `GET /runs/{id}/trace` are empty, because the spans go to Jaeger instead of PostgreSQL; the run row still records whether the flush succeeded. Jaeger listens on 16686 (UI), 4318 (OTLP/HTTP) and 4317 (OTLP/gRPC). Host-side OTLP commands use `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318` from `.env`.
+
 ### Troubleshooting
 
 - `/health` reports `lmstudio` as error: check that the server is on port 18080, that `--bind 0.0.0.0` is set, and that `curl http://localhost:18080/v1/models` works on the host.

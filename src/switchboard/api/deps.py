@@ -35,7 +35,7 @@ from switchboard.registry import (
     TOOL_SOURCES,
     Registry,
 )
-from switchboard.tracing import configure_tracing
+from switchboard.tracing import configure_tracing, load_tracing_options
 
 HealthCheck = Callable[[], Awaitable[tuple[int, dict[str, Any]]]]
 
@@ -162,7 +162,8 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
     """Build the production dependency graph and the pool it owns."""
     source = dict(os.environ) if env is None else dict(env)
     secret = require_run_token_secret(source)
-    settings = load_settings(Path(source.get("SWITCHBOARD_CONFIG_DIR", "config")), source)
+    config_dir = Path(source.get("SWITCHBOARD_CONFIG_DIR", "config"))
+    settings = load_settings(config_dir, source)
     if settings.platform.cache != "none":
         raise ConfigError(
             f"cache {settings.platform.cache!r} is not implemented in Phase 1 "
@@ -172,10 +173,15 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
     if not dsn:
         raise RuntimeError("SWITCHBOARD_DATABASE_URL must be set")
 
+    # The exporter comes from tracing.exporter in platform.yaml, resolved the
+    # same way in this process and in the MCP server (design 12.2). The
+    # environment is only the substitution input, not a second switch.
+    tracing_options = load_tracing_options(config_dir / "platform.yaml", source)
     tracing = configure_tracing(
         service_name="switchboard-api",
         dsn=dsn,
-        exporter=source.get("SWITCHBOARD_TRACING_EXPORTER", "postgres"),
+        exporter=tracing_options.exporter,
+        otlp_endpoint=tracing_options.otlp_endpoint,
     )
     publisher = StepEventPublisher()
     step_events = StepEventProcessor(publisher)

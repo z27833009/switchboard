@@ -41,6 +41,11 @@ services:
       SWITCHBOARD_TOOLS_DATABASE_URL: "postgresql://switchboard_tools:${SWITCHBOARD_TOOLS_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-switchboard}"
       SWITCHBOARD_TENANTS_FILE: "/app/config/tenants.yaml"
       MCP_OLIST_PORT: "8001"
+      # Both tracing variables are harmless without the tracing profile: the
+      # exporter stays postgres by default and the endpoint is only read when
+      # it is otlp (design 12.2).
+      SWITCHBOARD_TRACING_EXPORTER: "${SWITCHBOARD_TRACING_EXPORTER:-postgres}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
     ports:
       - "8001:8001"
     depends_on:
@@ -81,6 +86,8 @@ services:
       # Empty is allowed for local-only use; the deepseek provider then fails at
       # startup if a tenant selects it, before any request.
       DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
+      SWITCHBOARD_TRACING_EXPORTER: "${SWITCHBOARD_TRACING_EXPORTER:-postgres}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -116,6 +123,28 @@ services:
         condition: service_started
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  # Optional trace viewer: `docker compose --profile tracing up -d` starts it
+  # and the API/MCP exporter is switched with SWITCHBOARD_TRACING_EXPORTER=otlp.
+  # It is not part of the default stack and the API never depends on it.
+  jaeger:
+    image: jaegertracing/all-in-one:1.76.0
+    profiles: ["tracing"]
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+      - "4317:4317"
+    healthcheck:
+      # The all-in-one image is Alpine and ships wget; the admin port answers
+      # even when no trace has arrived yet.
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:14269/"]
       interval: 5s
       timeout: 5s
       retries: 20
