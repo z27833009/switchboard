@@ -20,6 +20,7 @@ classifiers = [
 dependencies = [
   "asyncpg==0.32.0",
   "fastapi==0.162.5",
+  "langgraph==1.2.21",
   "mcp==2.3.0",
   "openai==3.49.0",
   "pydantic==2.14.3",
@@ -50,6 +51,9 @@ pgvector = "switchboard.adapters.retrievers.pgvector:PgVectorRetriever"
 direct = "switchboard.agents.direct:DirectAgent"
 docs = "switchboard.agents.docs:DocsAgent"
 data = "switchboard.agents.data:DataAgent"
+
+[project.entry-points."switchboard.orchestrators"]
+langgraph = "switchboard.adapters.orchestrator.langgraph_impl:LangGraphOrchestrator"
 
 [dependency-groups]
 dev = [
