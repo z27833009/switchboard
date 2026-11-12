@@ -691,7 +691,7 @@ Batch export is asynchronous, so a trace read immediately after a run could be i
 
 1. The `runs` row is inserted with status `running` when the run starts, before any span can reference it.
 2. `spans.run_id` is indexed but has no foreign key, so spans from the MCP process can never fail on ordering.
-3. The API calls `force_flush()` on the tracer provider (2 s timeout) before returning the final response or the `run.finished` event; the MCP server flushes at the end of each tool call. If the flush times out, the trace API marks the trace as `incomplete` instead of returning a silently partial tree.
+3. The API calls `force_flush()` on the tracer provider (2 s timeout) before returning the final response or the `run.finished` event; the MCP server flushes at the end of each tool call. If the flush times out, the API writes `runs.trace_complete = false` and the trace API marks the trace as `incomplete` instead of returning a silently partial tree.
 
 ### 12.3 Trace API and UI
 
@@ -781,6 +781,7 @@ erDiagram
     text plan
     text answer
     jsonb citations
+    jsonb errors
     text status
     bool cache_hit
     int attempts
@@ -790,6 +791,7 @@ erDiagram
     numeric cost_usd
     timestamptz started_at
     timestamptz ended_at
+    bool trace_complete
   }
   spans {
     text span_id PK
@@ -1036,6 +1038,6 @@ This list is the allowlist referred to in the working agreements: a dependency n
 | CLI | typer | |
 | SQL validation (v2) | sqlglot | |
 | Re-ranking (v1, optional) | sentence-transformers cross-encoder | only if T2.03 enables re-ranking |
-| Dev tools | ruff, mypy, pytest, pytest-asyncio, import-linter, pre-commit | |
+| Dev tools | ruff, mypy, pytest, pytest-asyncio, import-linter, pre-commit, httpx (the FastAPI test client needs it for HTTP and SSE tests) | |
 | Web | Node LTS, Vite, React, TypeScript | no UI framework in Phase 1 |
 | Local models | LM Studio on the host (8.1) | |

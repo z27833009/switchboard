@@ -1,54 +1,300 @@
-"""Placeholder API for T1.02: startup checks and a dependency health report.
+"""FastAPI application: chat, runs, trace and health (design.md sections 5, 12).
 
-The real routes (chat, runs, trace) arrive in T1.13. This module exists so that
-`docker compose up` has something to start, and so the run token secret rule in
-design.md section 13.2 is enforced from the first process.
+The routes are thin: validate the request with the core models, resolve the
+tenant, mint the run token, insert the run row, hand the run to the orchestrator,
+flush the span batches, write the final row and return. Tests build the app with
+an injected ``AppDeps`` so no LM Studio or PostgreSQL is needed; production goes
+through ``build_app_deps`` in ``deps.py``.
+
+``POST /chat/stream`` returns server-sent events produced by
+``StepEventProcessor`` (design 12.5). The events come from the same spans the
+trace endpoint reads, and the run starts emitting before it ends.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import urllib.request
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, cast
 
 import asyncpg
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.telemetry import TelemetryConfig
 
-from switchboard.tracing import configure_tracing
+from switchboard.api.deps import AppDeps, build_app_deps
+from switchboard.api.run_tokens import (
+    RUN_TOKEN_MIN_BYTES,
+    mint_run_token,
+    require_run_token_secret,
+)
+from switchboard.api.schemas import ChatResponse, RunsResponse, RunSummary, TraceResponse
+from switchboard.api.step_events import RUN_FINISHED, StepEvent
+from switchboard.api.store import parse_run_id, rows_are_complete
+from switchboard.api.trace import assemble_trace
+from switchboard.core.config import tenant_context
+from switchboard.core.errors import ConfigError
+from switchboard.core.models import (
+    ChatRequest,
+    ErrorRecord,
+    RunContext,
+    RunResult,
+    TenantContext,
+)
 
-RUN_TOKEN_MIN_BYTES = 32
+logger = logging.getLogger(__name__)
+
 HTTP_TIMEOUT_S = 3.0
+SSE_HEADERS = {
+    "Cache-Control": "no-cache",
+    "X-Accel-Buffering": "no",
+}
+# FastAPI's native OpenTelemetry is off: this project instruments its own
+# boundaries and the run span is the root of a run's trace (design 12.1, 12.2).
+NATIVE_TELEMETRY_OFF: TelemetryConfig = {
+    "tracing": False,
+    "metrics": False,
+    "logs": False,
+    "operation_spans": False,
+}
 
 
-def require_run_token_secret() -> str:
-    """Return the signing secret, or refuse to start (design 13.2)."""
-    secret = os.environ.get("SWITCHBOARD_RUN_TOKEN_SECRET", "")
-    if len(secret.encode("utf-8")) < RUN_TOKEN_MIN_BYTES:
-        raise RuntimeError("SWITCHBOARD_RUN_TOKEN_SECRET must be set to at least 32 bytes")
-    return secret
+def _deps(app: FastAPI) -> AppDeps:
+    value = getattr(app.state, "deps", None)
+    if value is None:
+        raise HTTPException(status_code=503, detail="the application has not started")
+    return cast(AppDeps, value)
 
 
-@asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    require_run_token_secret()
-    tracing = configure_tracing(
-        service_name="switchboard-api",
-        dsn=os.environ.get("SWITCHBOARD_DATABASE_URL", ""),
-        exporter=os.environ.get("SWITCHBOARD_TRACING_EXPORTER", "postgres"),
+def _tenant(deps: AppDeps, tenant_id: str) -> TenantContext:
+    try:
+        return tenant_context(tenant_id, deps.tenants)
+    except ConfigError as exc:
+        raise HTTPException(status_code=404, detail=f"unknown tenant {tenant_id!r}") from exc
+
+
+def _run_context(
+    deps: AppDeps, tenant: TenantContext, run_id: str, trace_parent: str
+) -> RunContext:
+    return RunContext(
+        run_id=run_id,
+        tenant=tenant,
+        run_token=mint_run_token(
+            deps.run_token_secret,
+            tenant_id=tenant.tenant_id,
+            run_id=run_id,
+            run_timeout_s=deps.run_timeout_s,
+        ),
+        trace_parent=trace_parent,
+    )
+
+
+def _failed_result(
+    request: ChatRequest, run_id: str, tenant_id: str, exc: BaseException
+) -> RunResult:
+    now = datetime.now(UTC)
+    return RunResult(
+        run_id=run_id,
+        tenant_id=tenant_id,
+        query=request.query,
+        status="provider_error",
+        errors=[
+            ErrorRecord(
+                kind=type(exc).__name__,
+                message="the orchestrator failed before producing a result",
+                stage="api",
+            )
+        ],
+        started_at=now,
+        ended_at=now,
+    )
+
+
+async def execute_run(
+    deps: AppDeps,
+    request: ChatRequest,
+    tenant: TenantContext,
+    *,
+    run_id: str,
+    trace_parent: str,
+) -> tuple[RunResult, bool]:
+    """One run: run row, orchestrator, flush, final row (design 5 and 12.2)."""
+    orchestrator = deps.orchestrator_for(tenant.provider)
+    context = _run_context(deps, tenant, run_id, trace_parent)
+    await deps.store.start_run(
+        run_id=run_id,
+        tenant_id=tenant.tenant_id,
+        session_id=request.session_id,
+        query=request.query,
+        orchestrator=orchestrator.name,
     )
     try:
-        yield
+        result = await orchestrator.run(request, context)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.warning("run %s: orchestrator failed with %s", run_id, type(exc).__name__)
+        result = _failed_result(request, run_id, tenant.tenant_id, exc)
+    flushed = await deps.flush()
+    await deps.store.finish_run(result, trace_complete=flushed)
+    return result, flushed
+
+
+def _spawn(app: FastAPI, task: asyncio.Task[None]) -> None:
+    tasks: set[asyncio.Task[None]] = app.state.background_tasks
+    tasks.add(task)
+    task.add_done_callback(tasks.discard)
+
+
+async def _run_and_publish(
+    deps: AppDeps,
+    request: ChatRequest,
+    tenant: TenantContext,
+    *,
+    run_id: str,
+    trace_parent: str,
+) -> None:
+    try:
+        result, flushed = await execute_run(
+            deps, request, tenant, run_id=run_id, trace_parent=trace_parent
+        )
+        response = ChatResponse.from_result(
+            result, session_id=request.session_id, trace_incomplete=not flushed
+        )
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.warning("run %s: could not finish with %s", run_id, type(exc).__name__)
+        now = datetime.now(UTC)
+        response = ChatResponse(
+            run_id=run_id,
+            tenant_id=tenant.tenant_id,
+            session_id=request.session_id,
+            status="provider_error",
+            errors=[
+                ErrorRecord(
+                    kind=type(exc).__name__,
+                    message="the run could not be stored",
+                    stage="api",
+                )
+            ],
+            started_at=now,
+            ended_at=now,
+        )
+    payload = response.model_dump(mode="json")
+    payload.pop("run_id", None)
+    deps.publisher.publish(StepEvent(RUN_FINISHED, run_id, payload))
+
+
+async def _event_stream(
+    deps: AppDeps, queue: asyncio.Queue[StepEvent], run_id: str
+) -> AsyncIterator[str]:
+    try:
+        while True:
+            event = await queue.get()
+            yield event.to_sse()
+            if event.type == RUN_FINISHED:
+                return
     finally:
-        if tracing is not None:
-            tracing.shutdown()
+        deps.publisher.unregister(run_id)
 
 
-app = FastAPI(title="Switchboard API", version="0.1.0", lifespan=lifespan)
+router = APIRouter()
+
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat(request: Request, payload: ChatRequest) -> ChatResponse:
+    """Run one request and return the final payload (AC-01a)."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, payload.tenant_id)
+    run_id = str(uuid.uuid4())
+    try:
+        result, flushed = await execute_run(
+            deps,
+            payload,
+            tenant,
+            run_id=run_id,
+            trace_parent=request.headers.get("traceparent", ""),
+        )
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.warning("run %s: request failed with %s", run_id, type(exc).__name__)
+        raise HTTPException(status_code=500, detail="the run could not be completed") from exc
+    return ChatResponse.from_result(
+        result, session_id=payload.session_id, trace_incomplete=not flushed
+    )
+
+
+@router.post("/chat/stream")
+async def chat_stream(request: Request, payload: ChatRequest) -> StreamingResponse:
+    """Stream the run's steps as server-sent events (AC-22a, design 12.5)."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, payload.tenant_id)
+    run_id = str(uuid.uuid4())
+    queue = deps.publisher.register(run_id)
+    task = asyncio.create_task(
+        _run_and_publish(
+            deps,
+            payload,
+            tenant,
+            run_id=run_id,
+            trace_parent=request.headers.get("traceparent", ""),
+        )
+    )
+    _spawn(request.app, task)
+    return StreamingResponse(
+        _event_stream(deps, queue, run_id),
+        media_type="text/event-stream",
+        headers=SSE_HEADERS,
+    )
+
+
+async def _load_run(deps: AppDeps, run_id: str) -> dict[str, Any]:
+    try:
+        normalized = parse_run_id(run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="run not found") from exc
+    row = await deps.store.get_run(normalized)
+    if row is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    return row
+
+
+@router.get("/runs", response_model=RunsResponse)
+async def list_runs(
+    request: Request,
+    tenant_id: str | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+) -> RunsResponse:
+    """The run list for the UI, newest first."""
+    deps = _deps(request.app)
+    rows = await deps.store.list_runs(tenant_id=tenant_id, limit=limit)
+    return RunsResponse(runs=[RunSummary.from_row(row) for row in rows], count=len(rows))
+
+
+@router.get("/runs/{run_id}", response_model=RunSummary)
+async def get_run(request: Request, run_id: str) -> RunSummary:
+    """One run with its final answer and citations."""
+    deps = _deps(request.app)
+    return RunSummary.from_row(await _load_run(deps, run_id))
+
+
+@router.get("/runs/{run_id}/trace", response_model=TraceResponse)
+async def get_run_trace(request: Request, run_id: str) -> TraceResponse:
+    """The span tree of one run (AC-05a), marked incomplete after a lost flush."""
+    deps = _deps(request.app)
+    row = await _load_run(deps, run_id)
+    rows = await deps.store.fetch_spans(str(row["id"]))
+    incomplete = not bool(row.get("trace_complete", True)) or not rows_are_complete(rows)
+    return assemble_trace(run_id=str(row["id"]), rows=rows, incomplete=incomplete)
 
 
 async def check_postgres(dsn: str) -> dict[str, str]:
@@ -92,8 +338,8 @@ def check_http(url: str) -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/health")
-async def health() -> JSONResponse:
+async def default_health() -> tuple[int, dict[str, Any]]:
+    """The T1.02 dependency report: postgres, mcp_olist, lmstudio."""
     postgres = await check_postgres(os.environ.get("SWITCHBOARD_DATABASE_URL", ""))
     lmstudio = await asyncio.to_thread(check_lmstudio, os.environ.get("LMSTUDIO_BASE_URL", ""))
     tools_url = os.environ.get("SWITCHBOARD_TOOLS_URL", "")
@@ -107,10 +353,73 @@ async def health() -> JSONResponse:
         "lmstudio": lmstudio,
     }
     healthy = all(item["status"] == "ok" for item in dependencies.values())
-    return JSONResponse(
-        status_code=200 if healthy else 503,
-        content={
+    return (
+        200 if healthy else 503,
+        {
             "status": "ok" if healthy else "error",
             "dependencies": dependencies,
         },
     )
+
+
+@router.get("/health")
+async def health(request: Request) -> JSONResponse:
+    deps = _deps(request.app)
+    check = deps.health or default_health
+    status_code, content = await check()
+    return JSONResponse(status_code=status_code, content=content)
+
+
+def create_app(*, deps: AppDeps | None = None) -> FastAPI:
+    """Build the app; ``deps`` injects fakes for tests, ``None`` builds production."""
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        built: AppDeps | None = None
+        if app.state.deps is None:
+            built = await build_app_deps()
+            app.state.deps = built
+        try:
+            yield
+        finally:
+            if built is not None and built.closer is not None:
+                await built.closer()
+
+    application = FastAPI(
+        title="Switchboard API",
+        version="0.1.0",
+        lifespan=lifespan,
+        # FastAPI 0.162 traces requests and dependencies itself. The design's
+        # span set is the project's own (design 12.1) and the run span is the
+        # root of a run's trace, so the framework spans would only add noise to
+        # the span table and the trace tree.
+        telemetry=NATIVE_TELEMETRY_OFF,
+    )
+    application.state.deps = deps
+    application.state.background_tasks = set()
+    application.include_router(router)
+    return application
+
+
+app = create_app()
+
+__all__ = [
+    "HTTP_TIMEOUT_S",
+    "NATIVE_TELEMETRY_OFF",
+    "RUN_TOKEN_MIN_BYTES",
+    "SSE_HEADERS",
+    "app",
+    "chat",
+    "chat_stream",
+    "check_http",
+    "check_lmstudio",
+    "check_postgres",
+    "create_app",
+    "default_health",
+    "execute_run",
+    "get_run",
+    "get_run_trace",
+    "health",
+    "list_runs",
+    "require_run_token_secret",
+]

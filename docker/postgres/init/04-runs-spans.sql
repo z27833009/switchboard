@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS public.runs (
     plan text,
     answer text,
     citations jsonb NOT NULL DEFAULT '[]'::jsonb,
+    errors jsonb NOT NULL DEFAULT '[]'::jsonb,
     status text NOT NULL,
     cache_hit boolean NOT NULL DEFAULT false,
     attempts integer NOT NULL DEFAULT 0,
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS public.runs (
     cost_usd numeric,
     started_at timestamptz NOT NULL DEFAULT now(),
     ended_at timestamptz,
+    trace_complete boolean NOT NULL DEFAULT true,
     CONSTRAINT runs_status_check CHECK (
         status IN (
             'running',
@@ -44,6 +46,14 @@ CREATE TABLE IF NOT EXISTS public.runs (
 CREATE INDEX IF NOT EXISTS runs_tenant_started_idx
     ON public.runs (tenant_id, started_at DESC);
 CREATE INDEX IF NOT EXISTS runs_status_idx ON public.runs (status);
+
+-- Added in T1.13: false when the API's span flush timed out before it answered,
+-- so GET /runs/{id}/trace can mark the tree incomplete (design 12.2). Errors are
+-- persisted with the run so a failed run explains itself in the run list.
+ALTER TABLE public.runs
+    ADD COLUMN IF NOT EXISTS trace_complete boolean NOT NULL DEFAULT true;
+ALTER TABLE public.runs
+    ADD COLUMN IF NOT EXISTS errors jsonb NOT NULL DEFAULT '[]'::jsonb;
 
 -- The run row is inserted before any span can reference it (design 12.2). The
 -- span table is append-only: no UPDATE or DELETE grant for any role.
