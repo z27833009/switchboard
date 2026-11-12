@@ -18,5 +18,5 @@ Build one Python package with a framework-free `core` that defines ports (interf
 ## Consequences
 
 - About 15 to 20 percent more code up front for interfaces and contract tests.
-- Any port can get a second implementation without touching the orchestrator; this is what the v2 sequential orchestrator and the Valkey cache adapter will demonstrate.
+- Any port can get a second implementation without touching the orchestrator; this is what the v1 agent loop orchestrator (ADR 0002) and the v2 Valkey cache adapter will demonstrate.
 - The monolith can be split later along the port boundaries if a real need appears; the ADR for that split would reference this one.

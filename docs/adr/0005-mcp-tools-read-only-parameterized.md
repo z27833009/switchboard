@@ -1,6 +1,6 @@
 # ADR 0005: MCP tool server in Python with read-only parameterized tools
 
-Status: proposed, 2026-11-11
+Status: proposed, 2026-11-11. Amended 2026-11-12: tenant identity comes from a signed run token (ADR 0014); no sandbox needed.
 
 ## Context
 
@@ -9,10 +9,11 @@ Agents need tools over a business database. The tool layer must be a real bounda
 ## Decision
 
 - Tools are served by a separate FastMCP (Python) process over streamable HTTP. The platform consumes them through a `ToolSource` port whose first adapter is an MCP client.
-- Phase 1 tools are parameterized functions with JSON schemas, not free-form SQL. The database role has SELECT only, every call runs in a read-only transaction with a statement timeout and a row cap.
+- Phase 1 tools are parameterized functions with JSON schemas, not free-form SQL. They return aggregates first. The database role has SELECT only, every call runs in a read-only transaction with a statement timeout and a row cap.
 - A manifest file is the source of truth for tool metadata: version, risk level, tenant scoping, sensitive arguments.
-- The server enforces the tenant allowlist itself; the client-side filter is a convenience, not a trust boundary.
-- Every call writes an audit row before returning.
+- The server enforces the tenant allowlist itself; the client-side filter is a convenience, not a trust boundary. The server learns the tenant from a signed run token, never from caller-supplied metadata or arguments (ADR 0014).
+- Every call writes an audit row before returning and returns its `audit_id`, so answers can cite it.
+- **No sandbox.** Sandboxes exist for tools that execute model-written code or commands (as in Codex or Claude Code). These tools execute fixed code with validated arguments; the SELECT-only role, read-only transaction, timeout, row cap, process boundary and audit are the containment. A tool that executes model-written code would need its own ADR and a sandbox.
 
 ## Alternatives
 
@@ -24,4 +25,4 @@ Agents need tools over a business database. The tool layer must be a real bounda
 
 - Adding a tool: one function, one manifest entry, one dataset case. No change to core or orchestrator.
 - Tool-call accuracy is measured as name plus argument match against pinned tool versions.
-- Two processes must agree on trace context propagation and tenant metadata; this is covered by integration tests.
+- Two processes must agree on run tokens, trace context propagation and tenant config; this is covered by integration tests.
