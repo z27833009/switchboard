@@ -17,6 +17,7 @@ from switchboard.core.errors import (
     ToolPermissionError,
     ToolValidationError,
 )
+from switchboard.core.guardrails import scan, wrap_data_block
 from switchboard.core.models import (
     AgentResult,
     AgentSpec,
@@ -151,6 +152,7 @@ class DataAgent(BaseAgent):
                 else:
                     result_id = store.add(result)
                 view = result.view(limit=deps.model_view_rows, result_id=result_id)
+                body = view.model_dump_json()
                 ref = f"t{len(evidence) + 1}"
                 registry.add(
                     Citation(
@@ -173,11 +175,15 @@ class DataAgent(BaseAgent):
                 messages.append(
                     Message(
                         role="tool",
-                        content=(
-                            f'<tool_result ref="{ref}" tool="{call.name}" '
-                            f'result_id="{result_id}">\n'
-                            f"{view.model_dump_json()}\n"
-                            "</tool_result>"
+                        content=wrap_data_block(
+                            "tool_result",
+                            body,
+                            attributes={
+                                "ref": ref,
+                                "tool": call.name,
+                                "result_id": result_id,
+                            },
+                            result=scan(body),
                         ),
                         tool_call_id=call.call_id,
                         result_id=result_id,

@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from switchboard.core.guardrails import PATTERN_BY_ID, PATTERN_SET_VERSION
 from switchboard.core.models import Usage
 from switchboard.eval.runner import CaseRun
 from switchboard.eval.scorers.routing import plan_label
@@ -168,6 +169,75 @@ def _gate_metrics(results: list[CaseRun]) -> dict[str, float]:
         len(results) - labeled,
     )
     return metrics
+
+
+def _injection_counts(results: list[CaseRun]) -> dict[str, Any]:
+    patterns: dict[str, dict[str, Any]] = {}
+    for pattern_id, pattern in PATTERN_BY_ID.items():
+        patterns[pattern_id] = {
+            "name": pattern.name,
+            "family": pattern.family,
+            "tp": int(sum(_metric_values(results, f"{pattern_id}_tp"))),
+            "fp": int(sum(_metric_values(results, f"{pattern_id}_fp"))),
+            "fn": int(sum(_metric_values(results, f"{pattern_id}_fn"))),
+            "tn": int(sum(_metric_values(results, f"{pattern_id}_tn"))),
+        }
+    false_positives = [
+        result.case.id
+        for result in results
+        if result.score.metrics.get("flagged")
+        and not bool(result.case.payload.get("is_malicious", False))
+    ]
+    false_negatives = [
+        result.case.id
+        for result in results
+        if not result.score.metrics.get("flagged")
+        and bool(result.case.payload.get("is_malicious", False))
+    ]
+    return {
+        "pattern_set_version": PATTERN_SET_VERSION,
+        "patterns": patterns,
+        "false_positive_cases": false_positives,
+        "false_negative_cases": false_negatives,
+    }
+
+
+def _injection_metrics(results: list[CaseRun]) -> dict[str, float]:
+    flagged = _metric_values(results, "flagged")
+    labeled = _metric_values(results, "labeled_malicious")
+    tp = int(sum(1 for f, m in zip(flagged, labeled, strict=True) if f and m))
+    fp = int(sum(1 for f, m in zip(flagged, labeled, strict=True) if f and not m))
+    fn = int(sum(1 for f, m in zip(flagged, labeled, strict=True) if not f and m))
+    tn = int(sum(1 for f, m in zip(flagged, labeled, strict=True) if not f and not m))
+    precision = _ratio(tp, tp + fp)
+    recall = _ratio(tp, tp + fn)
+    denominator = precision + recall
+    return {
+        "detection_rate": recall,
+        "false_positive_rate": _ratio(fp, fp + tn),
+        "precision": precision,
+        "recall": recall,
+        "f1": round(2 * precision * recall / denominator, 4) if denominator else 0.0,
+        "case_accuracy": _mean(_metric_values(results, "correct")),
+        "benign_specificity": _ratio(tn, tn + fp),
+    }
+
+
+def _injection_case_row(result: CaseRun) -> dict[str, Any]:
+    payload = result.case.payload
+    matched = result.outcome.details.get("patterns", [])
+    return {
+        "case_id": result.case.id,
+        "query": result.case.query,
+        "content": payload.get("content"),
+        "is_malicious": bool(payload.get("is_malicious", False)),
+        "expected_pattern": payload.get("expected_pattern"),
+        "matched_patterns": list(matched) if isinstance(matched, list) else [],
+        "flagged": bool(result.outcome.details.get("flagged", False)),
+        "correct": result.score.passed,
+        "note": payload.get("note"),
+        "error": result.outcome.error,
+    }
 
 
 def _rag_strategy_names(results: list[CaseRun]) -> list[str]:
@@ -356,6 +426,8 @@ def build_report(meta: ReportMeta, results: list[CaseRun]) -> dict[str, Any]:
         metrics = _routing_metrics(results)
     elif meta.suite == "gate":
         metrics = _gate_metrics(results)
+    elif meta.suite == "injection":
+        metrics = _injection_metrics(results)
     elif meta.suite == "rag":
         metrics = _rag_metrics(results)
     else:
@@ -414,6 +486,15 @@ def build_report(meta: ReportMeta, results: list[CaseRun]) -> dict[str, Any]:
         report["retrieval_k"] = 5
         report["rrf_k"] = 60
         report["cases"] = [_rag_case_row(result) for result in results]
+    elif meta.suite == "injection":
+        report["injection_counts"] = _injection_counts(results)
+        report["pattern_set_version"] = PATTERN_SET_VERSION
+        report["label_source"] = (
+            "constructed and audited by the implementation session, "
+            "not an independent human annotator"
+        )
+        report["deterministic"] = True
+        report["cases"] = [_injection_case_row(result) for result in results]
     else:
         report["cases"] = [_toolcall_case_row(result) for result in results]
     return report
@@ -442,6 +523,22 @@ def _gate_check_table(report: dict[str, Any]) -> list[str]:
         lines.append(
             f"| {name} | {check['tp']} | {check['fp']} | {check['fn']} | "
             f"{check['tn']} | {precision:.4f} | {recall:.4f} |"
+        )
+    return lines
+
+
+def _injection_pattern_table(report: dict[str, Any]) -> list[str]:
+    lines = [
+        "| Pattern | Family | TP | FP | FN | TN | Precision | Recall |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    patterns = report["injection_counts"]["patterns"]
+    for pattern_id, counts in patterns.items():
+        precision = _ratio(counts["tp"], counts["tp"] + counts["fp"])
+        recall = _ratio(counts["tp"], counts["tp"] + counts["fn"])
+        lines.append(
+            f"| {pattern_id} | {counts['family']} | {counts['tp']} | {counts['fp']} | "
+            f"{counts['fn']} | {counts['tn']} | {precision:.4f} | {recall:.4f} |"
         )
     return lines
 
@@ -503,6 +600,29 @@ def _case_table(report: dict[str, Any]) -> list[str]:
                         *cells,
                         "/".join(rewrites),
                         _cell(note),
+                    ]
+                )
+                + " |"
+            )
+        return lines
+
+    if report["suite"] == "injection":
+        lines = [
+            "| Case | Content | Malicious | Expected pattern | Matched patterns | Correct | Note |",
+            "| --- | --- | --- | --- | --- | --- | --- |",
+        ]
+        for case in report["cases"]:
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        _cell(case["case_id"]),
+                        _cell(str(case["content"] or "")),
+                        "yes" if case["is_malicious"] else "no",
+                        _cell(case["expected_pattern"] or "none"),
+                        _cell(", ".join(case["matched_patterns"]) or "none"),
+                        "yes" if case["correct"] else "no",
+                        _cell(case["note"] or case["error"] or ""),
                     ]
                 )
                 + " |"
@@ -662,6 +782,34 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.extend(_metric_table(report["metrics"]))
     lines.append("")
 
+    if report["suite"] == "injection":
+        lines.append("## Patterns")
+        lines.append("")
+        lines.append(f"Pattern set version: `{report['pattern_set_version']}`.")
+        lines.append("")
+        lines.extend(_injection_pattern_table(report))
+        lines.append("")
+        counts = report["injection_counts"]
+        lines.append(
+            "Detection rate is the share of labeled malicious samples that were "
+            "flagged; the false positive rate is the share of labeled benign samples "
+            "that were flagged. Per-pattern precision treats a match on any benign "
+            "sample as a false positive for that pattern; per-pattern recall counts "
+            "the malicious samples written for that pattern id. A malicious sample "
+            "that another pattern also catches does not change a pattern's score. "
+            "Labels were constructed and audited by the implementation session, not "
+            "by an independent human annotator. Benign samples include near-miss "
+            "policy text, and two deliberate false-positive traps."
+        )
+        lines.append("")
+        lines.append(
+            f"False positive case ids: "
+            f"{', '.join(counts['false_positive_cases']) or 'none'}; "
+            f"false negative case ids: "
+            f"{', '.join(counts['false_negative_cases']) or 'none'}."
+        )
+        lines.append("")
+
     if report["suite"] == "rag":
         lines.append("## Strategies")
         lines.append("")
@@ -725,6 +873,8 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.append("| Window | p50 ms | p95 ms | min ms | max ms | mean ms |")
     lines.append("| --- | --- | --- | --- | --- | --- |")
     first_label = "Retrieval" if report["suite"] == "rag" else "Model"
+    if report["suite"] == "injection":
+        first_label = "Scanner"
     for name, key in ((first_label, "latency_ms"), ("Runner wall", "runner_latency_ms")):
         summary = report[key]
         lines.append(

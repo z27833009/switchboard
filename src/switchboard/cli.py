@@ -206,7 +206,8 @@ def _eval_provider(
 @eval_app.command("run")
 def eval_run(
     suite: Annotated[
-        str, typer.Option("--suite", help="Suite name: routing, toolcall, gate or rag.")
+        str,
+        typer.Option("--suite", help="Suite name: routing, toolcall, gate, rag or injection."),
     ],
     provider: Annotated[
         str, typer.Option("--provider", help="Provider name from providers.yaml.")
@@ -282,7 +283,7 @@ def eval_run(
         )
         cases: list[EvalCase] = eval_suite.load(dataset_version)
         selection = select_cases(cases, split=split, limit=limit)
-        if suite == "gate":
+        if suite in {"gate", "injection"}:
             model = "deterministic"
         else:
             model = settings.providers.providers[provider].model or "unknown"

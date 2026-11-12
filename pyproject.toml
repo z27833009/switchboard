@@ -62,6 +62,7 @@ routing = "switchboard.eval.suites.routing:RoutingSuite"
 toolcall = "switchboard.eval.suites.toolcall:ToolCallSuite"
 gate = "switchboard.eval.suites.gate:GateSuite"
 rag = "switchboard.eval.suites.rag:RagSuite"
+injection = "switchboard.eval.suites.injection:InjectionSuite"
 
 [dependency-groups]
 dev = [

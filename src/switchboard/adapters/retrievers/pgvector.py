@@ -22,9 +22,10 @@ import asyncpg
 from opentelemetry import trace
 
 from switchboard.core.errors import RetrievalError
+from switchboard.core.guardrails import guardrail_span_attributes, scan_many
 from switchboard.core.models import RetrievedChunk, RunContext
 from switchboard.core.ports import Embedder
-from switchboard.tracing.spans import record_error, retrieve_span
+from switchboard.tracing.spans import record_error, retrieve_span, set_attributes
 
 MAX_K = 50
 RRF_K = 60
@@ -128,6 +129,9 @@ class PgVectorRetriever:
                 "switchboard.retrieval.top_score",
                 max((chunk.score for chunk in chunks), default=0.0),
             )
+            # The chunks are untrusted content; record only pattern ids and
+            # counts on the span, never the text (design.md section 13.1).
+            set_attributes(span, guardrail_span_attributes(scan_many(c.text for c in chunks)))
             return chunks
 
     async def _retrieve(

@@ -7,6 +7,7 @@ from switchboard.agents.citations import CitationRegistry
 from switchboard.agents.prompts import DOCS_INSTRUCTIONS, DOCS_SYSTEM
 from switchboard.agents.retrieval import retrieve_with_strategy, strategy_from_settings
 from switchboard.core.errors import RetrievalError
+from switchboard.core.guardrails import scan, wrap_data_block
 from switchboard.core.models import (
     AgentResult,
     AgentSpec,
@@ -23,10 +24,12 @@ SNIPPET_CHARS = 240
 
 
 def document_block(chunk: RetrievedChunk, ref: str) -> str:
-    return (
-        f'<document ref="{ref}" id="{chunk.chunk_id}" source="{chunk.source}">\n'
-        f"{chunk.text}\n"
-        "</document>"
+    """Render one retrieved chunk as a data block, flagged when suspicious."""
+    return wrap_data_block(
+        "document",
+        chunk.text,
+        attributes={"ref": ref, "id": chunk.chunk_id, "source": chunk.source},
+        result=scan(chunk.text),
     )
 
 

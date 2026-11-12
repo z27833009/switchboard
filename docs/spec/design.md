@@ -653,6 +653,8 @@ Retrieved chunks and tool results are passed as data blocks with citation ids:
 
 with a system instruction that content inside `document` and `tool_result` blocks is untrusted data and never an instruction (13.1), and that claims taken from a block must carry its `ref` marker.
 
+When the detector in 13.1 matches, the opening tag gains `flagged="true"` and the body starts with one short note that names the pattern ids. The content itself is not changed, and the `ref`, `id` and `result_id` format stays the same, so citations and the gate keep working on flagged blocks.
+
 ## 10. Semantic cache (v1)
 
 ### 10.1 Placement and scope
@@ -725,12 +727,14 @@ The code uses the OpenTelemetry API directly. Span names and attributes follow t
 | `agent.<name>` | internal | `switchboard.agent`, `switchboard.partial`, `switchboard.citations` |
 | `chat <model>` | client | `gen_ai.operation.name=chat`, `gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `switchboard.usage.cached_input_tokens`, `switchboard.structured_output.strategy`, `switchboard.context.tokens_estimated`, `switchboard.context.compacted`, `switchboard.context.cleared_results`, `switchboard.latency_ms`, `switchboard.cost_usd` |
 | `embeddings <model>` | client | `gen_ai.operation.name=embeddings`, token usage |
-| `execute_tool <name>` | client | `gen_ai.tool.name`, `switchboard.tool.version`, `switchboard.tool.args_hash`, `switchboard.tool.status`, `switchboard.tool.total_rows`, `switchboard.tool.audit_id`; event `tool.result` with the full result capped at 64 KB |
-| `retrieve` | internal | `switchboard.retrieval.k`, `switchboard.retrieval.strategy`, `switchboard.retrieval.hits`, `switchboard.retrieval.round`, `switchboard.retrieval.top_score` |
+| `execute_tool <name>` | client | `gen_ai.tool.name`, `switchboard.tool.version`, `switchboard.tool.args_hash`, `switchboard.tool.status`, `switchboard.tool.total_rows`, `switchboard.tool.audit_id`, guardrail attributes below; event `tool.result` with the full result capped at 64 KB |
+| `retrieve` | internal | `switchboard.retrieval.k`, `switchboard.retrieval.strategy`, `switchboard.retrieval.hits`, `switchboard.retrieval.round`, `switchboard.retrieval.top_score`, guardrail attributes below |
 | `cache.lookup` | internal | see 10.4 |
 | `gate` | internal | `switchboard.gate.verdict`, `switchboard.gate.failed_checks`, `switchboard.gate.action` |
 
 `execute_tool <name>` exists twice per call: the client span in `McpToolSource` carries the network timing and the tool attributes, and the server span inside the MCP process continues the trace from the `traceparent` header. The server writes the `tool.result` event because it is the process that holds the full result. `switchboard.cost_usd` appears once `config/prices.yaml` exists (section 12.4, v1); until then the attribute is absent rather than zero for a paid model.
+
+The guardrail attributes on `retrieve` and `execute_tool` come from `core/guardrails.py`: `switchboard.guardrail.flagged`, `switchboard.guardrail.patterns` (comma-separated pattern ids, empty when clean), `switchboard.guardrail.pattern_set` (the pattern set version) and `switchboard.guardrail.match_count`. Only ids and counts are stored; the matched text and the full untrusted content are never written to a span.
 
 ### 12.2 Export, storage and read-after-run consistency
 
@@ -774,7 +778,7 @@ Phase 1 ships step events; answer token streaming (`answer.delta`) needs provide
 ### 13.1 Prompt injection in tool results and documents
 
 - All external content reaches the model inside `tool_result` or `document` blocks with an id and a system instruction that such content is data.
-- v1 adds a detector in `core/guardrails.py` with a versioned pattern set (instruction-like phrases, role impersonation, requests to call tools or reveal prompts, encoded payloads). Flagged content is wrapped with `flagged="true"` and a note; the span records the pattern id. Detection quality is measured by the `injection` suite; patterns are extended from failures, not from guesses.
+- v1 adds a detector in `core/guardrails.py` with a versioned pattern set (instruction-like phrases, role impersonation, requests to call tools or reveal prompts, encoded payloads). Flagged content is wrapped with `flagged="true"` and a note; the retrieve and tool spans record the pattern ids and the pattern set version. Detection quality is measured by the `injection` suite; patterns are extended from failures, not from guesses.
 - Tool arguments produced by the model never include tenant identity or seller ids; those come from the signed run token and server-side config.
 
 ### 13.2 Secrets
@@ -1062,6 +1066,8 @@ Dataset versions are per suite when a suite is added later: `v2/gate.jsonl` hold
 
 `v3/rag.jsonl` holds the 40 rag cases and leaves `v1/` and `v2/` untouched. Chunk ids are database-generated and change on a fresh ingest, so the dataset stores portable `source#ordinal` keys and the suite resolves them to current chunk ids at eval time; the README documents the format and the failure mode for a key that no longer exists. Nine cases carry the `needs_rewrite` tag and four carry `history`; all 40 are in the `test` split because the task asks for the four strategies on the same 40 cases and the rewrite prompt was not fitted to individual cases. Details in `evals/datasets/v3/README.md`.
 
+`v4/injection.jsonl` holds the 40 injection samples and leaves `v1/`, `v2/` and `v3/` untouched: 20 malicious samples, each labeled with the pattern id it was written for, and 20 benign near-misses, including two deliberate false-positive traps. The suite runs the deterministic scanner in `core/guardrails.py` and reports detection rate, false positive rate and per-pattern precision and recall; labels are constructed and audited, not blind human labels. All 40 are in the `test` split because there is no prompt to tune. Details in `evals/datasets/v4/README.md`.
+
 Feedback (v1): `POST /runs/{id}/feedback` stores a rating and a note. `switchboard eval harvest --since <date>` exports negatively rated runs to `evals/candidates/` as unlabeled cases. A human labels them; labeled cases enter the next dataset version, never the current one.
 
 ### 20.2 Runner
@@ -1071,6 +1077,8 @@ Feedback (v1): `POST /runs/{id}/feedback` stores a rating and a note. `switchboa
 Suites receive `EvalDeps(provider)`. The routing suite builds the production supervisor request from the shared `switchboard.routing` helpers and the toolcall suite sends the five manifest tool specs with the data agent prompt prefix; both make one completion per case and do not run the agents or execute tools. This keeps 60 routing and 40 toolcall cases within the local-model budget and lets the mock provider replay them in CI. The gate suite makes no model call: it runs the same deterministic checks as the orchestrator and reports the model as `deterministic`, so its result depends only on the dataset and the code.
 
 The rag suite opens the tenant's document index, so it needs `SWITCHBOARD_DATABASE_URL` and the configured embedder, not just a provider. It runs the four strategies from 9.3 on every case and makes rewrite calls through `EvalDeps.provider`; `--provider mock --record` records those calls through the real provider and a later mock run replays them, but retrieval still uses the real embedding model, so the suite is not part of the CI mock gate. The JSON report carries a `strategies` object with recall@5, MRR, rewrite and retrieval round counts and latency per strategy, and the markdown shows the same table plus one row per case.
+
+The injection suite is deterministic like the gate suite: it runs `core/guardrails.py` on each case and makes no model call, so the report's model field is `deterministic` and the result depends only on the dataset and the pattern set.
 
 ### 20.3 Comparison and regression
 

@@ -31,6 +31,7 @@ from switchboard.core.errors import (
     ToolPermissionError,
     ToolValidationError,
 )
+from switchboard.core.guardrails import guardrail_span_attributes, scan
 from switchboard.core.models import RunContext, ToolResult, ToolSpec
 from switchboard.tracing.spans import (
     args_hash,
@@ -178,6 +179,10 @@ class McpToolSource:
                     "switchboard.tool.audit_id": result.audit_id,
                 },
             )
+            # Rows and summary are untrusted content. The span gets pattern ids
+            # and counts only; the full text is never copied to telemetry.
+            verdict = scan(result.model_dump_json())
+            set_attributes(span, guardrail_span_attributes(verdict))
             return result
 
     async def _call(self, name: str, args: dict[str, Any], ctx: RunContext) -> ToolResult:
