@@ -5,6 +5,7 @@ from __future__ import annotations
 from switchboard.agents.base import BaseAgent, partial_result
 from switchboard.agents.citations import CitationRegistry
 from switchboard.agents.prompts import DOCS_INSTRUCTIONS, DOCS_SYSTEM
+from switchboard.agents.retrieval import retrieve_with_strategy, strategy_from_settings
 from switchboard.core.errors import RetrievalError
 from switchboard.core.models import (
     AgentResult,
@@ -46,10 +47,20 @@ class DocsAgent(BaseAgent):
     async def run(self, task: AgentTask, deps: AgentDeps) -> AgentResult:
         if deps.retriever is None:
             return partial_result("Document retrieval is not configured.")
+        strategy = strategy_from_settings("docs", deps.ctx.tenant.retrieval)
         try:
-            chunks = await deps.retriever.retrieve(task.query, deps.ctx, k=TOP_K)
+            run = await retrieve_with_strategy(
+                deps.retriever,
+                deps.provider,
+                query=task.query,
+                ctx=deps.ctx,
+                strategy=strategy,
+                k=TOP_K,
+                history=task.history,
+            )
         except RetrievalError as exc:
             return partial_result(f"I could not search the policy documents: {exc}")
+        chunks = run.chunks
         if not chunks:
             return partial_result(
                 "I could not find any policy documents that answer this question."

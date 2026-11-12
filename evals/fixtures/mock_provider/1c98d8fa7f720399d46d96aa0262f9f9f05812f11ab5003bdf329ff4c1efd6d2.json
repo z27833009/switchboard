@@ -1,0 +1,42 @@
+{
+  "key": "1c98d8fa7f720399d46d96aa0262f9f9f05812f11ab5003bdf329ff4c1efd6d2",
+  "purpose": "retriever.rewrite",
+  "model": "qwen3-8b",
+  "request": {
+    "purpose": "retriever.rewrite",
+    "model": "qwen3-8b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You rewrite a user's question into one search query for a small English-language marketplace policy corpus. Keep every constraint in the question, including the product type, the time window, and the order status. Translate the question to English if it is in another language. Replace informal wording with the policy term a marketplace would use, for example return window, refund, shipping, delivery, tracking, installments, late-delivery compensation, commission, payout, or seller onboarding. Do not answer the question. Reply with the search query only, on one line, without quotes.",
+        "name": null,
+        "tool_call_id": null,
+        "tool_calls": []
+      },
+      {
+        "role": "user",
+        "content": "Conversation so far:\nuser: I just started selling and my first listing is not approved.\nassistant: The onboarding team reviews listings and answers support tickets.\n\nQuestion to rewrite: Who can I ask about it?",
+        "name": null,
+        "tool_call_id": null,
+        "tool_calls": []
+      }
+    ],
+    "tools": [],
+    "response_schema": null
+  },
+  "response": {
+    "text": "onboarding team contact for listing approval inquiries",
+    "reasoning": null,
+    "tool_calls": [],
+    "parsed": null,
+    "structured_output_strategy": null,
+    "usage": {
+      "input_tokens": 173,
+      "cached_input_tokens": 0,
+      "output_tokens": 9
+    },
+    "model": "qwen3-8b",
+    "provider": "lmstudio",
+    "latency_ms": 253
+  }
+}

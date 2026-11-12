@@ -61,6 +61,7 @@ langgraph = "switchboard.adapters.orchestrator.langgraph_impl:LangGraphOrchestra
 routing = "switchboard.eval.suites.routing:RoutingSuite"
 toolcall = "switchboard.eval.suites.toolcall:ToolCallSuite"
 gate = "switchboard.eval.suites.gate:GateSuite"
+rag = "switchboard.eval.suites.rag:RagSuite"
 
 [dependency-groups]
 dev = [

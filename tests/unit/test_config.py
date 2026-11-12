@@ -8,6 +8,7 @@ import pytest
 from switchboard.config import load_settings
 from switchboard.core.config import substitute_env, tenant_context
 from switchboard.core.errors import ConfigError
+from switchboard.core.models import RetrievalSettings
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -189,3 +190,18 @@ def test_committed_config_files_load() -> None:
     assert settings.platform.embedder == "lmstudio"
     assert set(settings.tenants.tenants) == {"default", "seller_a"}
     assert settings.tenants.tenants["seller_a"].seller_ids == ["955fee9216a65b617aa5c0531780ce60"]
+    assert settings.tenants.tenants["default"].retrieval.search == "hybrid"
+    assert settings.tenants.tenants["default"].retrieval.rewrite is True
+
+
+def test_retrieval_settings_default_to_the_phase_one_path() -> None:
+    settings = RetrievalSettings()
+    assert settings.search == "vector"
+    assert settings.rewrite is False
+    assert settings.rewrite_mode == "conditional"
+    assert settings.min_score == 0.35
+
+
+def test_unknown_retrieval_search_mode_is_rejected() -> None:
+    with pytest.raises(ValueError, match="search"):
+        RetrievalSettings(search="bm25")  # type: ignore[arg-type]

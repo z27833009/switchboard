@@ -12,7 +12,10 @@
 #                 phase denies them, same as tools missing from both lists
 #   seller_ids:   null means every seller (unrestricted demo tenant); a list
 #                 scopes every tool to those sellers, server-side
-#   retrieval:    k, min_score, rewrite (defaults: 5, 0.35, false)
+#   retrieval:    k, min_score, rewrite, rewrite_mode, search
+#                 (defaults: 5, 0.35, false, conditional, vector). search
+#                 hybrid adds full-text search and RRF; rewrite true enables
+#                 the conditional rewrite of design.md section 9.3
 #   cache:        enabled, threshold, ttl_days (defaults: false, 0.92, 7)
 #
 # Tools not listed under allow or ask are denied. The tool server takes the
@@ -31,6 +34,9 @@ tenants:
         - describe_schema@1
       ask: []
     seller_ids: null
+    retrieval:
+      search: hybrid
+      rewrite: true
   # A real cross-tenant demo: only seller 955fee... orders are visible, and a
   # request for any other order or for a tool outside the allowlist is denied.
   seller_a:
@@ -44,3 +50,6 @@ tenants:
         - top_products@1
       ask: []
     seller_ids: ["955fee9216a65b617aa5c0531780ce60"]
+    retrieval:
+      search: hybrid
+      rewrite: true

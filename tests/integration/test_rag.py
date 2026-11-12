@@ -16,11 +16,14 @@ import asyncpg
 import pytest
 
 from switchboard.adapters.embedders.factory import create_embedder
+from switchboard.adapters.providers.factory import create_provider
 from switchboard.adapters.retrievers.ingest import ingest_directory
 from switchboard.adapters.retrievers.pgvector import PgVectorRetriever
+from switchboard.agents.retrieval import RetrievalStrategy, retrieve_with_strategy
 from switchboard.config import load_settings
 from switchboard.core.config import tenant_context
-from switchboard.core.models import RunContext
+from switchboard.core.models import RetrievalSettings, RunContext
+from switchboard.registry import Registry
 
 REPO = Path(__file__).resolve().parents[2]
 DATABASE_URL = os.environ.get("SWITCHBOARD_DATABASE_URL", "")
@@ -138,5 +141,84 @@ async def test_retrieval_is_isolated_per_tenant() -> None:
         assert {chunk.document_id for chunk in seller_chunks} <= seller_docs
         assert len(default_chunk_ids) == 29
         assert len(seller_chunk_ids) == 29
+    finally:
+        await pool.close()
+
+
+async def test_hybrid_search_finds_full_text_matches_and_keeps_the_tenant_filter() -> None:
+    """The GIN branch contributes chunks and never crosses a tenant (AC-11a, 9.2)."""
+    settings = load_settings(REPO / "config")
+    embedder_name = settings.platform.embedder
+    embedder = create_embedder(embedder_name, settings.providers.embedders[embedder_name])
+    pool = await asyncpg.create_pool(dsn=DATABASE_URL, min_size=1, max_size=4)
+    try:
+        await ingest_directory(pool, embedder, REPO / "data" / "documents", "default")
+        await ingest_directory(pool, embedder, REPO / "data" / "documents", "seller_a")
+        hybrid = PgVectorRetriever(pool=pool, embedder=embedder, search="hybrid")
+
+        for query, expected_source in QUERIES:
+            chunks = await hybrid.retrieve(query, context_for("default", settings), k=5)
+            assert chunks, query
+            assert chunks[0].source == expected_source, (
+                query,
+                [(chunk.source, round(chunk.score, 3)) for chunk in chunks],
+            )
+
+        # "boleto" is a rare term that the full-text branch ranks first even
+        # though the embedding alone is less specific.
+        boleto = await hybrid.retrieve("boleto", context_for("default", settings), k=5)
+        assert f"{boleto[0].source}#{boleto[0].ordinal}" == "payments.md#3"
+
+        default_chunks = await hybrid.retrieve(
+            QUERIES[0][0], context_for("default", settings), k=50
+        )
+        seller_chunks = await hybrid.retrieve(
+            QUERIES[0][0], context_for("seller_a", settings), k=50
+        )
+        assert len(default_chunks) == len(seller_chunks) == 29
+        assert {chunk.chunk_id for chunk in default_chunks}.isdisjoint(
+            {chunk.chunk_id for chunk in seller_chunks}
+        )
+    finally:
+        await pool.close()
+
+
+async def test_conditional_rewrite_makes_two_rounds_below_the_threshold() -> None:
+    """A high threshold forces the rewrite round and a second retrieval (AC-25a)."""
+    settings = load_settings(REPO / "config")
+    embedder_name = settings.platform.embedder
+    embedder = create_embedder(embedder_name, settings.providers.embedders[embedder_name])
+    provider = create_provider(Registry(), "lmstudio", settings.providers.providers["lmstudio"])
+    pool = await asyncpg.create_pool(dsn=DATABASE_URL, min_size=1, max_size=4)
+    try:
+        await ingest_directory(pool, embedder, REPO / "data" / "documents", "default")
+        retriever = PgVectorRetriever(pool=pool, embedder=embedder, search="vector")
+        ctx = context_for("default", settings)
+        ctx = ctx.model_copy(
+            update={
+                "tenant": ctx.tenant.model_copy(
+                    update={
+                        "retrieval": RetrievalSettings(
+                            min_score=0.99, rewrite=True, rewrite_mode="conditional"
+                        )
+                    }
+                )
+            }
+        )
+        run = await retrieve_with_strategy(
+            retriever,
+            provider,
+            query=QUERIES[0][0],
+            ctx=ctx,
+            strategy=RetrievalStrategy(
+                name="conditional", search="vector", rewrite_mode="conditional"
+            ),
+            k=5,
+        )
+        assert run.rewrite_rounds == 1
+        assert run.retrieval_rounds == 2
+        assert len(run.queries) == 2
+        assert run.chunks
+        assert run.usage.input_tokens > 0
     finally:
         await pool.close()

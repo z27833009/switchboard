@@ -206,7 +206,14 @@ class AgentTask(BaseModel):
 class RetrievalSettings(BaseModel):
     k: int = Field(default=5, ge=1)
     min_score: float = Field(default=0.35, ge=0.0, le=1.0)
+    # ``rewrite`` enables the model call of design.md section 9.3; the mode
+    # picks between the conditional trigger (history or a low top score) and
+    # rewriting every query (used by the rag eval, never by the docs agent).
     rewrite: bool = False
+    rewrite_mode: Literal["conditional", "always"] = "conditional"
+    # Phase 1 behaviour stays selectable with ``vector``; tenants that opt in
+    # get full-text search plus reciprocal rank fusion (design.md section 9.2).
+    search: Literal["vector", "hybrid"] = "vector"
 
 
 class CacheSettings(BaseModel):

@@ -71,7 +71,7 @@ Target: about 48 hours without the semantic cache, 53 with it. Definition of don
 | T2.13 | OTLP exporter option and Jaeger container in a compose profile | 1.5 | Same run visible in Jaeger | design 12.2 |
 | T2.14 | Trace UI v2: timeline view, plan graph, cache and gate markers (functional, not styled) | 4 | Manual check; screenshots in docs | AC-05c |
 | T2.15 | Contract test suite completed for all ports with two implementations each where available | 2 | `pytest tests/contracts` parameterized over registered adapters | AC-08b |
-| T2.16 | Optional: `langgraph-visualizer` dev integration flag | 1 | Graph renders live in the visualizer | design 12.3 |
+| T2.16 | Optional (skipped by the author on 2026-11-12): `langgraph-visualizer` dev integration flag | 0 | Cancelled; recorded as skipped in progress.md | design 12.3 |
 | T2.17 | Docs: update ADRs, write interview notes (`docs/interview-notes.md`) with one paragraph per decision | 2 | Review by reading aloud in five minutes | G5 |
 | T2.18 | Semantic cache (cut first if v1 runs long): `PgSemanticCache` before the supervisor, key scoping, TTL, invalidation on ingest, cache spans, `cache` dataset with 50 pairs including cross-type near misses, threshold sweep report | 5 | Test: paraphrase hits, near miss does not, re-ingest invalidates, hit makes no model call; report with threshold table | AC-10a to AC-10d |
 

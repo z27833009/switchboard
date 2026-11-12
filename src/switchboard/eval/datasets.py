@@ -17,7 +17,7 @@ from switchboard.core.errors import ConfigError
 from switchboard.core.models import EvalCase
 
 DEFAULT_DATASET_ROOT = Path("evals/datasets")
-SUITE_NAMES = ("routing", "toolcall", "gate")
+SUITE_NAMES = ("routing", "toolcall", "gate", "rag")
 
 
 def dataset_path(suite: str, version: str, root: Path = DEFAULT_DATASET_ROOT) -> Path:

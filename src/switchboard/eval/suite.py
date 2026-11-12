@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
+from switchboard.core.config import Settings
 from switchboard.core.errors import ConfigError
 from switchboard.core.models import AgentSpec, ToolSpec
 from switchboard.core.ports import EvalSuite
@@ -24,6 +25,9 @@ class SuiteContext:
     agent_specs: list[AgentSpec] = field(default_factory=list)
     tools: list[ToolSpec] = field(default_factory=list)
     max_plan_size: int = 3
+    # The rag suite needs the configured embedder and tenant to open the
+    # document index; suites that make no database call ignore it.
+    settings: Settings | None = None
 
 
 def create_suite(registry: Registry, name: str, context: SuiteContext) -> EvalSuite:

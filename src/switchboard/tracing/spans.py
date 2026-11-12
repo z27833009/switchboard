@@ -193,6 +193,28 @@ def agent_span(tracer: trace.Tracer, *, agent: str, run_id: str) -> Iterator[Spa
         yield span
 
 
+@contextmanager
+def retrieve_span(
+    tracer: trace.Tracer,
+    *,
+    k: int,
+    strategy: str,
+    round: int,
+) -> Iterator[Span]:
+    with tracer.start_as_current_span(
+        "retrieve",
+        kind=SpanKind.INTERNAL,
+        record_exception=False,
+        set_status_on_exception=False,
+        attributes={
+            "switchboard.retrieval.k": k,
+            "switchboard.retrieval.strategy": strategy,
+            "switchboard.retrieval.round": round,
+        },
+    ) as span:
+        yield span
+
+
 __all__ = [
     "CONTEXT_METADATA",
     "TOOL_RESULT_ATTRIBUTE",
@@ -209,6 +231,7 @@ __all__ = [
     "gate_span",
     "inject_traceparent",
     "record_error",
+    "retrieve_span",
     "run_span",
     "run_span_name",
     "set_attributes",

@@ -1,0 +1,40 @@
+{"id": "rag001", "query": "I changed my mind, how long do I have to send it back?", "relevant_chunk_ids": ["returns-policy.md#1"], "tags": ["returns", "needs_rewrite"], "split": "test"}
+{"id": "rag002", "query": "电子产品可以退货吗？", "relevant_chunk_ids": ["returns-policy.md#2"], "tags": ["returns", "needs_rewrite"], "split": "test"}
+{"id": "rag003", "query": "Can I still return it?", "relevant_chunk_ids": ["returns-policy.md#2"], "tags": ["returns", "needs_rewrite"], "split": "test", "history": [{"role": "user", "content": "I bought a laptop that arrived five days ago."}, {"role": "assistant", "content": "Electronics follow a shorter return window than other items."}]}
+{"id": "rag004", "query": "Can I get my cash back after returning something?", "relevant_chunk_ids": ["returns-policy.md#3", "payments.md#4"], "tags": ["returns", "refunds", "needs_rewrite"], "split": "test"}
+{"id": "rag005", "query": "Can I return a personalized gift?", "relevant_chunk_ids": ["returns-policy.md#4"], "tags": ["returns"], "split": "test"}
+{"id": "rag006", "query": "How quickly must I report an item that arrived damaged?", "relevant_chunk_ids": ["returns-policy.md#4"], "tags": ["returns", "damaged"], "split": "test"}
+{"id": "rag007", "query": "Who do I contact about a specific order?", "relevant_chunk_ids": ["returns-policy.md#5"], "tags": ["returns", "support"], "split": "test"}
+{"id": "rag008", "query": "Do I need the original packaging to return something?", "relevant_chunk_ids": ["returns-policy.md#0"], "tags": ["returns"], "split": "test"}
+{"id": "rag009", "query": "Are return shipping fees refunded?", "relevant_chunk_ids": ["returns-policy.md#3"], "tags": ["returns", "refunds"], "split": "test"}
+{"id": "rag010", "query": "What happens if I return an item without opening a request?", "relevant_chunk_ids": ["returns-policy.md#4"], "tags": ["returns"], "split": "test"}
+{"id": "rag011", "query": "How long does standard delivery take in the southeast?", "relevant_chunk_ids": ["shipping-policy.md#2"], "tags": ["shipping"], "split": "test"}
+{"id": "rag012", "query": "How fast is express delivery?", "relevant_chunk_ids": ["shipping-policy.md#2"], "tags": ["shipping"], "split": "test"}
+{"id": "rag013", "query": "When must a seller hand the parcel to the carrier?", "relevant_chunk_ids": ["shipping-policy.md#1"], "tags": ["shipping"], "split": "test"}
+{"id": "rag014", "query": "It has not moved for two days, what now?", "relevant_chunk_ids": ["shipping-policy.md#3"], "tags": ["shipping", "needs_rewrite"], "split": "test", "history": [{"role": "user", "content": "I am waiting for a parcel and the tracking has not changed."}, {"role": "assistant", "content": "Tracking events can lag behind the parcel."}]}
+{"id": "rag015", "query": "The parcel says delivered but I cannot find it, what should I do?", "relevant_chunk_ids": ["shipping-policy.md#3"], "tags": ["shipping"], "split": "test"}
+{"id": "rag016", "query": "Can I change the delivery address after the seller shipped it?", "relevant_chunk_ids": ["shipping-policy.md#5"], "tags": ["shipping"], "split": "test"}
+{"id": "rag017", "query": "Can I cancel an order that never arrived after 21 days?", "relevant_chunk_ids": ["shipping-policy.md#4"], "tags": ["shipping", "cancellation"], "split": "test"}
+{"id": "rag018", "query": "How is the estimated delivery date calculated?", "relevant_chunk_ids": ["shipping-policy.md#0"], "tags": ["shipping"], "split": "test"}
+{"id": "rag019", "query": "Does a boleto payment delay handling?", "relevant_chunk_ids": ["shipping-policy.md#1", "payments.md#3"], "tags": ["shipping", "payments"], "split": "test"}
+{"id": "rag020", "query": "When is a delivery considered late?", "relevant_chunk_ids": ["late-delivery-compensation.md#0"], "tags": ["late-delivery"], "split": "test"}
+{"id": "rag021", "query": "延迟送达有补偿吗？", "relevant_chunk_ids": ["late-delivery-compensation.md#1"], "tags": ["late-delivery", "needs_rewrite"], "split": "test"}
+{"id": "rag022", "query": "How much is the late delivery voucher worth?", "relevant_chunk_ids": ["late-delivery-compensation.md#2"], "tags": ["late-delivery"], "split": "test"}
+{"id": "rag023", "query": "How do I request late delivery compensation?", "relevant_chunk_ids": ["late-delivery-compensation.md#3"], "tags": ["late-delivery"], "split": "test"}
+{"id": "rag024", "query": "How many vouchers do I get if an order has several items?", "relevant_chunk_ids": ["late-delivery-compensation.md#3"], "tags": ["late-delivery"], "split": "test"}
+{"id": "rag025", "query": "Is a refused parcel eligible for late compensation?", "relevant_chunk_ids": ["late-delivery-compensation.md#4"], "tags": ["late-delivery"], "split": "test"}
+{"id": "rag026", "query": "What happens if my address was wrong and the parcel was late?", "relevant_chunk_ids": ["late-delivery-compensation.md#4", "late-delivery-compensation.md#1"], "tags": ["late-delivery", "address"], "split": "test"}
+{"id": "rag027", "query": "Which payment methods can I use?", "relevant_chunk_ids": ["payments.md#0"], "tags": ["payments"], "split": "test"}
+{"id": "rag028", "query": "Can I split the payment?", "relevant_chunk_ids": ["payments.md#2"], "tags": ["payments", "needs_rewrite"], "split": "test", "history": [{"role": "user", "content": "I want to buy a 300 reais item."}, {"role": "assistant", "content": "The checkout shows the monthly amount before you confirm."}]}
+{"id": "rag029", "query": "How long does a boleto take to confirm?", "relevant_chunk_ids": ["payments.md#3"], "tags": ["payments"], "split": "test"}
+{"id": "rag030", "query": "Where does my refund go if I paid with Pix?", "relevant_chunk_ids": ["payments.md#4"], "tags": ["payments", "refunds"], "split": "test"}
+{"id": "rag031", "query": "What happens in a chargeback dispute?", "relevant_chunk_ids": ["payments.md#4"], "tags": ["payments"], "split": "test"}
+{"id": "rag032", "query": "Will support ever ask for my card password?", "relevant_chunk_ids": ["payments.md#5"], "tags": ["payments", "security"], "split": "test"}
+{"id": "rag033", "query": "How long does a credit card verification take?", "relevant_chunk_ids": ["payments.md#1"], "tags": ["payments"], "split": "test"}
+{"id": "rag034", "query": "Which companies can apply to sell on the marketplace?", "relevant_chunk_ids": ["seller-onboarding.md#0"], "tags": ["seller"], "split": "test"}
+{"id": "rag035", "query": "What documents do I need to become a seller?", "relevant_chunk_ids": ["seller-onboarding.md#2"], "tags": ["seller"], "split": "test"}
+{"id": "rag036", "query": "What does the platform keep from each sale?", "relevant_chunk_ids": ["seller-onboarding.md#4"], "tags": ["seller", "needs_rewrite"], "split": "test"}
+{"id": "rag037", "query": "How often are seller payouts made?", "relevant_chunk_ids": ["seller-onboarding.md#4"], "tags": ["seller"], "split": "test"}
+{"id": "rag038", "query": "Can I have more than one seller account?", "relevant_chunk_ids": ["seller-onboarding.md#1"], "tags": ["seller"], "split": "test"}
+{"id": "rag039", "query": "What must a listing include before it is published?", "relevant_chunk_ids": ["seller-onboarding.md#3"], "tags": ["seller"], "split": "test"}
+{"id": "rag040", "query": "Who can I ask about it?", "relevant_chunk_ids": ["seller-onboarding.md#5"], "tags": ["seller", "needs_rewrite"], "split": "test", "history": [{"role": "user", "content": "I just started selling and my first listing is not approved."}, {"role": "assistant", "content": "The onboarding team reviews listings and answers support tickets."}]}

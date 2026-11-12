@@ -84,7 +84,9 @@ class ToolSource(Protocol):
 
 class Retriever(Protocol):
     name: str
-    async def retrieve(self, query: str, ctx: RunContext, k: int = 5) -> list[RetrievedChunk]: ...
+    # ``round`` is 1 or 2; the retriever records it on the ``retrieve`` span.
+    async def retrieve(self, query: str, ctx: RunContext, k: int = 5, *,
+                       round: int = 1) -> list[RetrievedChunk]: ...
 
 class Cache(Protocol):
     name: str
@@ -615,7 +617,9 @@ Demo corpus: synthetic policy documents written for this project (returns, shipp
 
 Phase 1: cosine similarity on pgvector (HNSW index), top k. The query embedding computed for the cache lookup is reused, so a `docs` run embeds the query once.
 
-v1: hybrid search. Full-text search through a `tsvector` column with `ts_rank`, vector search as before, combined with reciprocal rank fusion (k = 60). Optional re-ranking of the top 20 by a local cross-encoder.
+v1: hybrid search, selected by `retrieval.search` per tenant (`vector` keeps the Phase 1 path, `hybrid` adds full text). Full-text search runs `websearch_to_tsquery('english', query)` through `ts_rank` on the generated `chunks.tsv` column and its GIN index, over the same tenant filter as the vector branch. Each branch returns `max(k, 20)` candidates, so k can still be 50 for a corpus dump. The two rankings are combined with reciprocal rank fusion (`1 / (60 + rank)`, rank starting at 1); a chunk found by both branches therefore beats a chunk found by one. Ties break by cosine score and then chunk id, so a result list is deterministic.
+
+`RetrievedChunk.score` stays the cosine similarity, including for a chunk that only the text branch found (the text query selects the distance too). RRF decides the order; the cosine score is what `retrieval.min_score` compares. The optional re-ranking of the top 20 by a local cross-encoder is not enabled in T2.03: it would add sentence-transformers and a torch stack on the 8 GB GPU shared with qwen3-8b and bge-m3, and no measured benefit justified that cost. The row stays in section 21 as optional.
 
 ### 9.3 Query rewriting (v1)
 
@@ -630,7 +634,9 @@ evidence sufficient?   top score >= retrieval.min_score: done
                        or a hypothetical answer passage, HyDE) and retrieve again
 ```
 
-At most two retrieval rounds per `docs` run. Cases that need rewriting: follow-up questions with references ("and furniture?"), vocabulary or language mismatch with the corpus (a question in Chinese against English documents), and multi-part questions (decomposed into one query per part). The `rag` suite reports recall@5 for: query as written, always rewrite, conditional rewrite, and conditional rewrite plus hybrid search, so the README can show whether rewriting pays for itself.
+At most two retrieval rounds per `docs` run, and at most two rewrite calls: one to contextualize history before the first round, plus one after a weak first round. `retrieval.rewrite` enables rewriting for a tenant; `retrieval.rewrite_mode` is `conditional` for the docs agent and `always` only for the rag eval, which compares rewriting against the query as written. The strategy helper returns the chunks, the queries it actually used, the rewrite and retrieval round counts and the rewrite usage, so the eval can report cost and benefit separately. A rewrite that fails (provider error or an empty answer) keeps the previous query and records the failure on the run instead of losing the retrieval result.
+
+Cases that need rewriting: follow-up questions with references ("and furniture?"), vocabulary or language mismatch with the corpus (a question in Chinese against English documents), and multi-part questions (decomposed into one query per part). The `rag` suite reports recall@5 for: query as written, always rewrite, conditional rewrite, and conditional rewrite plus hybrid search, so the README can show whether rewriting pays for itself. Those four names are `query_as_written`, `always_rewrite`, `conditional_rewrite` and `conditional_hybrid` in the report.
 
 ### 9.4 Chunk and tool result format to the model
 
@@ -693,7 +699,7 @@ The tenant schema (AC-11a):
 | `tools.allow` | Tool wire names callable without approval |
 | `tools.ask` | Tool wire names that would need human approval in v2; denied in this phase |
 | `seller_ids` | `null` for every seller (the unrestricted demo tenant) or a non-empty list injected server-side into every tenant-scoped query |
-| `retrieval` | `k` (5), `min_score` (0.35), `rewrite` (false) |
+| `retrieval` | `k` (5), `min_score` (0.35), `rewrite` (false), `rewrite_mode` (`conditional` or `always`), `search` (`vector` keeps the Phase 1 path, `hybrid` adds full text and RRF) |
 | `cache` | `enabled` (false), `threshold` (0.92), `ttl_days` (7); the semantic cache itself is v1 |
 
 Unknown keys, malformed or versionless wire names, duplicates, a tool in both `allow` and `ask`, and an empty `seller_ids` list all fail at startup rather than during a run. Agent names are checked against the entry point registry and tool wire names against each tool source's manifest (`platform.yaml`), which the MCP server also reads to validate its own copy of the tenant file.
@@ -1045,7 +1051,7 @@ JSONL, versioned by directory (`evals/datasets/v1`). A dataset version never cha
 | --- | --- | --- | --- |
 | routing | `query`, `expected_agents`, `tags`, `split` | 60, balanced across plans; `ambiguous` where blind labelers disagree | exact set match (plan accuracy); Jaccard as partial credit; confusion matrix over plan labels |
 | toolcall | `query`, `expected_tool`, `expected_args`, `tool_version` | 40 | tool name match and argument AST match (required args exact, optional args if present); trajectory: tool calls per case and redundant calls |
-| rag (v1) | `query`, `relevant_chunk_ids`, `answer_rubric`, `needs_rewrite` tag | 40 | recall@5, MRR for four retrieval strategies (9.3); rubric scoring by judge in v2 |
+| rag (v1) | `query`, `relevant_chunk_ids` (portable `source#ordinal` keys), `needs_rewrite` tag, optional `history`, `split` | 40 | recall@5, MRR for four retrieval strategies (9.3); rubric scoring by judge in v2 |
 | cache (v1) | `query_a`, `query_b`, `should_hit` | 50 pairs, including cross-type near misses | hit rate, false-hit rate per threshold |
 | gate (v1) | `query`, `answer`, `agents`, `plan`, `result_sources`, `evidence`, `is_weak`, `weakness` | 30 | precision, recall and F1 per check; overall weak precision, recall and good-case specificity |
 | injection (v1) | `content`, `is_malicious` | 40 | detection rate, false positive rate |
@@ -1054,6 +1060,8 @@ Construction (Phase 1): routing questions are written by a separate session from
 
 Dataset versions are per suite when a suite is added later: `v2/gate.jsonl` holds the 30 gate cases and leaves `v1/` untouched for routing and toolcall. The gate labels are constructed by the implementation session and audited by reading, not blind human labels; the suite README and the report state this. One case is labeled acceptable although `numbers_grounded` rejects it, so the known derived-number false positive is measured. Details in `evals/datasets/v2/README.md`.
 
+`v3/rag.jsonl` holds the 40 rag cases and leaves `v1/` and `v2/` untouched. Chunk ids are database-generated and change on a fresh ingest, so the dataset stores portable `source#ordinal` keys and the suite resolves them to current chunk ids at eval time; the README documents the format and the failure mode for a key that no longer exists. Nine cases carry the `needs_rewrite` tag and four carry `history`; all 40 are in the `test` split because the task asks for the four strategies on the same 40 cases and the rewrite prompt was not fitted to individual cases. Details in `evals/datasets/v3/README.md`.
+
 Feedback (v1): `POST /runs/{id}/feedback` stores a rating and a note. `switchboard eval harvest --since <date>` exports negatively rated runs to `evals/candidates/` as unlabeled cases. A human labels them; labeled cases enter the next dataset version, never the current one.
 
 ### 20.2 Runner
@@ -1061,6 +1069,8 @@ Feedback (v1): `POST /runs/{id}/feedback` stores a rating and a note. `switchboa
 `switchboard eval run --suite <name> --provider <name> [--orchestrator <name>] [--limit n] [--record]` executes cases concurrently (bounded, default 4), applies a per-case timeout, times each case, collects usage including cached input tokens, scores, and writes `evals/reports/<suite>-<provider>.md` and `.json`. The JSON report carries the dataset version, split, orchestrator, provider, model, metrics, p50 and p95 latency, input, cached input and output tokens and one row per case. A run with `--limit` is marked as a smoke run in both files. `--provider mock --record` records missing fixtures through the real provider named by the default tenant; a plain mock run replays them with no network. `--provider deepseek` prints the estimated cost from the price table and the case count and refuses to proceed without `--confirm-cost` or above the cap in `platform.yaml`.
 
 Suites receive `EvalDeps(provider)`. The routing suite builds the production supervisor request from the shared `switchboard.routing` helpers and the toolcall suite sends the five manifest tool specs with the data agent prompt prefix; both make one completion per case and do not run the agents or execute tools. This keeps 60 routing and 40 toolcall cases within the local-model budget and lets the mock provider replay them in CI. The gate suite makes no model call: it runs the same deterministic checks as the orchestrator and reports the model as `deterministic`, so its result depends only on the dataset and the code.
+
+The rag suite opens the tenant's document index, so it needs `SWITCHBOARD_DATABASE_URL` and the configured embedder, not just a provider. It runs the four strategies from 9.3 on every case and makes rewrite calls through `EvalDeps.provider`; `--provider mock --record` records those calls through the real provider and a later mock run replays them, but retrieval still uses the real embedding model, so the suite is not part of the CI mock gate. The JSON report carries a `strategies` object with recall@5, MRR, rewrite and retrieval round counts and latency per strategy, and the markdown shows the same table plus one row per case.
 
 ### 20.3 Comparison and regression
 
@@ -1085,7 +1095,7 @@ This list is the allowlist referred to in the working agreements: a dependency n
 | Config | PyYAML | env substitution and the schema are hand-written in core/config.py; YAML parsing lives in switchboard/config.py so core stays standard library plus pydantic |
 | CLI | typer | |
 | SQL validation (v2) | sqlglot | |
-| Re-ranking (v1, optional) | sentence-transformers cross-encoder | only if T2.03 enables re-ranking |
+| Re-ranking (v1, optional) | sentence-transformers cross-encoder | only if T2.03 enables re-ranking; T2.03 does not, so it stays an optional row with no new dependency |
 | Dev tools | ruff, mypy, pytest, pytest-asyncio, import-linter, pre-commit, httpx (the FastAPI test client needs it for HTTP and SSE tests) | |
 | Web | Node LTS, Vite, React, TypeScript, @vitejs/plugin-react | the plugin builds React with Vite; @types/react and @types/react-dom are the type declarations. No UI framework in Phase 1 |
 | Local models | LM Studio on the host (8.1) | |

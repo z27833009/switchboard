@@ -34,6 +34,7 @@ from switchboard.eval.report import ReportMeta, build_report, write_report
 from switchboard.eval.runner import (
     DEFAULT_CASE_TIMEOUT_S,
     DEFAULT_CONCURRENCY,
+    CaseRun,
     run_cases,
     select_cases,
 )
@@ -204,7 +205,9 @@ def _eval_provider(
 
 @eval_app.command("run")
 def eval_run(
-    suite: Annotated[str, typer.Option("--suite", help="Suite name: routing, toolcall or gate.")],
+    suite: Annotated[
+        str, typer.Option("--suite", help="Suite name: routing, toolcall, gate or rag.")
+    ],
     provider: Annotated[
         str, typer.Option("--provider", help="Provider name from providers.yaml.")
     ] = "mock",
@@ -274,6 +277,7 @@ def eval_run(
                 agent_specs=_agent_specs(settings, registry),
                 tools=load_tool_specs(manifest),
                 max_plan_size=settings.platform.limits.max_plan_size,
+                settings=settings,
             ),
         )
         cases: list[EvalCase] = eval_suite.load(dataset_version)
@@ -284,15 +288,22 @@ def eval_run(
             model = settings.providers.providers[provider].model or "unknown"
 
         deps = EvalDeps(provider=chosen_provider)
-        results = asyncio.run(
-            run_cases(
-                eval_suite,
-                selection.cases,
-                deps,
-                concurrency=concurrency,
-                timeout_s=timeout,
-            )
-        )
+
+        async def run_suite() -> list[CaseRun]:
+            try:
+                return await run_cases(
+                    eval_suite,
+                    selection.cases,
+                    deps,
+                    concurrency=concurrency,
+                    timeout_s=timeout,
+                )
+            finally:
+                aclose = getattr(eval_suite, "aclose", None)
+                if callable(aclose):
+                    await aclose()
+
+        results = asyncio.run(run_suite())
         elapsed = time.perf_counter() - started
         report = build_report(
             ReportMeta(

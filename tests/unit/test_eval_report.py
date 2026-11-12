@@ -208,3 +208,111 @@ def test_write_report_writes_both_files(tmp_path: Path) -> None:
     assert payload["metrics"]["plan_accuracy"] == 1.0
     assert payload["cases"][0]["case_id"] == "r001"
     assert "Routing eval" in markdown_path.read_text(encoding="utf-8")
+
+
+def rag_result(
+    case_id: str,
+    *,
+    recall: dict[str, float],
+    mrr: dict[str, float],
+    rewrites: dict[str, int],
+    latency: dict[str, int],
+) -> CaseRun:
+    case = EvalCase(
+        id=case_id,
+        query=f"query {case_id}",
+        tags=["returns", "needs_rewrite"],
+        split="test",
+        payload={"relevant_chunk_ids": ["returns-policy.md#1"]},
+    )
+    strategies = {
+        name: {
+            "retrieved": ["returns-policy.md#1"],
+            "recall_at_5": recall[name],
+            "mrr": mrr[name],
+            "rewrite_rounds": rewrites[name],
+            "retrieval_rounds": 1 + rewrites[name],
+            "latency_ms": latency[name],
+            "error": None,
+        }
+        for name in recall
+    }
+    outcome = EvalOutcome(
+        case_id=case_id,
+        details={
+            "strategies": strategies,
+            "relevant": ["returns-policy.md#1"],
+            "needs_rewrite": True,
+        },
+        usage=Usage(input_tokens=20, output_tokens=5),
+        latency_ms=sum(latency.values()),
+    )
+    metrics: dict[str, float] = {}
+    for name in recall:
+        metrics[f"recall_at_5_{name}"] = recall[name]
+        metrics[f"mrr_{name}"] = mrr[name]
+    return CaseRun(
+        case=case,
+        outcome=outcome,
+        score=Score(case_id=case_id, metrics=metrics, passed=True),
+        runner_latency_ms=sum(latency.values()) + 1,
+    )
+
+
+def test_rag_report_shows_all_four_strategies_and_rounds() -> None:
+    names = ["query_as_written", "always_rewrite", "conditional_rewrite", "conditional_hybrid"]
+    results = [
+        rag_result(
+            "rag001",
+            recall=dict.fromkeys(names, 1.0),
+            mrr=dict.fromkeys(names, 1.0),
+            rewrites={
+                "query_as_written": 0,
+                "always_rewrite": 1,
+                "conditional_rewrite": 0,
+                "conditional_hybrid": 0,
+            },
+            latency={
+                "query_as_written": 100,
+                "always_rewrite": 400,
+                "conditional_rewrite": 100,
+                "conditional_hybrid": 120,
+            },
+        ),
+        rag_result(
+            "rag002",
+            recall=dict.fromkeys(names, 0.5),
+            mrr=dict.fromkeys(names, 0.25),
+            rewrites={
+                "query_as_written": 0,
+                "always_rewrite": 1,
+                "conditional_rewrite": 1,
+                "conditional_hybrid": 1,
+            },
+            latency={
+                "query_as_written": 200,
+                "always_rewrite": 800,
+                "conditional_rewrite": 300,
+                "conditional_hybrid": 400,
+            },
+        ),
+    ]
+    report = build_report(meta(suite="rag"), results)
+
+    assert report["metrics"]["recall_at_5_query_as_written"] == 0.75
+    assert report["metrics"]["mrr_always_rewrite"] == 0.625
+    assert report["strategies"]["query_as_written"]["rewrite_rounds"] == 0
+    assert report["strategies"]["always_rewrite"]["rewrite_rounds"] == 2
+    assert report["strategies"]["conditional_rewrite"]["cases_with_rewrite"] == 1
+    assert report["strategies"]["conditional_hybrid"]["latency_ms"]["p50"] == 260.0
+    assert report["retrieval_k"] == 5
+    assert report["rrf_k"] == 60
+    assert report["cases"][0]["needs_rewrite"] is True
+    assert report["cases"][0]["strategies"]["always_rewrite"]["rewrite_rounds"] == 1
+
+    markdown = render_markdown(report)
+    assert "# Rag eval: mock" in markdown
+    assert "## Strategies" in markdown
+    assert "| conditional_hybrid | 0.7500 | 0.6250 |" in markdown
+    assert "Cross-encoder re-ranking is not enabled" in markdown
+    assert "| Retrieval |" in markdown

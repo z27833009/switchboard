@@ -170,6 +170,93 @@ def _gate_metrics(results: list[CaseRun]) -> dict[str, float]:
     return metrics
 
 
+def _rag_strategy_names(results: list[CaseRun]) -> list[str]:
+    names: list[str] = []
+    for result in results:
+        strategies = result.outcome.details.get("strategies", {})
+        if not isinstance(strategies, dict):
+            continue
+        for name in strategies:
+            if name not in names:
+                names.append(name)
+    return names
+
+
+def _rag_strategy_payload(result: CaseRun, name: str) -> dict[str, Any]:
+    strategies = result.outcome.details.get("strategies", {})
+    if not isinstance(strategies, dict):
+        return {}
+    payload = strategies.get(name, {})
+    return payload if isinstance(payload, dict) else {}
+
+
+def _rag_metrics(results: list[CaseRun]) -> dict[str, float]:
+    metrics: dict[str, float] = {}
+    for name in _rag_strategy_names(results):
+        metrics[f"recall_at_5_{name}"] = _mean(_metric_values(results, f"recall_at_5_{name}"))
+        metrics[f"mrr_{name}"] = _mean(_metric_values(results, f"mrr_{name}"))
+    return metrics
+
+
+def _rag_strategy_summary(results: list[CaseRun], name: str) -> dict[str, Any]:
+    payloads = [_rag_strategy_payload(result, name) for result in results]
+    latencies = [int(payload.get("latency_ms", 0)) for payload in payloads]
+    needs = [
+        result for result in results if bool(result.outcome.details.get("needs_rewrite", False))
+    ]
+    return {
+        "recall_at_5": _mean(_metric_values(results, f"recall_at_5_{name}")),
+        "mrr": _mean(_metric_values(results, f"mrr_{name}")),
+        "cases": len(results),
+        "rewrite_rounds": int(sum(int(payload.get("rewrite_rounds", 0)) for payload in payloads)),
+        "retrieval_rounds": int(
+            sum(int(payload.get("retrieval_rounds", 0)) for payload in payloads)
+        ),
+        "cases_with_rewrite": int(
+            sum(1 for payload in payloads if int(payload.get("rewrite_rounds", 0)) > 0)
+        ),
+        "latency_ms": latency_summary(latencies),
+        "errors": int(sum(1 for payload in payloads if payload.get("error"))),
+        "needs_rewrite_cases": len(needs),
+        "needs_rewrite_recall_at_5": _mean(_metric_values(needs, f"recall_at_5_{name}")),
+        "needs_rewrite_mrr": _mean(_metric_values(needs, f"mrr_{name}")),
+    }
+
+
+def _rag_case_row(result: CaseRun) -> dict[str, Any]:
+    usage = result.outcome.usage or Usage(input_tokens=0, output_tokens=0)
+    relevant = result.outcome.details.get("relevant", [])
+    strategies: dict[str, Any] = {}
+    for name in _rag_strategy_names([result]):
+        payload = _rag_strategy_payload(result, name)
+        strategies[name] = {
+            "retrieved": list(payload.get("retrieved", [])),
+            "recall_at_5": payload.get("recall_at_5", 0.0),
+            "mrr": payload.get("mrr", 0.0),
+            "rewrite_rounds": payload.get("rewrite_rounds", 0),
+            "retrieval_rounds": payload.get("retrieval_rounds", 0),
+            "rewritten_queries": list(payload.get("rewritten_queries", [])),
+            "latency_ms": payload.get("latency_ms", 0),
+            "error": payload.get("error"),
+        }
+    return {
+        "case_id": result.case.id,
+        "query": result.case.query,
+        "tags": list(result.case.tags),
+        "split": result.case.split,
+        "needs_rewrite": bool(result.outcome.details.get("needs_rewrite", False)),
+        "relevant": list(relevant) if isinstance(relevant, list) else [],
+        "strategies": strategies,
+        "passed": result.score.passed,
+        "latency_ms": result.outcome.latency_ms,
+        "runner_latency_ms": result.runner_latency_ms,
+        "input_tokens": usage.input_tokens,
+        "cached_input_tokens": usage.cached_input_tokens,
+        "output_tokens": usage.output_tokens,
+        "error": result.outcome.error,
+    }
+
+
 def _usage_totals(results: list[CaseRun]) -> Usage:
     total = Usage(input_tokens=0, output_tokens=0)
     for result in results:
@@ -269,6 +356,8 @@ def build_report(meta: ReportMeta, results: list[CaseRun]) -> dict[str, Any]:
         metrics = _routing_metrics(results)
     elif meta.suite == "gate":
         metrics = _gate_metrics(results)
+    elif meta.suite == "rag":
+        metrics = _rag_metrics(results)
     else:
         metrics = _toolcall_metrics(results)
     report: dict[str, Any] = {
@@ -319,6 +408,12 @@ def build_report(meta: ReportMeta, results: list[CaseRun]) -> dict[str, Any]:
         )
         report["deterministic"] = True
         report["cases"] = [_gate_case_row(result) for result in results]
+    elif meta.suite == "rag":
+        names = _rag_strategy_names(results)
+        report["strategies"] = {name: _rag_strategy_summary(results, name) for name in names}
+        report["retrieval_k"] = 5
+        report["rrf_k"] = 60
+        report["cases"] = [_rag_case_row(result) for result in results]
     else:
         report["cases"] = [_toolcall_case_row(result) for result in results]
     return report
@@ -351,7 +446,69 @@ def _gate_check_table(report: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _rag_strategy_table(report: dict[str, Any]) -> list[str]:
+    lines = [
+        "| Strategy | Recall@5 | MRR | Cases | Rewrite rounds | Retrieval rounds "
+        "| Cases with rewrite | p50 ms | p95 ms | Errors |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for name, strategy in report["strategies"].items():
+        latency = strategy["latency_ms"]
+        lines.append(
+            f"| {name} | {strategy['recall_at_5']:.4f} | {strategy['mrr']:.4f} | "
+            f"{strategy['cases']} | {strategy['rewrite_rounds']} | "
+            f"{strategy['retrieval_rounds']} | {strategy['cases_with_rewrite']} | "
+            f"{latency['p50']} | {latency['p95']} | {strategy['errors']} |"
+        )
+    return lines
+
+
 def _case_table(report: dict[str, Any]) -> list[str]:
+    if report["suite"] == "rag":
+        names = list(report["strategies"])
+        header = (
+            "| Case | Query | Needs rewrite | Relevant | "
+            + " | ".join(f"{name} R@5/MRR" for name in names)
+            + " | Rewrites | Note |"
+        )
+        lines = [
+            header,
+            "| --- | --- | --- | --- | " + " | ".join("---" for _ in names) + " | --- | --- |",
+        ]
+        for case in report["cases"]:
+            cells = []
+            rewrites = []
+            for name in names:
+                strategy = case["strategies"].get(name, {})
+                cells.append(
+                    f"{strategy.get('recall_at_5', 0.0):.3f}/{strategy.get('mrr', 0.0):.3f}"
+                )
+                rewrites.append(str(strategy.get("rewrite_rounds", 0)))
+            note = case["error"] or ""
+            errors = [
+                f"{name}: {strategy.get('error')}"
+                for name, strategy in case["strategies"].items()
+                if strategy.get("error")
+            ]
+            if errors:
+                note = "; ".join(errors)
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        _cell(case["case_id"]),
+                        _cell(case["query"]),
+                        "yes" if case["needs_rewrite"] else "no",
+                        _cell(", ".join(case["relevant"])),
+                        *cells,
+                        "/".join(rewrites),
+                        _cell(note),
+                    ]
+                )
+                + " |"
+            )
+        return lines
+
     if report["suite"] == "gate":
         lines = [
             "| Case | Query | Expected checks | Actual checks | Action | Weak | Correct | Note |",
@@ -487,16 +644,58 @@ def render_markdown(report: dict[str, Any]) -> str:
             "recorded from the runner but unused."
         )
     elif report["provider"] == "mock":
-        lines.append(
-            "- Mock replay: model latency is recorded as 0 and the CI gate measures "
-            "the pipeline, not the model (design.md section 18)."
-        )
+        if report["suite"] == "rag":
+            lines.append(
+                "- Mock replay: rewrite calls come from fixtures, but retrieval still uses "
+                "the configured embedding model and the database, so the latency and "
+                "scores are measured retrieval results."
+            )
+        else:
+            lines.append(
+                "- Mock replay: model latency is recorded as 0 and the CI gate measures "
+                "the pipeline, not the model (design.md section 18)."
+            )
     lines.append("")
 
     lines.append("## Metrics")
     lines.append("")
     lines.extend(_metric_table(report["metrics"]))
     lines.append("")
+
+    if report["suite"] == "rag":
+        lines.append("## Strategies")
+        lines.append("")
+        lines.extend(_rag_strategy_table(report))
+        lines.append("")
+        lines.append("Cases tagged `needs_rewrite`:")
+        lines.append("")
+        lines.append("| Strategy | Cases | Recall@5 | MRR |")
+        lines.append("| --- | --- | --- | --- |")
+        for name, strategy in report["strategies"].items():
+            lines.append(
+                f"| {name} | {strategy['needs_rewrite_cases']} | "
+                f"{strategy['needs_rewrite_recall_at_5']:.4f} | "
+                f"{strategy['needs_rewrite_mrr']:.4f} |"
+            )
+        lines.append("")
+        lines.append(
+            "All four strategies run on the same cases, in the same order. Recall@5 counts "
+            "the share of the labeled chunk keys in the first five results; MRR is the mean "
+            "of 1/rank of the first relevant result. A chunk's score is always its cosine "
+            "similarity, so the rewrite threshold and the fused order stay separate. The "
+            "conditional strategies rewrite only when history is present or the best cosine "
+            "is below the tenant's `retrieval.min_score`, and never make more than two "
+            "retrieval rounds. The latency columns are wall time per case for that strategy, "
+            "including the embedding call and any rewrite call."
+        )
+        lines.append("")
+        lines.append(
+            "Cross-encoder re-ranking is not enabled: it is optional in design.md section "
+            "9.2, would add sentence-transformers and a torch stack on an 8 GB GPU shared "
+            "with qwen3-8b and bge-m3, and this run has no measured evidence that it would "
+            "pay for that cost."
+        )
+        lines.append("")
 
     if report["suite"] == "gate":
         lines.append("## Checks")
@@ -525,7 +724,8 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.append("")
     lines.append("| Window | p50 ms | p95 ms | min ms | max ms | mean ms |")
     lines.append("| --- | --- | --- | --- | --- | --- |")
-    for name, key in (("Model", "latency_ms"), ("Runner wall", "runner_latency_ms")):
+    first_label = "Retrieval" if report["suite"] == "rag" else "Model"
+    for name, key in ((first_label, "latency_ms"), ("Runner wall", "runner_latency_ms")):
         summary = report[key]
         lines.append(
             f"| {name} | {summary['p50']} | {summary['p95']} | {summary['min']} | "

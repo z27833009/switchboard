@@ -20,7 +20,7 @@ import yaml
 TENANT_KEYS = frozenset({"provider", "agents", "tools", "seller_ids", "retrieval", "cache"})
 AGENT_KEYS = frozenset({"allow"})
 TOOL_KEYS = frozenset({"allow", "ask"})
-RETRIEVAL_KEYS = frozenset({"k", "min_score", "rewrite"})
+RETRIEVAL_KEYS = frozenset({"k", "min_score", "rewrite", "rewrite_mode", "search"})
 CACHE_KEYS = frozenset({"enabled", "threshold", "ttl_days"})
 
 
