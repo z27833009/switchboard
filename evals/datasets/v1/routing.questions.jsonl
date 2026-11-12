@@ -1,0 +1,60 @@
+{"id": "r001", "query": "How many installments can I split a purchase into?", "tags": ["trap"]}
+{"id": "r002", "query": "2018年4月一共有多少订单？", "tags": ["zh"]}
+{"id": "r003", "query": "Give me an order summary for September 2017 broken down by status.", "tags": []}
+{"id": "r004", "query": "What's the return window for the item in order c52cc8ea310aefa5babcce3ec67e6180?", "tags": ["trap"]}
+{"id": "r005", "query": "I need the full details for order 5d262ad87974037fef1d4832d4f47f54.", "tags": []}
+{"id": "r006", "query": "Hi there!", "tags": []}
+{"id": "r007", "query": "How many orders were canceled in December 2017, and what does the refund policy say about canceled orders?", "tags": []}
+{"id": "r008", "query": "my packge d24b9ff725ca614bc99aa08a07f8a06c came super late, do i get anything back for that?", "tags": ["typo"]}
+{"id": "r009", "query": "Order dfe367de1f1445f0ea5f00e2f3e04abb arrived late. Am I eligible for compensation?", "tags": []}
+{"id": "r010", "query": "Can you look up orders for me, or do you only answer policy questions?", "tags": ["trap"]}
+{"id": "r011", "query": "whats the usual delivery time for stuff shipped to the north of Brazil?", "tags": ["typo"]}
+{"id": "r012", "query": "退货后多久能收到退款？", "tags": ["zh"]}
+{"id": "r013", "query": "For shipping planning, how many orders had the status shipped in July 2018?", "tags": ["trap"]}
+{"id": "r014", "query": "Can a voucher be combined with a credit card payment?", "tags": []}
+{"id": "r015", "query": "If my order arrives late, what compensation am I entitled to?", "tags": ["trap"]}
+{"id": "r016", "query": "Was order 07460fefc54c9c13abb2bc6ca25e0d17 paid in installments, and if so, what are the installment rules?", "tags": []}
+{"id": "r017", "query": "As a seller, I'd like to know which products brought in the most revenue in December 2017.", "tags": ["trap"]}
+{"id": "r018", "query": "What kinds of questions can you help me with?", "tags": []}
+{"id": "r019", "query": "What fees do sellers pay to join the platform?", "tags": []}
+{"id": "r020", "query": "Show me the top 10 products by revenue between June 1 and June 30, 2018.", "tags": []}
+{"id": "r021", "query": "Is there a different return window for clothing compared to books?", "tags": []}
+{"id": "r022", "query": "订单 32456d61929e3998187cd0d02d238ec9 还能退货吗？", "tags": ["zh", "trap"]}
+{"id": "r023", "query": "Which products sold the most units from October through December 2017?", "tags": []}
+{"id": "r024", "query": "What is the status of order 66c737db5f67fdd09273a03a6dc911d8?", "tags": []}
+{"id": "r025", "query": "2017年12月延迟交付的订单中，有多少符合补偿条件？", "tags": ["zh"]}
+{"id": "r026", "query": "Please pull order c975ae74962ebff9c04ea5ab827c90c5 and explain which payment rules apply to the method it used.", "tags": []}
+{"id": "r027", "query": "Please explain how refunds work when an item arrives damaged.", "tags": []}
+{"id": "r028", "query": "How many deliveries in July 2018 were late enough to qualify for compensation under the policy?", "tags": []}
+{"id": "r029", "query": "How are shipping fees calculated?", "tags": []}
+{"id": "r030", "query": "For the top 5 products by units sold in November 2017, what are their return windows?", "tags": []}
+{"id": "r031", "query": "Give me a count of late deliveries from 1 to 7 August 2018.", "tags": []}
+{"id": "r032", "query": "Delivery time question: when was order 32407a9eb4d1f77142ade9ae12f4068f actually delivered?", "tags": ["trap"]}
+{"id": "r033", "query": "In February 2018, how many deliveries were at least 3 days late, and how much compensation does each affected customer get?", "tags": []}
+{"id": "r034", "query": "I want to start selling on the marketplace. What are the requirements?", "tags": []}
+{"id": "r035", "query": "你好，你能帮我做什么？", "tags": ["zh"]}
+{"id": "r036", "query": "Compensation aside, I just want the number of orders that arrived 10 or more days late in February 2018.", "tags": ["trap"]}
+{"id": "r037", "query": "Can I pay with boleto and still split the amount into installments?", "tags": []}
+{"id": "r038", "query": "Thanks, that was really helpful.", "tags": []}
+{"id": "r039", "query": "Check order 82b80421a0c6bc84431f86046c0aed58 and tell me whether the shipping fee charged matches the shipping policy.", "tags": []}
+{"id": "r040", "query": "How many days late does a delivery have to be before the customer gets compensated?", "tags": ["trap"]}
+{"id": "r041", "query": "成为卖家需要提供哪些材料？", "tags": ["zh"]}
+{"id": "r042", "query": "谢谢你的帮助，再见！", "tags": ["zh"]}
+{"id": "r043", "query": "订单 8109a41bee614af16733370276b23727 晚到了，我能拿到补偿吗？", "tags": ["zh"]}
+{"id": "r044", "query": "Sorry, I'm new here. Is it okay to write to you in English instead of Portuguese?", "tags": []}
+{"id": "r045", "query": "Good morning, how are you doing today?", "tags": []}
+{"id": "r046", "query": "how many ordres got delivered in oct 2017?", "tags": ["typo"]}
+{"id": "r047", "query": "运费是怎么计算的？", "tags": ["zh"]}
+{"id": "r048", "query": "Do you have access to the shipping policy, or is that something I should ask a human about?", "tags": ["trap"]}
+{"id": "r049", "query": "How many orders were placed in January 2017?", "tags": []}
+{"id": "r050", "query": "I want to return order 7057341a79b7adc56f566fbd7c81211c on 20 August 2018. Is that still within the return window for that product category?", "tags": []}
+{"id": "r051", "query": "How many orders were canceled between 2017-11-01 and 2017-11-30?", "tags": []}
+{"id": "r052", "query": "Does the compensation policy cover order 6a7f35ca0fe2ac17fb1e6088070ab810?", "tags": ["trap"]}
+{"id": "r053", "query": "订单 9bba41f9513fb6efddaa9b8a851ab873 现在是什么状态？", "tags": ["zh"]}
+{"id": "r054", "query": "ok bye, have a gud one", "tags": ["typo"]}
+{"id": "r055", "query": "How long do I have to return a piece of furniture?", "tags": []}
+{"id": "r056", "query": "2018年1月有多少订单延迟超过5天送达？", "tags": ["zh"]}
+{"id": "r057", "query": "What payment methods are accepted?", "tags": []}
+{"id": "r058", "query": "2017年3月到5月之间，销量最高的前五个产品是哪些？", "tags": ["zh"]}
+{"id": "r059", "query": "Seller here. Order 8b6a16c403b77a2a69ad0af1c17f2048 shows as canceled. What does the policy say about refunding the buyer in that case?", "tags": []}
+{"id": "r060", "query": "List the deliveries that were at least 7 days late in May 2018.", "tags": []}

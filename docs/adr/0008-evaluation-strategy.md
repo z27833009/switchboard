@@ -16,7 +16,8 @@ The project's value depends on numbers that can be trusted: plan accuracy, tool-
 - **Fixture keys.** A fixture is keyed by a hash of purpose, model, normalized messages, tool specs and response schema. A request without a matching fixture fails with a message to re-record; it never falls back to a default answer.
 - **What the CI gate measures.** Replayed model output means the gate measures the pipeline (parsing, validation, normalization, scoring), not the model. A prompt change alters fixture keys and so forces a re-record against a real model, which produces a new report. This mechanically enforces the rule that a prompt change needs a new report. The README says this next to the CI badge.
 - Paid providers require an explicit confirmation flag and respect a cost cap.
-- Datasets for a suite are written before the prompts for that suite; ambiguous cases are tagged and reported separately; confusion matrices are included for routing.
+- Datasets for a suite are finished before the prompts for that suite. Routing questions are written by a separate session from a brief and labeled blind by the author; where the two labels disagree the case is tagged `ambiguous` and reported separately, with the agreement rate. Toolcall cases come from templates with arguments computed by code. Confusion matrices are included for routing.
+- Every case has a deterministic dev or test split. Prompt work may read dev cases only; reports score the test split.
 - **Feedback harvest** (v1): negatively rated runs are exported as unlabeled candidates; after human labeling they enter the next dataset version, never the current one.
 - The metrics table in requirements marks every value as `target` until a report exists.
 

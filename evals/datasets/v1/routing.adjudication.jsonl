@@ -1,0 +1,5 @@
+{"id": "r001", "agents": ["docs"], "note": "pure policy question (installments); author's initial label was a misreading of data as 'needs information'"}
+{"id": "r007", "agents": ["data", "docs"], "note": "question asks for a count and for the refund policy; author's initial label missed the second part"}
+{"id": "r012", "agents": ["docs"], "note": "pure policy question (refund timing)"}
+{"id": "r015", "agents": ["docs"], "note": "hypothetical, no specific order; policy only"}
+{"id": "r019", "agents": ["docs"], "note": "pure policy question (seller fees)"}

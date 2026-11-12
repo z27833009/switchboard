@@ -410,6 +410,8 @@ Phase 1 tools (all `risk: read`, all parameterized, no free-form SQL):
 
 Every result carries the `audit_id` of its audit row in the MCP result metadata, so tool citations can link to the audit log.
 
+Argument conventions (shared with the toolcall dataset): dates are `YYYY-MM-DD`; `date_to` is inclusive; date ranges filter on the order purchase date for every tool; `status` takes Olist `order_status` values; `metric` is `revenue` (sum of item prices) or `count` (items sold); optional arguments are omitted unless needed.
+
 v2 adds `query_readonly_sql@1`: free-form SELECT validated with sqlglot (single statement, allowed tables only), still inside a read-only transaction, disabled by default in the tenant config.
 
 ### 7.2 Tool manifest and versioning
@@ -987,12 +989,14 @@ JSONL, versioned by directory (`evals/datasets/v1`). A dataset version never cha
 
 | Suite | Case fields | Size (Phase 1 or v1) | Scorer |
 | --- | --- | --- | --- |
-| routing | `query`, `expected_agents`, `tags` | 60, balanced across plans, 15 ambiguous | exact set match (plan accuracy); Jaccard as partial credit; confusion matrix over plan labels |
+| routing | `query`, `expected_agents`, `tags`, `split` | 60, balanced across plans; `ambiguous` where blind labelers disagree | exact set match (plan accuracy); Jaccard as partial credit; confusion matrix over plan labels |
 | toolcall | `query`, `expected_tool`, `expected_args`, `tool_version` | 40 | tool name match and argument AST match (required args exact, optional args if present); trajectory: tool calls per case and redundant calls |
 | rag (v1) | `query`, `relevant_chunk_ids`, `answer_rubric`, `needs_rewrite` tag | 40 | recall@5, MRR for four retrieval strategies (9.3); rubric scoring by judge in v2 |
 | cache (v1) | `query_a`, `query_b`, `should_hit` | 50 pairs, including cross-type near misses | hit rate, false-hit rate per threshold |
 | gate (v1) | `query`, `answer`, `evidence`, `is_weak`, `weakness` | 30 | precision, recall, per check |
 | injection (v1) | `content`, `is_malicious` | 40 | detection rate, false positive rate |
+
+Construction (Phase 1): routing questions are written by a separate session from a brief and labeled blind by the author; toolcall cases are generated from templates with arguments computed by code. Every case has a deterministic `dev` or `test` split; prompt work may read only dev cases, and reports score the test split. Details in `evals/datasets/v1/README.md`.
 
 Feedback (v1): `POST /runs/{id}/feedback` stores a rating and a note. `switchboard eval harvest --since <date>` exports negatively rated runs to `evals/candidates/` as unlabeled cases. A human labels them; labeled cases enter the next dataset version, never the current one.
 

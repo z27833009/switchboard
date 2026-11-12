@@ -34,10 +34,10 @@ A design review on 2026-11-12 compared the 0.1 plan with current agent products 
 | R1 | Small local models (7B class in LM Studio) plan and call tools poorly, so Phase 1 numbers look bad | high | medium | Report honestly; frame as the baseline that the DeepSeek comparison in v1 improves on. Choose the local model deliberately (one with documented tool-call support) and record the model name in every report |
 | R2 | Ports are abstracted wrong on the first try and the v1 adapters (second provider, second orchestrator, semantic cache, hybrid retriever) force interface changes | medium | medium | Phase 1 implements one adapter per port and keeps signatures minimal; expect one round of port cleanup at the start of v1 and budget 3 h for it |
 | R3 | LangGraph API churn breaks the orchestrator adapter, in particular `Send` and reducers | medium | low | Pin versions; the port means the blast radius is one package; the agent loop adapter is a second working orchestrator from v1 |
-| R4 | Phase 1 overruns; it is now estimated at 45.5 hours | high | high for motivation | Cut list below; T1.17 (first measured report) is the real finish line, not the UI |
+| R4 | Phase 1 overruns; it is now estimated at 45 hours | high | high for motivation | Cut list below; T1.17 (first measured report) is the real finish line, not the UI |
 | R5 | Olist dataset download needs a Kaggle account and manual steps, hurting "one command" | high | low | Loader accepts a local directory; README documents the five minute download; a 1000-row sample fixture ships in the repo for tests and CI |
 | R6 | Synthetic policy documents feel fake to an interviewer | medium | low | Keep them short, realistic and clearly labeled; the point is the pipeline, not the corpus |
-| R7 | Eval datasets written by the same person who writes the prompts are biased toward passing | medium | medium | Write datasets before the prompts for each suite; include a labeled "ambiguous" tag; show the confusion matrix, not just accuracy |
+| R7 | Eval datasets written by the same person who writes the prompts are biased toward passing | medium | medium | Datasets are finished before the prompts. Routing questions come from a separate session that saw only a brief; the author labels blind; disagreements become the `ambiguous` tag. Toolcall labels are computed by code. Prompt work sees only the dev split; reports score the test split and show the confusion matrix, not just accuracy |
 | R8 | Windows plus Docker Desktop plus LM Studio networking issues (`host.docker.internal`) | medium | medium | Verify in T1.02 before anything else depends on it; document the fallback of running the API outside Docker with `uv run` |
 | R9 | AI assistant token budget for writing the code is limited | medium | medium | Specs are detailed on purpose so implementation sessions are short; each task has a clear verification so sessions end cleanly |
 | R10 | Trace volume in PostgreSQL grows during eval runs, now including full tool results as span events | medium | low | Results capped at 64 KB per span; eval runs tag spans with `eval_run_id`; a cleanup command deletes them |
@@ -82,6 +82,6 @@ Never cut: T1.07 read-only tools with run tokens and audit, data citations in T1
 
 1. Does the Olist seller id mapping make sense as the tenant boundary, or should tenants map to product categories? Seller is proposed because it is the most natural "merchant" story.
 2. Should eval reports be committed to the repository or published as CI artifacts only? The plan commits selected reports so the README can link to them.
-3. Is 45.5 hours for Phase 1 acceptable, or should the first cut (unstyled UI to static page) be taken up front?
+3. Is 45 hours for Phase 1 acceptable, or should the first cut (unstyled UI to static page) be taken up front?
 
 Resolved in 0.2: the visual design pass happens in v2 (T3.03), after the comparison work. The Phase 1 local models are Qwen3-8B and bge-m3, pending the VRAM check in T1.02 (design 8.1).

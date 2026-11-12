@@ -31,7 +31,7 @@ This file is the single source of rules for any coding agent (Codex, Claude Code
 - Agents, tools, providers and suites are registered, never hard-coded in core or the orchestrator (ADR 0011).
 - Tools are read-only. Do not add a write tool without an ADR and a human-in-the-loop hook.
 - The tool server takes the tenant only from the signed run token (ADR 0014).
-- Eval datasets are written or reviewed by the author before the prompts they test. Do not edit a dataset version that a report references; create a new version.
+- Eval datasets are finished before the prompts they test (method in `evals/datasets/v1/README.md`). When writing or tuning prompts, read only cases with `"split": "dev"`; never open test cases for that purpose. Do not edit a dataset version that a report references; create a new version.
 - Do not add dependencies beyond the allowlist in design.md section 21 without saying why in the commit message and adding them to that section.
 - Describe the project as source-available, not open source (ADR 0009).
 - Commit messages start with the task id: `T1.04: core models, plan validation and context policy`.
