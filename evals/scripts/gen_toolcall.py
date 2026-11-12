@@ -104,20 +104,30 @@ LATE_EN = [
     "Show me late deliveries {p}.",
     "Which orders were delivered after the estimated date {p}?",
 ]
-LATE_MIN_EN = ["How many orders were at least {n} days late {p}?", "List deliveries that were {n} or more days late {p}."]
+LATE_MIN_EN = [
+    "How many orders were at least {n} days late {p}?",
+    "List deliveries that were {n} or more days late {p}.",
+]
 LATE_ZH = ["{p}有多少订单延迟送达？", "查一下{p}的延迟订单"]
 LATE_MIN_ZH = ["{p}延迟至少{n}天的订单有多少？"]
 
 TOP_EN = {
     "revenue": ["Top {n} products by revenue {p}?", "Which {n} products made the most money {p}?"],
-    "count": ["What were the {n} best-selling products by units sold {p}?", "Top {n} products by number of items sold {p}"],
+    "count": [
+        "What were the {n} best-selling products by units sold {p}?",
+        "Top {n} products by number of items sold {p}",
+    ],
 }
 TOP_ZH = {
     "revenue": ["{p}销售额最高的前{n}个商品是哪些？"],
     "count": ["{p}销量前{n}的商品有哪些？"],
 }
 
-LOOKUP_EN = ["What is the status of order {id}?", "Show me the details of order {id}.", "Where is my order {id}?"]
+LOOKUP_EN = [
+    "What is the status of order {id}?",
+    "Show me the details of order {id}.",
+    "Where is my order {id}?",
+]
 LOOKUP_ZH = ["帮我查一下订单{id}的情况"]
 
 SCHEMA_CASES = [
@@ -136,13 +146,15 @@ def build(rng: random.Random, order_ids: list[str]) -> list[dict]:
         if query in seen:
             return False
         seen.add(query)
-        cases.append({
-            "query": query,
-            "expected_tool": tool,
-            "expected_args": args,
-            "tool_version": "1",
-            "tags": ["zh"] if zh else [],
-        })
+        cases.append(
+            {
+                "query": query,
+                "expected_tool": tool,
+                "expected_args": args,
+                "tool_version": "1",
+                "tags": ["zh"] if zh else [],
+            }
+        )
         return True
 
     def iso(d: date) -> str:
@@ -165,7 +177,11 @@ def build(rng: random.Random, order_ids: list[str]) -> list[dict]:
             status = pick(rng, STATUS_KEYS)
             s_en, s_zh = STATUS_PHRASES[status]
             args["status"] = status
-            q = pick(rng, SUMMARY_STATUS_ZH).format(p=p_zh, s=s_zh) if zh else pick(rng, SUMMARY_STATUS_EN).format(p=p_en, s=s_en)
+            q = (
+                pick(rng, SUMMARY_STATUS_ZH).format(p=p_zh, s=s_zh)
+                if zh
+                else pick(rng, SUMMARY_STATUS_EN).format(p=p_en, s=s_en)
+            )
         else:
             q = pick(rng, SUMMARY_ZH).format(p=p_zh) if zh else pick(rng, SUMMARY_EN).format(p=p_en)
         made += add(q, "orders_summary@1", args, zh)
@@ -179,7 +195,11 @@ def build(rng: random.Random, order_ids: list[str]) -> list[dict]:
         if made < 4:
             n = rng.choice([3, 5, 7, 10, 14])
             args["min_days_late"] = n
-            q = pick(rng, LATE_MIN_ZH).format(p=p_zh, n=n) if zh else pick(rng, LATE_MIN_EN).format(p=p_en, n=n)
+            q = (
+                pick(rng, LATE_MIN_ZH).format(p=p_zh, n=n)
+                if zh
+                else pick(rng, LATE_MIN_EN).format(p=p_en, n=n)
+            )
         else:
             q = pick(rng, LATE_ZH).format(p=p_zh) if zh else pick(rng, LATE_EN).format(p=p_en)
         made += add(q, "orders_late@1", args, zh)
@@ -192,7 +212,11 @@ def build(rng: random.Random, order_ids: list[str]) -> list[dict]:
         metric = pick(rng, METRIC_KEYS)
         n = rng.choice([3, 5, 10, 20])
         args = {"date_from": iso(d0), "date_to": iso(d1), "metric": metric, "limit": n}
-        q = pick(rng, TOP_ZH[metric]).format(p=p_zh, n=n) if zh else pick(rng, TOP_EN[metric]).format(p=p_en, n=n)
+        q = (
+            pick(rng, TOP_ZH[metric]).format(p=p_zh, n=n)
+            if zh
+            else pick(rng, TOP_EN[metric]).format(p=p_en, n=n)
+        )
         made += add(q, "top_products@1", args, zh)
 
     # order_lookup: 6, real ids only
@@ -218,7 +242,9 @@ def sample_order_ids(path: Path, rng: random.Random, k: int = 6) -> list[str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--orders-csv", type=Path, help="olist_orders_dataset.csv, for order_lookup cases")
+    parser.add_argument(
+        "--orders-csv", type=Path, help="olist_orders_dataset.csv, for order_lookup cases"
+    )
     parser.add_argument("--out", type=Path, default=DATASET_DIR / "toolcall.jsonl")
     args = parser.parse_args()
 
@@ -227,7 +253,10 @@ def main() -> None:
     if args.orders_csv:
         order_ids = sample_order_ids(args.orders_csv, random.Random(SEED + 1))
     else:
-        print("warning: no --orders-csv given, order_lookup cases skipped (34 cases instead of 40)", file=sys.stderr)
+        print(
+            "warning: no --orders-csv given, order_lookup cases skipped (34 cases instead of 40)",
+            file=sys.stderr,
+        )
 
     cases = build(rng, order_ids)
     write_jsonl(args.out, cases)

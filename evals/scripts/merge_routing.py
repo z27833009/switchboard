@@ -18,7 +18,9 @@ from common import DATASET_DIR, plan_label, read_jsonl, split_for, write_jsonl
 def main() -> None:
     questions = read_jsonl(DATASET_DIR / "routing.questions.jsonl")
     author = {r["id"]: r["agents"] for r in read_jsonl(DATASET_DIR / "routing.author_labels.jsonl")}
-    generator = {r["id"]: r["agents"] for r in read_jsonl(DATASET_DIR / "routing.generator_labels.jsonl")}
+    generator = {
+        r["id"]: r["agents"] for r in read_jsonl(DATASET_DIR / "routing.generator_labels.jsonl")
+    }
 
     adj_path = DATASET_DIR / "routing.adjudication.jsonl"
     adjudicated = {r["id"]: r["agents"] for r in read_jsonl(adj_path)} if adj_path.exists() else {}
@@ -44,7 +46,9 @@ def main() -> None:
             pairs[(plan_label(a), plan_label(g))] += 1
         if q["id"] in adjudicated:
             if a == g:
-                raise SystemExit(f"{q['id']}: adjudication is only for cases where the blind labels disagree")
+                raise SystemExit(
+                    f"{q['id']}: adjudication is only for cases where the blind labels disagree"
+                )
             row["author_initial_agents"] = a
         row["tags"] = tags
         row["split"] = split_for(q["id"])

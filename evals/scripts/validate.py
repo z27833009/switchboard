@@ -14,8 +14,16 @@ from collections import Counter
 from datetime import date
 
 from common import (
-    AGENTS, DATASET_DIR, DATE_MAX, DATE_MIN, EXCLUSIVE_AGENTS, METRICS, STATUSES, TOOLS,
-    plan_label, read_jsonl,
+    AGENTS,
+    DATASET_DIR,
+    DATE_MAX,
+    DATE_MIN,
+    EXCLUSIVE_AGENTS,
+    METRICS,
+    STATUSES,
+    TOOLS,
+    plan_label,
+    read_jsonl,
 )
 
 ROUTING_TARGETS = {"direct": 10, "docs": 16, "data": 18, "data+docs": 16}
@@ -63,7 +71,9 @@ def check_distribution(labels: list[list[str]], name: str) -> None:
     print(f"{name}: plan distribution {dict(sorted(counts.items()))}")
     for plan, target in ROUTING_TARGETS.items():
         if abs(counts.get(plan, 0) - target) > ROUTING_TOLERANCE:
-            warn(f"{name}: {plan} has {counts.get(plan, 0)}, target {target} +/- {ROUTING_TOLERANCE}")
+            warn(
+                f"{name}: {plan} has {counts.get(plan, 0)}, target {target} +/- {ROUTING_TOLERANCE}"
+            )
 
 
 def check_questions() -> None:
@@ -82,7 +92,9 @@ def check_questions() -> None:
     tags = Counter()
     for q in questions:
         if set(q) - {"id", "query", "tags"}:
-            err(f"{qpath.name} {q.get('id')}: unexpected fields {sorted(set(q) - {'id', 'query', 'tags'})} (labels go in the other file)")
+            err(
+                f"{qpath.name} {q.get('id')}: unexpected fields {sorted(set(q) - {'id', 'query', 'tags'})} (labels go in the other file)"
+            )
         if not isinstance(q.get("query"), str) or not q["query"].strip():
             err(f"{qpath.name} {q.get('id')}: empty query")
         for t in q.get("tags", []):
@@ -95,10 +107,16 @@ def check_questions() -> None:
     if tags["trap"] < 10:
         warn(f"only {tags['trap']} questions tagged trap, target at least 10")
     qids = {q.get("id") for q in questions}
-    lids = {l.get("id") for l in labels}
+    lids = {label.get("id") for label in labels}
     if qids != lids:
-        err(f"ids differ between files: only in questions {sorted(qids - lids)}, only in labels {sorted(lids - qids)}")
-    agents = [a for l in labels if (a := check_agents(l.get("agents"), f"{lpath.name} {l.get('id')}"))]
+        err(
+            f"ids differ between files: only in questions {sorted(qids - lids)}, only in labels {sorted(lids - qids)}"
+        )
+    agents = [
+        a
+        for label in labels
+        if (a := check_agents(label.get("agents"), f"{lpath.name} {label.get('id')}"))
+    ]
     check_distribution(agents, lpath.name)
 
 

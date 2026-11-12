@@ -1,0 +1,94 @@
+[build-system]
+requires = ["uv_build==0.13.7"]
+build-backend = "uv_build"
+
+[project]
+name = "switchboard"
+version = "0.1.0"
+description = "A source-available multi-agent platform where every routing decision is traced."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "PolyForm-Noncommercial-1.0.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Jiajun", email = "15662733+z27833009@users.noreply.github.com" }]
+keywords = ["agents", "mcp", "opentelemetry", "evaluation"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Programming Language :: Python :: 3.12",
+  "Typing :: Typed",
+]
+dependencies = [
+  "pydantic==2.14.3",
+]
+
+[dependency-groups]
+dev = [
+  "import-linter==2.16",
+  "mypy==2.4.1",
+  "pre-commit==4.7.0",
+  "pytest==9.2.0",
+  "pytest-asyncio==1.4.1.post1",
+  "ruff==0.17.4",
+]
+
+[tool.uv]
+# The package is a library plus an application; it must be importable from
+# tests and, from T1.04 on, resolvable through entry points.
+package = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+# Ruff formats Python code blocks in Markdown; the specification is prose.
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# Sibling imports by design: these scripts are run from their own directory.
+# Long template strings and Chinese full-width punctuation are intentional.
+"evals/scripts/*.py" = ["E402", "E501", "RUF001"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+mypy_path = "src"
+pretty = true
+show_error_codes = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra --strict-markers"
+
+[tool.importlinter]
+root_package = "switchboard"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Core imports nothing"
+type = "forbidden"
+source_modules = ["switchboard.core"]
+# Any sibling package (agents, adapters, api, tracing, ...) is forbidden, so
+# the rule holds as packages are added. Core importing its own modules is the
+# one allowed case. The unit test in tests/unit/test_core_imports.py adds the
+# external half of the rule: standard library and pydantic only.
+forbidden_modules = [
+  "switchboard.*",
+  "fastapi",
+  "uvicorn",
+  "langgraph",
+  "openai",
+  "mcp",
+  "asyncpg",
+  "opentelemetry",
+  "jwt",
+  "yaml",
+  "typer",
+]
+ignore_imports = ["switchboard.core -> switchboard.core.*"]
+unmatched_ignore_imports_alerting = "none"

@@ -26,7 +26,16 @@ TOOLS: dict[str, dict[str, set[str]]] = {
 }
 
 # Olist order_status values, confirmed against the download on 2026-11-12
-STATUSES = {"created", "approved", "invoiced", "processing", "shipped", "delivered", "unavailable", "canceled"}
+STATUSES = {
+    "created",
+    "approved",
+    "invoiced",
+    "processing",
+    "shipped",
+    "delivered",
+    "unavailable",
+    "canceled",
+}
 METRICS = {"revenue", "count"}
 
 # Actual range of order_purchase_timestamp in the Olist download (measured 2026-11-12: 2016-09-04 to 2018-10-17).

@@ -1015,6 +1015,7 @@ This list is the allowlist referred to in the working agreements: a dependency n
 | Area | Choice | Notes |
 | --- | --- | --- |
 | Python | 3.12, managed by uv | |
+| Build backend | uv_build | the backend maintained with uv, so there is no second build toolchain to pin |
 | Data models | pydantic v2 | the only non-stdlib import allowed in `core` |
 | API | FastAPI, uvicorn | SSE through FastAPI's `StreamingResponse`, no extra package |
 | Orchestration | langgraph | imported only in `adapters/orchestrator/langgraph_impl` |
