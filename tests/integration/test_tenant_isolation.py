@@ -31,6 +31,7 @@ from tests.fakes import tenants_config
 
 from switchboard.adapters.tools.mcp_client import McpToolSource
 from switchboard.api.app import create_app
+from switchboard.api.audit import PgAuditStore
 from switchboard.api.deps import AppDeps
 from switchboard.api.step_events import StepEventProcessor, StepEventPublisher
 from switchboard.api.store import PgRunStore
@@ -188,6 +189,7 @@ async def live_app(factory: OrchestratorFactory) -> AsyncIterator[AsyncClient]:
     pool = await asyncpg.create_pool(dsn=APP_URL, min_size=1, max_size=4)
     deps = AppDeps(
         store=PgRunStore(pool),
+        audit=PgAuditStore(pool),
         orchestrators={"lmstudio": factory(tracer=tracer, source=source)},
         tenants=tenants_config(),
         run_token_secret=SECRET,

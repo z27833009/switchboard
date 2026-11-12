@@ -914,6 +914,8 @@ erDiagram
 
 The Olist tables live in a separate schema `olist` loaded from the public CSV files. Two database roles: `switchboard_app` (read and write on the platform tables, no access to `olist`) and `switchboard_tools` (SELECT on `olist`, INSERT on `tool_audit` and `spans`, nothing else). The tool role has no SELECT on `spans`, so the exporter's insert uses `ON CONFLICT DO NOTHING` without a conflict target.
 
+`GET /audit` reads `tool_audit` through `switchboard_app`. `tenant_id` is required and applied in SQL, so another tenant's rows are invisible; `run_id`, `tool_name`, `status`, `from`, `to`, `limit` (1 to 200, default 50) and `offset` narrow the rows, which are ordered newest first. The response carries the stored redacted arguments only, and the API applies the manifest's `sensitive_args` again on read, so a raw sensitive argument cannot leave the process (AC-18a, AC-18b).
+
 ## 15. Error handling
 
 Error taxonomy in `core/errors.py`:

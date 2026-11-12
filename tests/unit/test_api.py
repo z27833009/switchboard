@@ -372,6 +372,7 @@ async def test_openapi_and_docs_render(harness: AppHarness) -> None:
     schema = await harness.client.get("/openapi.json")
     assert schema.status_code == 200
     assert set(schema.json()["paths"]) == {
+        "/audit",
         "/chat",
         "/chat/stream",
         "/runs",

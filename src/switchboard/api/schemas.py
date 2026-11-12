@@ -7,9 +7,9 @@ stay separate from the domain contract in ``core.models``.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, Field
 
@@ -21,6 +21,9 @@ from switchboard.core.models import (
     RunStatus,
     Usage,
 )
+
+AuditStatus = Literal["ok", "error", "denied"]
+REDACTED_ARGUMENT = "[redacted]"
 
 
 class ChatResponse(BaseModel):
@@ -129,6 +132,64 @@ class RunsResponse(BaseModel):
     count: int
 
 
+class AuditRow(BaseModel):
+    """One ``tool_audit`` row as ``GET /audit`` returns it (AC-18a, AC-18b).
+
+    ``args_redacted`` is already redacted at write time by the MCP server. The
+    read-side guard also redacts every key the tool manifest lists in
+    ``sensitive_args``, so a raw sensitive value can never reach a response.
+    """
+
+    id: str
+    run_id: str | None = None
+    tenant_id: str
+    tool_name: str
+    tool_version: str
+    args_hash: str
+    args_redacted: dict[str, Any] = Field(default_factory=dict)
+    status: AuditStatus
+    duration_ms: int
+    created_at: datetime
+
+    @classmethod
+    def from_row(
+        cls,
+        row: Mapping[str, Any],
+        sensitive_args: Mapping[str, Sequence[str]] | None = None,
+    ) -> AuditRow:
+        tool_name = str(row["tool_name"])
+        tool_version = str(row["tool_version"])
+        hidden: set[str] = set()
+        if sensitive_args:
+            hidden.update(sensitive_args.get(f"{tool_name}@{tool_version}", ()))
+            hidden.update(sensitive_args.get(tool_name, ()))
+        args = {
+            key: REDACTED_ARGUMENT if key in hidden else value
+            for key, value in dict(cast(Mapping[str, Any], row.get("args_redacted") or {})).items()
+        }
+        return cls(
+            id=str(row["id"]),
+            run_id=cast(str | None, row.get("run_id")),
+            tenant_id=str(row["tenant_id"]),
+            tool_name=tool_name,
+            tool_version=tool_version,
+            args_hash=str(row["args_hash"]),
+            args_redacted=args,
+            status=cast(AuditStatus, row["status"]),
+            duration_ms=int(row["duration_ms"]),
+            created_at=cast(datetime, row["created_at"]),
+        )
+
+
+class AuditResponse(BaseModel):
+    """One page of audit rows, newest first, with the offset that produced it."""
+
+    rows: list[AuditRow] = Field(default_factory=list)
+    count: int = 0
+    limit: int = 50
+    offset: int = 0
+
+
 class TraceSpan(BaseModel):
     """One node of the span tree (design 12.3)."""
 
@@ -157,6 +218,10 @@ class TraceResponse(BaseModel):
 
 
 __all__ = [
+    "REDACTED_ARGUMENT",
+    "AuditResponse",
+    "AuditRow",
+    "AuditStatus",
     "ChatResponse",
     "RunSummary",
     "RunsResponse",

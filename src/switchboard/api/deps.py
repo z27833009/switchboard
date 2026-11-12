@@ -10,7 +10,7 @@ policy and the LangGraph orchestrator resolved through the registry
 from __future__ import annotations
 
 import os
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol, cast
@@ -19,6 +19,7 @@ import asyncpg
 
 from switchboard.adapters.embedders.factory import create_embedder
 from switchboard.adapters.providers.factory import create_provider
+from switchboard.api.audit import AuditStore, PgAuditStore, load_sensitive_args
 from switchboard.api.run_tokens import require_run_token_secret
 from switchboard.api.step_events import StepEventProcessor, StepEventPublisher
 from switchboard.api.store import PgRunStore, RunStore
@@ -49,6 +50,7 @@ class AppDeps:
     """Everything the routes need, injected once at app creation."""
 
     store: RunStore
+    audit: AuditStore
     orchestrators: Mapping[str, Orchestrator]
     tenants: TenantsConfig
     run_token_secret: str
@@ -57,6 +59,9 @@ class AppDeps:
     tracing: TracerFlusher | None = None
     health: HealthCheck | None = None
     closer: Callable[[], Awaitable[None]] | None = None
+    # Tool manifest sensitive_args, keyed by wire name, for the read-side guard
+    # in GET /audit (AC-18b).
+    sensitive_args: Mapping[str, Sequence[str]] = field(default_factory=dict)
 
     def orchestrator_for(self, tenant_provider: str) -> Orchestrator:
         try:
@@ -179,6 +184,7 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
 
     return AppDeps(
         store=PgRunStore(pool),
+        audit=PgAuditStore(pool),
         orchestrators=orchestrators,
         tenants=settings.tenants,
         run_token_secret=secret,
@@ -186,15 +192,19 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
         publisher=publisher,
         tracing=tracing,
         closer=close,
+        sensitive_args=load_sensitive_args(settings.platform.tool_sources),
     )
 
 
 __all__ = [
     "AppDeps",
+    "AuditStore",
     "HealthCheck",
+    "PgAuditStore",
     "build_app_deps",
     "build_orchestrators",
     "build_retriever",
     "build_tool_sources",
     "context_policy_for",
+    "load_sensitive_args",
 ]

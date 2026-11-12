@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,6 +23,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor, SpanExporter, Sp
 from opentelemetry.trace import SpanKind, Tracer
 
 from switchboard.api.app import create_app
+from switchboard.api.audit import AuditQuery
 from switchboard.api.deps import AppDeps
 from switchboard.api.step_events import StepEventProcessor, StepEventPublisher
 from switchboard.config import load_model
@@ -50,6 +51,7 @@ class MemoryRunStore:
     def __init__(self) -> None:
         self.runs: dict[str, dict[str, Any]] = {}
         self.spans: list[dict[str, Any]] = []
+        self.audit_rows: list[dict[str, Any]] = []
 
     async def start_run(
         self,
@@ -119,6 +121,27 @@ class MemoryRunStore:
 
     async def fetch_spans(self, run_id: str) -> list[dict[str, Any]]:
         return [dict(span) for span in self.spans if span.get("run_id") == run_id]
+
+    async def list_audit(self, query: AuditQuery) -> list[dict[str, Any]]:
+        """The same tenant filter, ordering and offset as ``LIST_AUDIT_SQL``."""
+        rows: list[dict[str, Any]] = []
+        for row in self.audit_rows:
+            if row["tenant_id"] != query.tenant_id:
+                continue
+            if query.run_id is not None and row.get("run_id") != query.run_id:
+                continue
+            if query.tool_name is not None and row["tool_name"] != query.tool_name:
+                continue
+            if query.status is not None and row["status"] != query.status:
+                continue
+            created = cast(datetime, row["created_at"])
+            if query.from_ts is not None and created < query.from_ts:
+                continue
+            if query.to_ts is not None and created > query.to_ts:
+                continue
+            rows.append(dict(row))
+        rows.sort(key=lambda item: (item["created_at"], str(item["id"])), reverse=True)
+        return rows[query.offset : query.offset + query.limit]
 
 
 SPAN_COLUMNS = (
@@ -314,10 +337,12 @@ def build_harness(
     provider: TracerProvider,
     orchestrator: Any,
     flush: Any = None,
+    sensitive_args: Mapping[str, Sequence[str]] | None = None,
 ) -> AppHarness:
     """Build an app with fakes and a client bound to it (no lifespan, no IO)."""
     deps = AppDeps(
         store=store,
+        audit=store,
         orchestrators={"lmstudio": orchestrator},
         tenants=tenants,
         run_token_secret=SECRET,
@@ -325,6 +350,7 @@ def build_harness(
         publisher=publisher,
         tracing=flush,
         health=fake_health,
+        sensitive_args=sensitive_args or {},
     )
     app = create_app(deps=deps)
     harness = AppHarness(

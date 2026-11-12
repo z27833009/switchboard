@@ -151,6 +151,7 @@ def test_unknown_context_policy_is_a_config_error() -> None:
 def test_app_deps_rejects_a_tenant_without_an_orchestrator() -> None:
     deps = AppDeps(
         store=MemoryRunStore(),
+        audit=MemoryRunStore(),
         orchestrators={},
         tenants=tenants_config(),
         run_token_secret="s" * 32,

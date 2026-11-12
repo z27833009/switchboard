@@ -1,4 +1,4 @@
-"""FastAPI application: chat, runs, trace and health (design.md sections 5, 12).
+"""FastAPI application: chat, runs, trace, audit and health (design.md sections 5, 12).
 
 The routes are thin: validate the request with the core models, resolve the
 tenant, mint the run token, insert the run row, hand the run to the orchestrator,
@@ -22,20 +22,29 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
 import asyncpg
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.telemetry import TelemetryConfig
 
+from switchboard.api.audit import AuditQuery, as_utc
 from switchboard.api.deps import AppDeps, build_app_deps
 from switchboard.api.run_tokens import (
     RUN_TOKEN_MIN_BYTES,
     mint_run_token,
     require_run_token_secret,
 )
-from switchboard.api.schemas import ChatResponse, RunsResponse, RunSummary, TraceResponse
+from switchboard.api.schemas import (
+    AuditResponse,
+    AuditRow,
+    AuditStatus,
+    ChatResponse,
+    RunsResponse,
+    RunSummary,
+    TraceResponse,
+)
 from switchboard.api.step_events import RUN_FINISHED, StepEvent
 from switchboard.api.store import parse_run_id, rows_are_complete
 from switchboard.api.trace import assemble_trace
@@ -314,6 +323,59 @@ async def get_run_trace(
     return assemble_trace(run_id=str(row["id"]), rows=rows, incomplete=incomplete)
 
 
+@router.get("/audit", response_model=AuditResponse)
+async def list_audit(
+    request: Request,
+    tenant_id: Annotated[str, Query(min_length=1, description="Tenant whose tool calls to list.")],
+    run_id: Annotated[
+        uuid.UUID | None, Query(description="Only tool calls made by this run.")
+    ] = None,
+    tool_name: Annotated[
+        str | None, Query(min_length=1, description="Only calls of this tool name.")
+    ] = None,
+    status: Annotated[AuditStatus | None, Query(description="ok, error or denied.")] = None,
+    from_ts: Annotated[
+        datetime | None,
+        Query(alias="from", description="Only calls created at or after this time."),
+    ] = None,
+    to_ts: Annotated[
+        datetime | None,
+        Query(alias="to", description="Only calls created at or before this time."),
+    ] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> AuditResponse:
+    """One tenant's tool calls, newest first (AC-18a, AC-18b).
+
+    The tenant is required and applied in SQL, so another tenant's rows are
+    invisible (design.md section 11). ``args_redacted`` is redacted at write
+    time and again here from the manifest's ``sensitive_args``.
+    """
+    deps = _deps(request.app)
+    tenant = _tenant(deps, tenant_id)
+    start = as_utc(from_ts)
+    end = as_utc(to_ts)
+    if start is not None and end is not None and start > end:
+        raise HTTPException(status_code=422, detail="from must be on or before to")
+    query = AuditQuery(
+        tenant_id=tenant.tenant_id,
+        run_id=None if run_id is None else str(run_id),
+        tool_name=tool_name,
+        status=status,
+        from_ts=start,
+        to_ts=end,
+        limit=limit,
+        offset=offset,
+    )
+    rows = await deps.audit.list_audit(query)
+    return AuditResponse(
+        rows=[AuditRow.from_row(row, deps.sensitive_args) for row in rows],
+        count=len(rows),
+        limit=limit,
+        offset=offset,
+    )
+
+
 async def check_postgres(dsn: str) -> dict[str, str]:
     if not dsn:
         return {"status": "error", "detail": "SWITCHBOARD_DATABASE_URL is not set"}
@@ -437,6 +499,7 @@ __all__ = [
     "get_run",
     "get_run_trace",
     "health",
+    "list_audit",
     "list_runs",
     "require_run_token_secret",
 ]

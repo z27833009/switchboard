@@ -29,6 +29,7 @@ from tests.fakes import FailingOrchestrator, tenants_config
 
 from switchboard.adapters.tools.mcp_client import McpToolSource
 from switchboard.api.app import create_app
+from switchboard.api.audit import PgAuditStore
 from switchboard.api.deps import AppDeps
 from switchboard.api.step_events import StepEventProcessor, StepEventPublisher
 from switchboard.api.store import PgRunStore
@@ -158,6 +159,7 @@ async def test_chat_stream_persists_the_run_and_its_trace() -> None:
     pool = await asyncpg.create_pool(dsn=APP_URL, min_size=1, max_size=4)
     deps = AppDeps(
         store=PgRunStore(pool),
+        audit=PgAuditStore(pool),
         orchestrators={"lmstudio": orchestrator},
         tenants=tenants_config(),
         run_token_secret=SECRET,
@@ -275,6 +277,7 @@ async def test_failed_run_persists_its_errors_and_is_marked_incomplete() -> None
     pool = await asyncpg.create_pool(dsn=APP_URL, min_size=1, max_size=2)
     deps = AppDeps(
         store=PgRunStore(pool),
+        audit=PgAuditStore(pool),
         orchestrators={"lmstudio": FailingOrchestrator()},
         tenants=tenants_config(),
         run_token_secret=SECRET,
