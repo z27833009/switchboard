@@ -97,6 +97,8 @@ class ProviderConfig(BaseModel):
     model: str | None = None
     capabilities: ProviderCapabilities | None = None
     fixtures: str | None = None
+    timeout_s: float = Field(default=120.0, gt=0)
+    extra_body: dict[str, Any] = Field(default_factory=dict)
 
 
 class EmbedderConfig(BaseModel):

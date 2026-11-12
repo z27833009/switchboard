@@ -1,0 +1,29 @@
+{
+  "id": "chatcmpl-nqidpw2u1wmksum1wmb7cp",
+  "object": "chat.completion",
+  "created": 1794505103,
+  "model": "qwen3-8b",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": "Okay, so I need to figure out if 17 is a prime number. Let me start by recalling what a prime number is. A prime number is a number greater than 1 that has no positive divisors other than 1 and itself. So, basically, if I can't divide 17 by any number other than 1 and 17 without getting a remainder, then it's prime.\n\nFirst, let me check the smaller primes. The",
+        "tool_calls": []
+      },
+      "logprobs": null,
+      "finish_reason": "length"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 17,
+    "completion_tokens": 96,
+    "total_tokens": 113,
+    "completion_tokens_details": {
+      "reasoning_tokens": 94
+    }
+  },
+  "stats": {},
+  "system_fingerprint": "qwen3-8b"
+}

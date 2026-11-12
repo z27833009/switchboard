@@ -1,0 +1,38 @@
+{
+  "id": "chatcmpl-ibknp3v1ar9kc43hb3",
+  "object": "chat.completion",
+  "created": 1794505159,
+  "model": "qwen3-8b",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": "",
+        "tool_calls": [
+          {
+            "type": "function",
+            "id": "4EPAsRzggxgaD6TbMbk5rKmPXASykUkV",
+            "function": {
+              "name": "get_weather",
+              "arguments": "{\"city\":\"Paris\"}"
+            }
+          }
+        ]
+      },
+      "logprobs": null,
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 163,
+    "completion_tokens": 20,
+    "total_tokens": 183,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    }
+  },
+  "stats": {},
+  "system_fingerprint": "qwen3-8b"
+}

@@ -20,6 +20,7 @@ classifiers = [
 dependencies = [
   "asyncpg==0.32.0",
   "fastapi==0.162.5",
+  "openai==3.49.0",
   "pydantic==2.14.3",
   "pyyaml==6.0.3",
   "typer==0.29.1",
@@ -28,6 +29,9 @@ dependencies = [
 
 [project.scripts]
 switchboard = "switchboard.cli:app"
+
+[project.entry-points."switchboard.providers"]
+openai_compatible = "switchboard.adapters.providers.openai_compat:OpenAICompatibleProvider"
 
 [dependency-groups]
 dev = [

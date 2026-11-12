@@ -69,7 +69,7 @@ services:
       SWITCHBOARD_RUN_TOKEN_SECRET: "${SWITCHBOARD_RUN_TOKEN_SECRET:?set SWITCHBOARD_RUN_TOKEN_SECRET in .env (at least 32 bytes)}"
       SWITCHBOARD_DATABASE_URL: "postgresql://switchboard_app:${SWITCHBOARD_APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-switchboard}"
       SWITCHBOARD_TOOLS_URL: "http://mcp-olist:8001"
-      LMSTUDIO_BASE_URL: "${LMSTUDIO_BASE_URL:-http://host.docker.internal:18080/v1}"
+      LMSTUDIO_BASE_URL: "http://host.docker.internal:18080/v1"
       LMSTUDIO_MODEL: "${LMSTUDIO_MODEL:-qwen3-8b}"
       LMSTUDIO_EMBEDDING_MODEL: "${LMSTUDIO_EMBEDDING_MODEL:-bge-m3}"
     extra_hosts:

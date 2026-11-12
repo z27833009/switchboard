@@ -98,8 +98,12 @@ class CompletionRequest(BaseModel):
 
 class CompletionResponse(BaseModel):
     text: str | None
+    reasoning: str | None = None
     tool_calls: list[ToolCall] = Field(default_factory=list)
     parsed: dict[str, Any] | None = None
+    structured_output_strategy: (
+        Literal["native_json_schema", "tool_call", "prompted_json"] | None
+    ) = None
     usage: Usage
     model: str
     provider: str

@@ -1,0 +1,29 @@
+{
+  "id": "chatcmpl-u0ks8nfo0ynr5lddqnan9m",
+  "object": "chat.completion",
+  "created": 1794505173,
+  "model": "qwen3-8b",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"agents\": [\"sales_team\", \"logistics_team\"], \"reason\": \"The data required to answer this question is not available in the provided context.\"}",
+        "reasoning_content": "",
+        "tool_calls": []
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 58,
+    "completion_tokens": 33,
+    "total_tokens": 91,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    }
+  },
+  "stats": {},
+  "system_fingerprint": "qwen3-8b"
+}

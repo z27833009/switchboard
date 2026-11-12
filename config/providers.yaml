@@ -10,6 +10,8 @@ providers:
       streaming: true
       reasoning: false
       context_window: 8192
+    extra_body:
+      reasoning_effort: none
   mock:
     adapter: mock
     fixtures: evals/fixtures/mock_provider

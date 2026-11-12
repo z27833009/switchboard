@@ -1,0 +1,29 @@
+{
+  "id": "chatcmpl-ou30os1craj73eo9hne9yh",
+  "object": "chat.completion",
+  "created": 1794505099,
+  "model": "qwen3-8b",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "OK.",
+        "reasoning_content": "",
+        "tool_calls": []
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 19,
+    "completion_tokens": 3,
+    "total_tokens": 22,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    }
+  },
+  "stats": {},
+  "system_fingerprint": "qwen3-8b"
+}

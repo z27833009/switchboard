@@ -144,8 +144,10 @@ class Usage(BaseModel):
 
 class CompletionResponse(BaseModel):
     text: str | None
+    reasoning: str | None = None      # separated from the answer text
     tool_calls: list[ToolCall]
     parsed: dict | None        # when response_schema was given
+    structured_output_strategy: Literal["native_json_schema", "tool_call", "prompted_json"] | None
     usage: Usage
     model: str
     provider: str
@@ -494,6 +496,7 @@ providers:
     api_key: lm-studio
     model: ${LMSTUDIO_MODEL}
     capabilities: {tools: true, json_schema: false, streaming: true, reasoning: false, context_window: 8192}
+    extra_body: {reasoning_effort: none}   # disable Qwen3 thinking on LM Studio
   deepseek:
     adapter: openai_compatible
     base_url: https://api.deepseek.com/v1
