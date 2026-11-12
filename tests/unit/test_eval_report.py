@@ -267,6 +267,23 @@ def test_write_report_writes_both_files(tmp_path: Path) -> None:
     assert "Routing eval" in markdown_path.read_text(encoding="utf-8")
 
 
+def test_a_second_orchestrator_gets_its_own_report_file(tmp_path: Path) -> None:
+    """The committed langgraph reports keep their names (T2.11, design 20.2)."""
+    report = build_report(
+        replace(meta(), orchestrator="agent_loop"),
+        [routing_result("r001", ["data"], ["data"])],
+    )
+    markdown_path, json_path = write_report(report, tmp_path)
+
+    assert markdown_path == tmp_path / "routing-agent_loop-mock.md"
+    assert json_path == tmp_path / "routing-agent_loop-mock.json"
+    assert report["orchestrator"] == "agent_loop"
+    assert report["plan_source"] == "agent loop first decision, derived plan"
+    markdown = render_markdown(report)
+    assert "Orchestrator: `agent_loop`" in markdown
+    assert "Agent loop mode: each case sends the first step of the agent loop" in markdown
+
+
 def rag_result(
     case_id: str,
     *,

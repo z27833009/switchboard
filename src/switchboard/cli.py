@@ -19,7 +19,7 @@ from switchboard.adapters.retrievers.ingest import IngestResult, ingest_director
 from switchboard.config import load_settings
 from switchboard.core.config import PriceEntry, ProviderConfig, Settings
 from switchboard.core.errors import ConfigError, SwitchboardError
-from switchboard.core.models import AgentSpec, EvalCase
+from switchboard.core.models import AgentSpec, EvalCase, ToolSpec
 from switchboard.core.ports import EvalDeps, EvalSuite, ModelProvider
 from switchboard.core.pricing import lookup_price
 from switchboard.data.olist import (
@@ -49,7 +49,7 @@ from switchboard.eval.runner import (
     select_cases,
 )
 from switchboard.eval.suite import SuiteContext, create_suite
-from switchboard.registry import EVAL_SUITES, Registry
+from switchboard.registry import EVAL_SUITES, ORCHESTRATORS, Registry
 
 app = typer.Typer(help="Switchboard command line.", no_args_is_help=True)
 data_app = typer.Typer(help="Dataset commands.", no_args_is_help=True)
@@ -172,6 +172,20 @@ def _agent_specs(settings: Settings, registry: Registry) -> list[AgentSpec]:
     return sorted(specs, key=lambda spec: spec.name)
 
 
+def _tenant_tool_specs(settings: Settings, tools: list[ToolSpec]) -> list[ToolSpec]:
+    """The default tenant's read-only tools, for the agent-loop routing mode.
+
+    A live run filters the MCP tool list by the tenant allowlist; the eval has
+    no run context, so the same filter is applied here from the config.
+    """
+    try:
+        tenant = settings.tenants.tenants["default"]
+    except KeyError as exc:
+        raise ConfigError("the eval runner needs a tenant named 'default'") from exc
+    allowed = set(tenant.tools.allow)
+    return [spec for spec in tools if spec.wire_name in allowed]
+
+
 def _eval_cost_target(
     settings: Settings,
     name: str,
@@ -276,7 +290,11 @@ def eval_run(
         str, typer.Option("--provider", help="Provider name from providers.yaml.")
     ] = "mock",
     orchestrator: Annotated[
-        str, typer.Option("--orchestrator", help="Orchestrator dimension in the report.")
+        str,
+        typer.Option(
+            "--orchestrator",
+            help="Orchestrator dimension; langgraph (default) or agent_loop for routing.",
+        ),
     ] = "langgraph",
     limit: Annotated[
         int | None,
@@ -338,21 +356,31 @@ def eval_run(
             raise ConfigError(
                 f"unknown eval suite {suite!r}; registered: {', '.join(available) or 'none'}"
             )
-        if orchestrator != "langgraph":
+        orchestrators = registry.names(ORCHESTRATORS)
+        if orchestrator not in orchestrators:
             raise ConfigError(
-                "only the langgraph supervisor prompt exists in Phase 1; "
-                f"cannot run --orchestrator {orchestrator!r}"
+                f"unknown orchestrator {orchestrator!r}; "
+                f"registered: {', '.join(orchestrators) or 'none'}"
+            )
+        if orchestrator != "langgraph" and suite != "routing":
+            raise ConfigError(
+                f"the {suite!r} suite scores one dimension only; "
+                f"--orchestrator {orchestrator!r} is supported for routing"
             )
 
+        manifest_tools = load_tool_specs(manifest)
         eval_suite: EvalSuite = create_suite(
             registry,
             suite,
             SuiteContext(
                 dataset_root=dataset_dir,
                 agent_specs=_agent_specs(settings, registry),
-                tools=load_tool_specs(manifest),
+                tools=manifest_tools,
                 max_plan_size=settings.platform.limits.max_plan_size,
                 settings=settings,
+                orchestrator=orchestrator,
+                tenant_tools=_tenant_tool_specs(settings, manifest_tools),
+                retriever_configured=settings.platform.retriever != "none",
             ),
         )
         cases: list[EvalCase] = eval_suite.load(dataset_version)

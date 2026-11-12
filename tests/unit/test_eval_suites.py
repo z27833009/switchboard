@@ -10,6 +10,7 @@ import pytest
 from switchboard.adapters.orchestrator.langgraph_impl.orchestrator import (
     plan_schema as orchestrator_plan_schema,
 )
+from switchboard.agent_loop import AGENT_LOOP_SYSTEM
 from switchboard.agents.data import DataAgent
 from switchboard.core.errors import ConfigError
 from switchboard.core.models import (
@@ -21,6 +22,7 @@ from switchboard.core.models import (
     EvalOutcome,
     ProviderCapabilities,
     ToolCall,
+    ToolSpec,
     Usage,
 )
 from switchboard.core.ports import EvalDeps
@@ -170,6 +172,93 @@ async def test_routing_suite_records_an_invalid_plan() -> None:
     assert outcome.error is not None
     assert "unknown agents" in outcome.error
     assert suite.score(case, outcome).passed is False
+
+
+def tenant_tool_specs() -> list[ToolSpec]:
+    all_tools = load_tool_specs(REPO_ROOT / "mcp_servers" / "olist" / "manifest.yaml")
+    return [spec for spec in all_tools if spec.name in {"orders_summary", "orders_late"}]
+
+
+async def test_routing_suite_agent_loop_derives_the_plan_from_the_decision() -> None:
+    suite = RoutingSuite(
+        agent_specs=specs(),
+        max_plan_size=3,
+        orchestrator="agent_loop",
+        tenant_tools=tenant_tool_specs(),
+    )
+    provider = ScriptedProvider(
+        response(tool_calls=[ToolCall(name="orders_summary@1", arguments={}, call_id="c1")])
+    )
+    case = EvalCase(id="r002", query="How many orders?", expected_agents=["data"])
+
+    outcome = await suite.execute(case, EvalDeps(provider=provider))
+
+    assert outcome.plan == ["data"]
+    assert outcome.tool_calls == ["orders_summary@1"]
+    assert outcome.details["mode"] == "agent_loop"
+    assert outcome.details["tool_calls"] == [{"name": "orders_summary@1", "arguments": {}}]
+    assert outcome.details["reason"].startswith("Derived from the tools")
+    assert suite.score(case, outcome).passed is True
+
+    request = provider.requests[0]
+    assert request.messages[0].content == AGENT_LOOP_SYSTEM
+    assert request.response_schema is None
+    assert request.metadata["purpose"] == "agent.agent_loop"
+    wire_names = [tool.wire_name for tool in request.tools]
+    assert "orders_summary@1" in wire_names
+    assert "result_page@1" in wire_names
+    assert "search_docs@1" in wire_names
+    # Sorted by wire name, like the production request.
+    assert wire_names == sorted(wire_names)
+
+
+async def test_routing_suite_agent_loop_scores_a_direct_decision() -> None:
+    suite = RoutingSuite(
+        agent_specs=specs(),
+        max_plan_size=3,
+        orchestrator="agent_loop",
+        tenant_tools=tenant_tool_specs(),
+    )
+    provider = ScriptedProvider(response())
+    case = EvalCase(id="r003", query="hello", expected_agents=["direct"])
+
+    outcome = await suite.execute(case, EvalDeps(provider=provider))
+
+    assert outcome.plan == ["direct"]
+    assert outcome.tool_calls == []
+    assert suite.score(case, outcome).passed is True
+
+
+async def test_routing_suite_agent_loop_offers_read_only_tools_only() -> None:
+    write = ToolSpec(
+        name="delete_order",
+        version="1",
+        description="Delete an order.",
+        input_schema={"type": "object"},
+        risk="write",
+    )
+    suite = RoutingSuite(
+        agent_specs=specs(),
+        max_plan_size=3,
+        orchestrator="agent_loop",
+        tenant_tools=[*tenant_tool_specs(), write],
+        retriever_configured=False,
+    )
+    provider = ScriptedProvider(response())
+    case = EvalCase(id="r004", query="hello", expected_agents=["direct"])
+
+    await suite.execute(case, EvalDeps(provider=provider))
+
+    wire_names = [tool.wire_name for tool in provider.requests[0].tools]
+    assert "delete_order@1" not in wire_names
+    # No retriever means no search_docs@1, just as in a live run.
+    assert "search_docs@1" not in wire_names
+    assert "result_page@1" in wire_names
+
+
+def test_routing_suite_rejects_an_unsupported_orchestrator() -> None:
+    with pytest.raises(ConfigError, match="cannot score"):
+        RoutingSuite(agent_specs=specs(), max_plan_size=3, orchestrator="sequential")
 
 
 async def test_toolcall_suite_sends_tools_and_scores_the_first_call() -> None:

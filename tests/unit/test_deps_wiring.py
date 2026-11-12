@@ -10,6 +10,8 @@ import asyncpg
 import pytest
 from tests.fakes import MemoryRunStore, tenants_config
 
+from switchboard.adapters.orchestrator.agent_loop import AgentLoopOrchestrator
+from switchboard.adapters.orchestrator.langgraph_impl import LangGraphOrchestrator
 from switchboard.api.deps import AppDeps, build_orchestrators, context_policy_for
 from switchboard.api.step_events import StepEventPublisher
 from switchboard.core.config import (
@@ -179,6 +181,74 @@ def test_orchestrators_receive_the_answer_delta_sink() -> None:
 def test_unknown_context_policy_is_a_config_error() -> None:
     with pytest.raises(ConfigError, match="unknown context policy"):
         context_policy_for("summarise_everything")
+
+
+def agent_loop_settings() -> Settings:
+    """The real adapters (mock provider, mock embedder, no tool source)."""
+    return Settings(
+        platform=PlatformConfig(
+            orchestrator="agent_loop",
+            tool_sources=[],
+            retriever="none",
+            cache="none",
+            embedder="mock",
+            context_policy="clear_oldest_tool_results",
+            limits=Limits(run_timeout_s=12),
+        ),
+        providers=ProvidersConfig(
+            providers={
+                "mock": ProviderConfig(
+                    adapter="mock",
+                    model="qwen3-8b",
+                    fixtures="evals/fixtures/mock_provider",
+                )
+            },
+            embedders={"mock": EmbedderConfig(adapter="mock", dimension=1024)},
+        ),
+        tenants=TenantsConfig(
+            tenants={
+                "default": TenantConfig(
+                    provider="mock",
+                    agents=TenantAgentSettings(allow=["direct"]),
+                    tools=TenantToolSettings(allow=[]),
+                )
+            }
+        ),
+        prices=PricesConfig(
+            verified_on=date(2026, 11, 12),
+            entries=[
+                PriceEntry(
+                    provider="lmstudio",
+                    model=None,
+                    input_per_million=0.0,
+                    cached_input_per_million=0.0,
+                    output_per_million=0.0,
+                )
+            ],
+        ),
+    )
+
+
+def test_platform_yaml_selects_the_agent_loop_orchestrator() -> None:
+    """platform.yaml ``orchestrator: agent_loop`` builds the second adapter."""
+    pool = cast(asyncpg.Pool, object())
+    orchestrators = build_orchestrators(agent_loop_settings(), Registry(), pool)
+
+    assert set(orchestrators) == {"mock"}
+    built = orchestrators["mock"]
+    assert isinstance(built, AgentLoopOrchestrator)
+    assert built.name == "agent_loop"
+
+
+def test_the_default_orchestrator_is_still_langgraph() -> None:
+    pool = cast(asyncpg.Pool, object())
+    settings = agent_loop_settings()
+    settings = settings.model_copy(
+        update={"platform": settings.platform.model_copy(update={"orchestrator": "langgraph"})}
+    )
+    orchestrators = build_orchestrators(settings, Registry(), pool)
+
+    assert isinstance(orchestrators["mock"], LangGraphOrchestrator)
 
 
 def test_app_deps_rejects_a_tenant_without_an_orchestrator() -> None:

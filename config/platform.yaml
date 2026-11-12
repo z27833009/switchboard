@@ -1,3 +1,5 @@
+# langgraph is the default; agent_loop is the second adapter (design 6.9,
+# ADR 0002) and is selected with the same key, no code change.
 orchestrator: langgraph
 tool_sources:
   - name: olist

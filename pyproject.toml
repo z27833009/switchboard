@@ -57,6 +57,7 @@ clarify = "switchboard.agents.clarify:ClarifyAgent"
 
 [project.entry-points."switchboard.orchestrators"]
 langgraph = "switchboard.adapters.orchestrator.langgraph_impl:LangGraphOrchestrator"
+agent_loop = "switchboard.adapters.orchestrator.agent_loop:AgentLoopOrchestrator"
 
 [project.entry-points."switchboard.eval_suites"]
 routing = "switchboard.eval.suites.routing:RoutingSuite"

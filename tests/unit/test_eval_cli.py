@@ -242,6 +242,72 @@ def test_a_paid_run_prints_the_estimate_and_refuses_without_confirmation(
     assert "needs an api_key" not in result.output
 
 
+def invoke_orchestrator(tmp_path: Path, suite: str, orchestrator: str) -> Result:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(exist_ok=True)
+    write_config(config_dir)
+    return CliRunner().invoke(
+        app,
+        [
+            "eval",
+            "run",
+            "--suite",
+            suite,
+            "--provider",
+            "mock",
+            "--orchestrator",
+            orchestrator,
+            "--config-dir",
+            str(config_dir),
+            "--dataset-dir",
+            str(REPO_ROOT / "evals" / "datasets"),
+            "--manifest",
+            str(REPO_ROOT / "mcp_servers" / "olist" / "manifest.yaml"),
+            "--output-dir",
+            str(tmp_path / "reports"),
+            "--limit",
+            "1",
+        ],
+    )
+
+
+def test_an_unknown_orchestrator_is_refused_before_any_case(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(REPO_ROOT)
+    result = invoke_orchestrator(tmp_path, "routing", "sequential")
+
+    assert result.exit_code == 1
+    assert "unknown orchestrator 'sequential'" in result.output
+    assert "agent_loop" in result.output
+
+
+def test_the_agent_loop_dimension_is_routing_only_for_now(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(REPO_ROOT)
+    result = invoke_orchestrator(tmp_path, "toolcall", "agent_loop")
+
+    assert result.exit_code == 1
+    assert "is supported for routing" in result.output
+
+
+def test_the_routing_suite_accepts_the_agent_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The flag reaches the suite; the smoke run replays a recorded loop fixture."""
+    monkeypatch.chdir(REPO_ROOT)
+    result = invoke_orchestrator(tmp_path, "routing", "agent_loop")
+
+    assert result.exit_code == 0, result.output
+    report = json.loads((tmp_path / "reports" / "routing-agent_loop-mock.json").read_text("utf-8"))
+    assert report["orchestrator"] == "agent_loop"
+    assert report["plan_source"] == "agent loop first decision, derived plan"
+    assert report["case_count"] == 1
+    assert "plan_accuracy" in report["metrics"]
+    assert (tmp_path / "reports" / "routing-agent_loop-mock.md").is_file()
+
+
 def test_an_estimate_above_the_cap_is_refused_even_with_confirmation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

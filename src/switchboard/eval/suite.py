@@ -28,6 +28,16 @@ class SuiteContext:
     # The rag suite needs the configured embedder and tenant to open the
     # document index; suites that make no database call ignore it.
     settings: Settings | None = None
+    # Report dimension. Only the routing suite runs a second orchestrator today
+    # (design.md section 20.2); the CLI rejects the flag for the other suites.
+    orchestrator: str = "langgraph"
+    # The default tenant's read-only tool specs, which the routing suite offers
+    # in agent-loop mode. The MCP source filters by tenant at run time; the eval
+    # has no run context, so the CLI passes the filtered list.
+    tenant_tools: list[ToolSpec] = field(default_factory=list)
+    # search_docs@1 is a platform tool that only exists when a retriever is
+    # configured, so the agent-loop prompt must not offer it otherwise.
+    retriever_configured: bool = True
 
 
 def create_suite(registry: Registry, name: str, context: SuiteContext) -> EvalSuite:

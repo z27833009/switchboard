@@ -361,6 +361,7 @@ def _routing_case_row(result: CaseRun) -> dict[str, Any]:
         "cached_input_tokens": usage.cached_input_tokens,
         "output_tokens": usage.output_tokens,
         "reason": result.outcome.details.get("reason"),
+        "tool_calls": list(result.outcome.tool_calls),
         "error": result.outcome.error,
     }
 
@@ -496,6 +497,11 @@ def build_report(meta: ReportMeta, results: list[CaseRun]) -> dict[str, Any]:
         report["confusion_matrix"] = {
             expected: dict(sorted(row.items())) for expected, row in sorted(matrix.items())
         }
+        report["plan_source"] = (
+            "agent loop first decision, derived plan"
+            if meta.orchestrator == "agent_loop"
+            else "supervisor plan call"
+        )
         report["cases"] = [_routing_case_row(result) for result in results]
     elif meta.suite == "gate":
         report["gate_counts"] = _gate_counts(results)
@@ -806,6 +812,19 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.append("")
     lines.extend(_metric_table(report["metrics"]))
     lines.append("")
+    if report["suite"] == "routing" and report.get("plan_source", "").startswith("agent loop"):
+        lines.append(
+            "Agent loop mode: each case sends the first step of the agent loop (design.md "
+            "section 6.9): the production loop prompt, the default tenant's read-only tools "
+            "and the platform tools `result_page@1` and `search_docs@1`. The plan is derived "
+            "from the tool calls in that decision with the same function the adapter uses. "
+            "The suite does not execute tools, mirroring the supervisor mode, which does not "
+            "run agents. A live loop can call more tools on later steps, so a whole run's "
+            "plan is a superset of the first decision's: with exact-set scoring this number "
+            "can land above or below the live loop's plan accuracy. It measures the first "
+            "decision and is not a substitute for the mechanism comparison in T2.12."
+        )
+        lines.append("")
 
     if report["suite"] == "injection":
         lines.append("## Patterns")
@@ -959,10 +978,23 @@ def render_markdown(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def report_stem(report: dict[str, Any]) -> str:
+    """File name stem: ``<suite>-<provider>``, plus the orchestrator when set.
+
+    The LangGraph reports keep the names committed before T2.11
+    (``routing-mock``), so a second orchestrator gets its own file instead of
+    overwriting the baseline report (design.md section 20.2).
+    """
+    orchestrator = report.get("orchestrator")
+    if isinstance(orchestrator, str) and orchestrator and orchestrator != "langgraph":
+        return f"{report['suite']}-{orchestrator}-{report['provider']}"
+    return f"{report['suite']}-{report['provider']}"
+
+
 def write_report(report: dict[str, Any], output_dir: Path) -> tuple[Path, Path]:
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
-    stem = f"{report['suite']}-{report['provider']}"
+    stem = report_stem(report)
     markdown_path = output / f"{stem}.md"
     json_path = output / f"{stem}.json"
     markdown_path.write_text(render_markdown(report), encoding="utf-8", newline="\n")
@@ -980,5 +1012,6 @@ __all__ = [
     "latency_summary",
     "percentile",
     "render_markdown",
+    "report_stem",
     "write_report",
 ]
