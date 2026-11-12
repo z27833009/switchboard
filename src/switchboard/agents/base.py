@@ -60,14 +60,30 @@ class BaseAgent:
         deps: AgentDeps,
         task: AgentTask,
         tools: list[ToolSpec] | None = None,
+        *,
+        stream: bool | None = None,
     ) -> CompletionResponse:
+        """One model call, streamed only when the caller asked and it is safe.
+
+        ``stream`` defaults to streaming when the agent passes no tools and the
+        orchestrator wired an answer delta sink. A tool-calling round stays
+        non-streaming so call arguments never reach the answer area; plans are
+        called by the orchestrator and are never streamed (design.md 8.1).
+        """
         fitted_result = deps.context_policy.fit(messages, self.context_budget(task, deps))
         fitted = fitted_result.messages
+        wants_stream = (
+            deps.answer_delta is not None
+            and deps.provider.capabilities().streaming
+            and (not tools if stream is None else stream)
+        )
         request = CompletionRequest(
             messages=fitted,
             tools=sorted(tools or [], key=lambda tool: tool.wire_name),
             temperature=0.0,
             max_tokens=task.budget.max_tokens,
+            stream=wants_stream,
+            delta_callback=deps.answer_delta if wants_stream else None,
             metadata={
                 "purpose": f"agent.{self.spec.name}",
                 "run_id": deps.ctx.run_id,

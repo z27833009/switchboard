@@ -25,7 +25,12 @@ from opentelemetry.trace import SpanKind, Tracer
 from switchboard.api.app import create_app
 from switchboard.api.audit import AuditQuery
 from switchboard.api.deps import AppDeps
-from switchboard.api.step_events import StepEventProcessor, StepEventPublisher
+from switchboard.api.step_events import (
+    ANSWER_DELTA,
+    StepEvent,
+    StepEventProcessor,
+    StepEventPublisher,
+)
 from switchboard.config import load_model
 from switchboard.core.config import TenantsConfig
 from switchboard.core.models import (
@@ -252,6 +257,9 @@ class FakeOrchestrator:
         total_rows: int = 7262,
         usage: Usage | None = None,
         cost_usd: float | None = None,
+        publisher: StepEventPublisher | None = None,
+        answer_deltas: tuple[str, ...] = (),
+        answer_text: str | None = None,
     ) -> None:
         self._tracer = tracer
         self._agents = agents
@@ -260,6 +268,14 @@ class FakeOrchestrator:
         self._total_rows = total_rows
         self._usage = usage or Usage(input_tokens=150, output_tokens=20)
         self._cost_usd = cost_usd
+        self._publisher = publisher
+        self._answer_deltas = answer_deltas
+        if answer_text is not None:
+            self._answer_text = answer_text
+        elif answer_deltas:
+            self._answer_text = "".join(answer_deltas)
+        else:
+            self._answer_text = "There were 7262 orders in March 2018 (t1)."
         self.queries: list[str] = []
 
     async def run(self, request: ChatRequest, ctx: RunContext) -> RunResult:
@@ -299,6 +315,15 @@ class FakeOrchestrator:
                                 "switchboard.tool.audit_id": "audit-0001",
                             },
                         )
+                    if agent == self._agents[-1]:
+                        # The real path is provider -> AgentDeps.answer_delta ->
+                        # StepEventProcessor. The fake publishes directly; the
+                        # stream sees the same event and ordering (T2.08).
+                        for fragment in self._answer_deltas:
+                            if self._publisher is not None:
+                                self._publisher.publish(
+                                    StepEvent(ANSWER_DELTA, ctx.run_id, {"text": fragment})
+                                )
                     set_attributes(
                         agent_span_ctx,
                         {"switchboard.partial": False, "switchboard.citations": 1},
@@ -316,7 +341,7 @@ class FakeOrchestrator:
             query=request.query,
             plan=RoutingDecision(agents=list(self._agents), reason="orders and policy question"),
             answer=AgentResult(
-                answer="There were 7262 orders in March 2018 (t1).",
+                answer=self._answer_text,
                 citations=[
                     Citation(
                         kind="tool",

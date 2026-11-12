@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from datetime import UTC, datetime
+from functools import partial
 from typing import Annotated, Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -48,6 +50,11 @@ from switchboard.tracing.spans import (
 
 # Design.md section 6.8: at most one corrective action (retry or re-plan) per run.
 MAX_CORRECTIVE_ACTIONS = 1
+
+# Called with (run_id, text fragment) when an agent streams its answer. The API
+# wires it to the step event queue; eval runs and unit tests leave it None
+# (T2.08, design.md 12.5).
+AnswerDeltaSink = Callable[[str, str], None]
 
 
 def merge_results(
@@ -114,6 +121,7 @@ class LangGraphOrchestrator:
         cache: Any = None,
         tracer: Any = None,
         price: PriceEntry | None = None,
+        answer_delta: AnswerDeltaSink | None = None,
     ) -> None:
         self._provider = provider
         self._context_policy = context_policy
@@ -123,6 +131,7 @@ class LangGraphOrchestrator:
         self._retriever = retriever
         self._cache = cache
         self._price = price
+        self._answer_delta = answer_delta
         self._tracer = tracer or trace.get_tracer("switchboard.orchestrator.langgraph")
         self._agents = self._load_agents(registry)
         self._graph = self._build_graph()
@@ -163,6 +172,9 @@ class LangGraphOrchestrator:
             tracer=self._tracer,
             model_view_rows=self._limits.model_view_rows,
             context_fill=self._limits.context_fill,
+            answer_delta=(
+                None if self._answer_delta is None else partial(self._answer_delta, ctx.run_id)
+            ),
         )
 
     def _build_graph(self) -> Any:

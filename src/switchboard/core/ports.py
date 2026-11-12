@@ -21,6 +21,7 @@ from switchboard.core.models import (
     CompletionRequest,
     CompletionResponse,
     ContextBudget,
+    DeltaCallback,
     EvalCase,
     EvalOutcome,
     FitResult,
@@ -130,6 +131,10 @@ class AgentDeps:
     tracer: Any = None
     model_view_rows: int = 20
     context_fill: float = 0.7
+    # Set by the orchestrator when the caller wants live answer tokens. An agent
+    # attaches it to requests whose answer it is safe to stream (T2.08); None
+    # keeps every provider call non-streaming, as in eval runs and unit tests.
+    answer_delta: DeltaCallback | None = None
 
 
 @dataclass(frozen=True)

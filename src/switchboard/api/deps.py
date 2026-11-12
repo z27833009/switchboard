@@ -111,6 +111,8 @@ def build_orchestrators(
     settings: Settings,
     registry: Registry,
     pool: asyncpg.Pool,
+    *,
+    answer_delta: Callable[[str, str], None] | None = None,
 ) -> dict[str, Orchestrator]:
     """One orchestrator per provider name used by a tenant (design 6.1, 16)."""
     embedder_config = settings.providers.embedders[settings.platform.embedder]
@@ -147,6 +149,7 @@ def build_orchestrators(
                 tool_sources=tool_sources,
                 retriever=retriever,
                 price=price,
+                answer_delta=answer_delta,
             ),
         )
     return orchestrators
@@ -172,15 +175,18 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
         exporter=source.get("SWITCHBOARD_TRACING_EXPORTER", "postgres"),
     )
     publisher = StepEventPublisher()
+    step_events = StepEventProcessor(publisher)
     if tracing is not None:
         # Step events are span-derived; with tracing off the stream carries only
-        # run.finished (design 12.5).
-        tracing.provider.add_span_processor(StepEventProcessor(publisher))
+        # answer.delta and run.finished (design 12.5).
+        tracing.provider.add_span_processor(step_events)
 
     pool = await asyncpg.create_pool(dsn=dsn, min_size=1, max_size=10)
     try:
         registry = Registry()
-        orchestrators = build_orchestrators(settings, registry, pool)
+        orchestrators = build_orchestrators(
+            settings, registry, pool, answer_delta=step_events.publish_answer_delta
+        )
     except BaseException:
         await pool.close()
         if tracing is not None:

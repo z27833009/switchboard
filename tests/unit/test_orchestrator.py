@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from switchboard.adapters.orchestrator.langgraph_impl import LangGraphOrchestrator
+from switchboard.agents.base import BaseAgent
 from switchboard.core.config import Limits, PriceEntry
 from switchboard.core.context import ClearOldestToolResults
 from switchboard.core.errors import ToolExecutionError
@@ -22,6 +23,7 @@ from switchboard.core.models import (
     ProviderCapabilities,
     RunContext,
     TenantContext,
+    ToolSpec,
     Usage,
 )
 from switchboard.core.ports import AgentDeps
@@ -287,6 +289,129 @@ async def test_agent_failure_becomes_a_partial_run() -> None:
     assert result.answer is not None
     assert "data agent failed" in result.answer.answer
     assert any(error.kind == "ToolExecutionError" for error in result.errors)
+
+
+class StreamingAnswerProvider:
+    """Plans without streaming, answers with the delta callback when asked."""
+
+    name = "fake"
+
+    def __init__(self, plan_agent: str) -> None:
+        self.plan_agent = plan_agent
+        self.requests: list[Any] = []
+
+    def capabilities(self) -> ProviderCapabilities:
+        return ProviderCapabilities(
+            tools=True,
+            json_schema=False,
+            streaming=True,
+            reasoning=False,
+            context_window=8192,
+        )
+
+    async def complete(self, request: Any) -> CompletionResponse:
+        self.requests.append(request)
+        if request.response_schema is not None:
+            return CompletionResponse(
+                text=None,
+                parsed={"agents": [self.plan_agent], "reason": "one answer"},
+                usage=Usage(input_tokens=5, output_tokens=2),
+                model="fake",
+                provider="fake",
+                latency_ms=1,
+            )
+        if request.stream:
+            assert request.delta_callback is not None
+            for fragment in ("Hello ", "world"):
+                request.delta_callback(fragment)
+        return CompletionResponse(
+            text="Hello world",
+            usage=Usage(input_tokens=7, output_tokens=2),
+            model="fake",
+            provider="fake",
+            latency_ms=1,
+        )
+
+
+class AnswerAgent(BaseAgent):
+    """A minimal agent that uses the shared completion path."""
+
+    system_prompt = "Answer plainly."
+
+    def __init__(self, name: str, *, with_tools: bool = False) -> None:
+        self.spec = AgentSpec(name=name, description=f"{name} answer", cacheable=True)
+        self._with_tools = with_tools
+
+    async def run(self, task: AgentTask, deps: AgentDeps) -> AgentResult:
+        tools = (
+            [
+                ToolSpec(
+                    name="orders_summary",
+                    version="1",
+                    description="Count orders.",
+                    input_schema={"type": "object", "properties": {}},
+                )
+            ]
+            if self._with_tools
+            else None
+        )
+        response = await self.complete(self.build_messages(task), deps, task, tools)
+        return AgentResult(answer=response.text or "", usage=response.usage)
+
+
+def streaming_orchestrator(
+    agent: AnswerAgent, provider: StreamingAnswerProvider, sink: Any
+) -> LangGraphOrchestrator:
+    registry = Registry([FakeEntryPoint(agent.spec.name, AGENTS, agent)])
+    return LangGraphOrchestrator(
+        provider=provider,
+        registry=registry,
+        context_policy=ClearOldestToolResults(),
+        limits=Limits(run_timeout_s=5.0),
+        answer_delta=sink,
+    )
+
+
+async def test_answer_deltas_reach_the_sink_but_plans_do_not() -> None:
+    provider = StreamingAnswerProvider(plan_agent="writer")
+    deltas: list[tuple[str, str]] = []
+    orchestrator = streaming_orchestrator(
+        AnswerAgent("writer"), provider, lambda run_id, text: deltas.append((run_id, text))
+    )
+
+    result = await orchestrator.run(
+        ChatRequest(query="hi", tenant_id="default"), context({"writer"})
+    )
+
+    assert deltas == [("run-1", "Hello "), ("run-1", "world")]
+    assert result.answer is not None
+    assert "".join(text for _, text in deltas) == result.answer.answer
+    plan_request = provider.requests[0]
+    assert plan_request.response_schema is not None
+    assert plan_request.stream is False
+    assert plan_request.delta_callback is None
+
+
+async def test_a_tool_calling_agent_does_not_stream() -> None:
+    provider = StreamingAnswerProvider(plan_agent="tooly")
+    deltas: list[tuple[str, str]] = []
+    orchestrator = streaming_orchestrator(
+        AnswerAgent("tooly", with_tools=True),
+        provider,
+        lambda run_id, text: deltas.append((run_id, text)),
+    )
+
+    result = await orchestrator.run(
+        ChatRequest(query="count?", tenant_id="default"), context({"tooly"})
+    )
+
+    assert deltas == []
+    answer_request = provider.requests[-1]
+    assert answer_request.tools
+    assert answer_request.stream is False
+    assert answer_request.delta_callback is None
+    assert result.answer is not None
+    assert result.answer.answer == "Hello world"
 
 
 def test_registry_resolves_the_orchestrator_entry_point() -> None:

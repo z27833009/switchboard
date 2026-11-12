@@ -137,6 +137,7 @@ class CompletionRequest(BaseModel):
     temperature: float = 0.0
     max_tokens: int | None = None
     stream: bool = False                  # v1, answer tokens only
+    delta_callback: Callable[[str], None] | None = None  # v1, answer fragments; excluded from dumps
     metadata: dict = {}                   # run_id, tenant_id, purpose
 
 class Usage(BaseModel):
@@ -231,7 +232,7 @@ There is no `Route` enum. The routing decision carries no self-reported confiden
 
 `RunResult` carries the final `plan`, the `previous_plan` set on a re-plan, the final `gate` verdict, `attempts` and `errors`, so a caller can see what the gate rejected and which corrective action ran (6.8). It also carries `cost_usd`: the run's USD cost computed from the summed `usage` and the price row for its provider (12.4), or `None` when that provider has no row.
 
-Dependencies are injected through `AgentDeps` and `RunContext` (provider, embedder, tool sources, retriever, cache, context policy, tracer), never imported globally.
+Dependencies are injected through `AgentDeps` and `RunContext` (provider, embedder, tool sources, retriever, cache, context policy, tracer, and in v1 the answer delta sink), never imported globally. `AgentDeps.answer_delta` is `None` unless the caller wants live answer tokens; an agent that has one attaches it to a streamed answer call and the provider calls it with each text fragment (8.1).
 
 ## 5. Request flow
 
@@ -353,6 +354,7 @@ An agent receives `AgentTask` and `AgentDeps`. It must:
 - raise only `BudgetExceeded` or provider errors that the orchestrator's retry policy handles;
 - cite evidence: every number taken from a tool result carries a `[tN]` marker and every policy statement a `[dN]` marker; the agent turns markers into `Citation` objects and lists all evidence it was shown in `evidence`;
 - pass every model call through the `ContextPolicy` (8.6);
+- stream answer text only when the orchestrator supplied `AgentDeps.answer_delta`; a call that carries tools stays non-streaming so tool-call fragments never reach the answer area (8.1);
 - when `task.feedback` is set, include it in the prompt as the reason the previous answer was rejected.
 
 Phase 1 agents:
@@ -549,6 +551,8 @@ embedders:
 Prices live in `config/prices.yaml` (12.4), not here.
 
 The DeepSeek rows were verified on 2026-11-12 against the provider's price page and chat-completions reference: `deepseek-flash` and `deepseek-v4-pro` accept tools and streaming, the context window is 1M, thinking is on by default, and `response_format` accepts `json_object` but not a JSON schema, so `json_schema` is false and the adapter uses the forced tool-call strategy. `reasoning_effort: none` keeps the model non-thinking, which the forced tool-call strategy needs because `tool_choice: "required"` is rejected in thinking mode. The key is written as `${DEEPSEEK_API_KEY:-}`: an unset key is an empty value, so all four config files still load for a local or mock run, and only building the `deepseek` provider (a tenant or an eval that selects it, and `--record` through it) fails, with a named `ConfigError`, before any request. A literal placeholder such as LM Studio's `lm-studio` is still written directly.
+
+**Streaming answer tokens (v1).** When `CompletionRequest.stream` is true and the declared capability allows it, `OpenAICompatibleProvider` passes `stream: true` and `stream_options: {include_usage: true}` to the SDK and consumes the async iterator. It forwards each answer text fragment to `CompletionRequest.delta_callback`, accumulates the final text, keeps reasoning fragments (`reasoning_content` and the other fields of 8.3) in `reasoning` and never sends them to the callback, merges tool-call fragments by `index` and parses the arguments exactly as in the non-streamed path, and reads usage from the chunk that carries it. A gateway that sends no usage chunk leaves usage at zero rather than guessing. The returned `CompletionResponse` has the same shape as a non-streamed call, so agents and the gate do not branch on how it was produced. Structured-output calls are never streamed: a request with `stream` and a `response_schema` is rejected, and the supervisor never asks for one. `MockProvider` replays a recorded answer as deterministic fixed-size fragments, so streaming tests need no network. Non-streaming behaviour is unchanged.
 
 **Phase 1 local models** (decided 2026-11-12, to be confirmed by the live smoke in T1.02). The development machine has an 8 GB laptop GPU and 32 GB RAM, and must hold a chat model and an embedding model at the same time.
 
@@ -781,10 +785,10 @@ DeepSeek publishes peak and off-peak rates (off-peak is half). The committed row
 | `agent.started`, `agent.finished` | `agent.<name>` start and end | agent, partial |
 | `tool.called` | `execute_tool` end | tool, status, total rows, duration |
 | `gate.checked` | `gate` end (v1) | verdict, action |
-| `answer.delta` | provider stream (v1) | text fragment |
+| `answer.delta` | provider answer stream (v1) | text fragment |
 | `run.finished` | after flush | final payload as in `POST /chat` |
 
-Phase 1 ships step events; answer token streaming (`answer.delta`) needs provider streaming and comes in v1.
+v1 ships answer token streaming. The orchestrator is built with a run-scoped delta sink (in the API, `StepEventProcessor.publish_answer_delta`), puts it in `AgentDeps`, an agent attaches it to an answer call, and the provider calls it for each fragment. Only agent answer calls without tools stream: supervisor plans and tool-call rounds stay non-streaming. Eval runs and unit tests leave the sink unset, so their provider calls and results do not change. `run.finished` is always the last event and its final answer replaces the streamed text in the UI; fragments are live only and are not stored in the trace, so the final answer and its citations remain the source of truth.
 
 ## 13. Security
 

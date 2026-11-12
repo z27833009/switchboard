@@ -5,6 +5,8 @@ The fixtures were recorded from Bionic 1.2.0 (LM Studio 1.2.0) with qwen3-8b on
 so the adapter is exercised without a network call.
 """
 
+from __future__ import annotations
+
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,7 +14,7 @@ from typing import Any, cast
 
 import openai
 import pytest
-from openai.types.chat import ChatCompletion
+from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from switchboard.adapters._openai_errors import map_error
 from switchboard.adapters.providers.openai_compat import (
@@ -32,6 +34,7 @@ from switchboard.core.models import (
     CompletionRequest,
     Message,
     ProviderCapabilities,
+    ToolCall,
     Usage,
 )
 from switchboard.registry import PROVIDERS, Registry
@@ -67,23 +70,41 @@ def plan_request(**overrides: Any) -> CompletionRequest:
 
 
 class FakeCompletions:
-    def __init__(self, responses: list[ChatCompletion | openai.OpenAIError]) -> None:
+    def __init__(self, responses: list[Any]) -> None:
         self.responses = responses
         self.calls: list[dict[str, Any]] = []
 
-    async def create(self, **kwargs: Any) -> ChatCompletion:
+    async def create(self, **kwargs: Any) -> Any:
         self.calls.append(kwargs)
         item = self.responses.pop(0)
         if isinstance(item, openai.OpenAIError):
             raise item
+        if isinstance(item, list):
+            return FakeStream(item)
         return item
 
 
+class FakeStream:
+    """The async iterator the SDK returns when ``stream=True``."""
+
+    def __init__(self, chunks: list[Any]) -> None:
+        self._chunks = list(chunks)
+
+    def __aiter__(self) -> FakeStream:
+        return self
+
+    async def __anext__(self) -> Any:
+        if not self._chunks:
+            raise StopAsyncIteration
+        return self._chunks.pop(0)
+
+
 def make_provider(
-    responses: list[ChatCompletion | openai.OpenAIError],
+    responses: list[Any],
     *,
     json_schema: bool = False,
     tools: bool = True,
+    streaming: bool = True,
 ) -> tuple[OpenAICompatibleProvider, FakeCompletions]:
     completions = FakeCompletions(responses)
     client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
@@ -95,13 +116,40 @@ def make_provider(
         capabilities=ProviderCapabilities(
             tools=tools,
             json_schema=json_schema,
-            streaming=True,
+            streaming=streaming,
             reasoning=False,
             context_window=8192,
         ),
         client=client,
     )
     return provider, completions
+
+
+def chunk(
+    *,
+    content: str | None = None,
+    reasoning: str | None = None,
+    tool_calls: list[dict[str, Any]] | None = None,
+    usage: dict[str, Any] | None = None,
+    with_choice: bool = True,
+) -> ChatCompletionChunk:
+    delta: dict[str, Any] = {}
+    if content is not None:
+        delta["content"] = content
+    if reasoning is not None:
+        delta["reasoning_content"] = reasoning
+    if tool_calls is not None:
+        delta["tool_calls"] = tool_calls
+    payload: dict[str, Any] = {
+        "id": "chatcmpl-stream-1",
+        "object": "chat.completion.chunk",
+        "created": 1,
+        "model": "qwen3-8b",
+        "choices": ([{"index": 0, "delta": delta, "finish_reason": None}] if with_choice else []),
+    }
+    if usage is not None:
+        payload["usage"] = usage
+    return ChatCompletionChunk.model_validate(payload)
 
 
 async def test_plain_completion_normalises_text_and_usage() -> None:
@@ -223,10 +271,115 @@ async def test_tool_call_strategy_for_structured_output() -> None:
     assert calls.calls[0]["tool_choice"] == "required"
 
 
-async def test_streaming_is_rejected_until_t2_08() -> None:
+async def test_streaming_accumulates_text_and_usage_and_emits_deltas() -> None:
+    deltas: list[str] = []
+    stream = [
+        chunk(content="There "),
+        chunk(content="were "),
+        chunk(content="7262 late orders."),
+        chunk(
+            usage={"prompt_tokens": 19, "completion_tokens": 6, "total_tokens": 25},
+            with_choice=False,
+        ),
+    ]
+    provider, calls = make_provider([stream])
+
+    response = await provider.complete(
+        CompletionRequest(
+            messages=[Message(role="user", content="how many?")],
+            stream=True,
+            delta_callback=deltas.append,
+        )
+    )
+
+    assert deltas == ["There ", "were ", "7262 late orders."]
+    assert response.text == "There were 7262 late orders."
+    assert response.reasoning is None
+    assert response.usage == Usage(input_tokens=19, output_tokens=6)
+    assert response.model == "qwen3-8b"
+    assert response.tool_calls == []
+    assert calls.calls[0]["stream"] is True
+    assert calls.calls[0]["stream_options"] == {"include_usage": True}
+
+
+async def test_streaming_keeps_reasoning_out_of_the_answer_and_the_callback() -> None:
+    deltas: list[str] = []
+    stream = [
+        chunk(reasoning="The user asks "),
+        chunk(reasoning="for a count. "),
+        chunk(content="7262 orders."),
+        chunk(reasoning=" done"),
+    ]
+    provider, _ = make_provider([stream])
+
+    response = await provider.complete(
+        CompletionRequest(
+            messages=[Message(role="user", content="how many?")],
+            stream=True,
+            delta_callback=deltas.append,
+        )
+    )
+
+    assert deltas == ["7262 orders."]
+    assert response.text == "7262 orders."
+    assert response.reasoning == "The user asks for a count.  done"
+
+
+async def test_streamed_tool_call_fragments_normalise_to_one_call() -> None:
+    stream = [
+        chunk(
+            tool_calls=[
+                {
+                    "index": 0,
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "orders_summary", "arguments": ""},
+                }
+            ]
+        ),
+        chunk(tool_calls=[{"index": 0, "function": {"arguments": '{"status": "del'}}]),
+        chunk(tool_calls=[{"index": 0, "function": {"arguments": 'ivered"}'}}]),
+        chunk(
+            usage={"prompt_tokens": 10, "completion_tokens": 4, "total_tokens": 14},
+            with_choice=False,
+        ),
+    ]
+    provider, _ = make_provider([stream])
+
+    response = await provider.complete(
+        CompletionRequest(messages=[Message(role="user", content="late?")], stream=True)
+    )
+
+    assert response.text is None
+    assert response.tool_calls == [
+        ToolCall(
+            name="orders_summary",
+            arguments={"status": "delivered"},
+            call_id="call_1",
+        )
+    ]
+    assert response.usage == Usage(input_tokens=10, output_tokens=4)
+
+
+async def test_streaming_without_a_usage_chunk_leaves_usage_at_zero() -> None:
+    provider, _ = make_provider([[chunk(content="OK.")]])
+
+    response = await provider.complete(
+        CompletionRequest(messages=[Message(role="user", content="hi")], stream=True)
+    )
+
+    assert response.text == "OK."
+    assert response.usage == Usage(input_tokens=0, output_tokens=0)
+
+
+async def test_streaming_requires_a_capability_and_a_plain_completion() -> None:
     provider, _ = make_provider([])
-    with pytest.raises(ProviderRequestError, match="streaming"):
-        await provider.complete(
+    with pytest.raises(ProviderRequestError, match="structured output"):
+        await provider.complete(plan_request(stream=True))
+
+    unsupported, _ = make_provider([], streaming=False)
+    with pytest.raises(ProviderRequestError, match="does not support streaming"):
+        await unsupported.complete(
             CompletionRequest(messages=[Message(role="user", content="hi")], stream=True)
         )
 

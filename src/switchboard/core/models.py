@@ -8,10 +8,16 @@ design.md section 4 in the same commit.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+# A provider calls this with each answer text fragment when ``stream`` is set.
+# Reasoning and tool-call text are never passed to it (design.md sections 8.1
+# and 8.3). The API wires it to the per-run step event queue in T2.08.
+DeltaCallback = Callable[[str], None]
 
 RunStatus = Literal[
     "running",
@@ -93,6 +99,9 @@ class CompletionRequest(BaseModel):
     temperature: float = 0.0
     max_tokens: int | None = None
     stream: bool = False
+    # Set by BaseAgent from AgentDeps.answer_delta. Excluded from dumps because
+    # a callable is not request data and must not enter a fixture or report.
+    delta_callback: DeltaCallback | None = Field(default=None, exclude=True)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

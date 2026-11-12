@@ -4,10 +4,9 @@
 exporter. It publishes the step events of one run to an in-process queue while
 ``POST /chat/stream`` consumes that queue, so the live view and the stored trace
 come from the same instrumentation. ``run.finished`` is not a span: the stream
-publishes it after the flush and the run row write.
-
-Phase 1 has no token streaming: ``answer.delta`` arrives with provider streaming
-in v1.
+publishes it after the flush and the run row write. ``answer.delta`` is not a
+span either: the provider calls ``publish_answer_delta`` through the
+orchestrator's delta sink as tokens arrive (T2.08).
 """
 
 from __future__ import annotations
@@ -27,6 +26,7 @@ AGENT_STARTED = "agent.started"
 AGENT_FINISHED = "agent.finished"
 TOOL_CALLED = "tool.called"
 GATE_CHECKED = "gate.checked"
+ANSWER_DELTA = "answer.delta"
 RUN_FINISHED = "run.finished"
 
 PHASE_ONE_EVENTS = (
@@ -110,6 +110,16 @@ class StepEventProcessor(SpanProcessor):
 
     def __init__(self, publisher: StepEventPublisher) -> None:
         self._publisher = publisher
+
+    def publish_answer_delta(self, run_id: str, text: str) -> None:
+        """Publish one answer fragment to the run's queue, if it is streaming.
+
+        This is the sink the orchestrator hands to the provider. The final
+        ``run.finished`` payload stays authoritative; the UI replaces the
+        streamed text with it (design.md section 12.5).
+        """
+        if text:
+            self._publisher.publish(StepEvent(ANSWER_DELTA, run_id, {"text": text}))
 
     def on_start(self, span: Span, parent_context: Context | None = None) -> None:
         run_id = _run_id(span)
@@ -206,6 +216,7 @@ class StepEventProcessor(SpanProcessor):
 __all__ = [
     "AGENT_FINISHED",
     "AGENT_STARTED",
+    "ANSWER_DELTA",
     "GATE_CHECKED",
     "PHASE_ONE_EVENTS",
     "PLAN_DECIDED",

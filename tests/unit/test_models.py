@@ -5,7 +5,9 @@ from pydantic import ValidationError
 
 from switchboard.core.models import (
     AgentSpec,
+    CompletionRequest,
     ContextBudget,
+    Message,
     RoutingDecision,
     ToolResult,
     Usage,
@@ -59,3 +61,19 @@ def test_tool_result_view_requires_a_result_id() -> None:
 def test_context_budget_leaves_room_for_the_answer() -> None:
     budget = ContextBudget(context_window=8192, max_tokens=1024, fill_ratio=0.7)
     assert budget.limit_tokens == int((8192 - 1024) * 0.7)
+
+
+def test_completion_request_keeps_the_delta_callback_out_of_its_dump() -> None:
+    fragments: list[str] = []
+    request = CompletionRequest(
+        messages=[Message(role="user", content="hi")],
+        stream=True,
+        delta_callback=fragments.append,
+    )
+
+    dumped = request.model_dump()
+    assert dumped["stream"] is True
+    assert "delta_callback" not in dumped
+    assert request.delta_callback is not None
+    request.delta_callback("OK")
+    assert fragments == ["OK"]

@@ -20,6 +20,7 @@ from switchboard.core.errors import ConfigError, FixtureMissError
 from switchboard.core.models import (
     CompletionRequest,
     CompletionResponse,
+    DeltaCallback,
     Message,
     ProviderCapabilities,
 )
@@ -28,10 +29,23 @@ from switchboard.core.ports import ModelProvider
 DEFAULT_CAPABILITIES = ProviderCapabilities(
     tools=True,
     json_schema=True,
-    streaming=False,
+    streaming=True,
     reasoning=False,
     context_window=8192,
 )
+
+# A replayed answer is cut into fixed-size fragments so a streamed test run sees
+# the same deltas every time, without a network call (design.md section 8.1).
+REPLAY_DELTA_CHARS = 12
+
+
+def replay_answer_deltas(response: CompletionResponse, callback: DeltaCallback | None) -> None:
+    """Emit the recorded answer text as deterministic fragments."""
+    if callback is None or not response.text:
+        return
+    text = response.text
+    for start in range(0, len(text), REPLAY_DELTA_CHARS):
+        callback(text[start : start + REPLAY_DELTA_CHARS])
 
 
 def normalise_request(request: CompletionRequest, *, model: str, purpose: str) -> dict[str, Any]:
@@ -123,7 +137,10 @@ class MockProvider:
         path = self._fixtures_dir / f"{key}.json"
 
         if path.is_file():
-            return self._replay(path, key, normalised, purpose)
+            response = self._replay(path, key, normalised, purpose)
+            if request.stream and self._capabilities.streaming:
+                replay_answer_deltas(response, request.delta_callback)
+            return response
 
         if self._recorder is None:
             raise FixtureMissError(
@@ -132,6 +149,9 @@ class MockProvider:
                 "the new file before committing it."
             )
 
+        # The recorder receives the same request, so a streaming recording has
+        # already delivered its deltas through the callback. Do not replay them
+        # a second time.
         response = await self._recorder.complete(request)
         self._save(path, key, normalised, purpose, response)
         return response
@@ -183,7 +203,9 @@ class MockProvider:
 
 
 __all__ = [
+    "DEFAULT_CAPABILITIES",
     "MockProvider",
     "fixture_key",
     "normalise_request",
+    "replay_answer_deltas",
 ]

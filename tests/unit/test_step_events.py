@@ -10,6 +10,7 @@ from opentelemetry.trace import SpanKind
 from switchboard.api.step_events import (
     AGENT_FINISHED,
     AGENT_STARTED,
+    ANSWER_DELTA,
     GATE_CHECKED,
     PLAN_DECIDED,
     RUN_STARTED,
@@ -129,3 +130,19 @@ def test_sse_rendering_is_one_event_block() -> None:
     assert rendered.startswith("event: plan.decided\n")
     assert rendered.endswith("\n\n")
     assert '"run_id": "' + RUN_ID + '"' in rendered
+
+
+def test_answer_delta_goes_only_to_the_run_that_is_streaming() -> None:
+    publisher = StepEventPublisher()
+    queue = publisher.register(RUN_ID)
+    processor = StepEventProcessor(publisher)
+
+    processor.publish_answer_delta(RUN_ID, "There were ")
+    processor.publish_answer_delta(RUN_ID, "")
+    processor.publish_answer_delta("another-run", "not this queue")
+
+    events = drain(queue)
+    assert [event.type for event in events] == [ANSWER_DELTA]
+    assert events[0].data == {"text": "There were "}
+    assert events[0].run_id == RUN_ID
+    assert events[0].to_sse().startswith("event: answer.delta\n")

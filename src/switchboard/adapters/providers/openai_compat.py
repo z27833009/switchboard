@@ -137,16 +137,50 @@ def _normalise_tool_calls(message: Any, *, skip_structured: bool) -> list[ToolCa
         function = call.function
         if skip_structured and function.name == STRUCTURED_TOOL_NAME:
             continue
-        try:
-            arguments = json.loads(function.arguments or "{}")
-        except json.JSONDecodeError as exc:
-            raise ToolValidationError(
-                f"tool {function.name!r} returned invalid JSON arguments: {exc}",
-                details={"tool": function.name},
-            ) from exc
-        if not isinstance(arguments, dict):
-            raise ToolValidationError(f"tool {function.name!r} arguments must be a JSON object")
-        calls.append(ToolCall(name=function.name, arguments=arguments, call_id=call.id))
+        calls.append(_tool_call(function.name, function.arguments, call.id))
+    return calls
+
+
+def _tool_call(name: str, arguments: str | None, call_id: str) -> ToolCall:
+    try:
+        parsed = json.loads(arguments or "{}")
+    except json.JSONDecodeError as exc:
+        raise ToolValidationError(
+            f"tool {name!r} returned invalid JSON arguments: {exc}",
+            details={"tool": name},
+        ) from exc
+    if not isinstance(parsed, dict):
+        raise ToolValidationError(f"tool {name!r} arguments must be a JSON object")
+    return ToolCall(name=name, arguments=parsed, call_id=call_id)
+
+
+def _accumulate_tool_call(parts: dict[int, dict[str, str]], call: Any) -> None:
+    """Merge one streamed tool-call fragment into its slot by ``index``."""
+    index = getattr(call, "index", 0)
+    if not isinstance(index, int):
+        index = 0
+    slot = parts.setdefault(index, {"id": "", "name": "", "arguments": ""})
+    call_id = getattr(call, "id", None)
+    if isinstance(call_id, str) and call_id:
+        slot["id"] = call_id
+    function = getattr(call, "function", None)
+    if function is None:
+        return
+    name = getattr(function, "name", None)
+    if isinstance(name, str):
+        slot["name"] += name
+    arguments = getattr(function, "arguments", None)
+    if isinstance(arguments, str):
+        slot["arguments"] += arguments
+
+
+def _streamed_tool_calls(parts: dict[int, dict[str, str]]) -> list[ToolCall]:
+    calls: list[ToolCall] = []
+    for index in sorted(parts):
+        slot = parts[index]
+        if not slot["name"]:
+            raise ToolValidationError("a streamed tool call arrived without a name")
+        calls.append(_tool_call(slot["name"], slot["arguments"], slot["id"] or str(index)))
     return calls
 
 
@@ -295,9 +329,13 @@ class OpenAICompatibleProvider:
         return parse_json_object(text)
 
     async def complete(self, request: CompletionRequest) -> CompletionResponse:
-        if request.stream:
-            raise ProviderRequestError("streaming is not implemented until T2.08")
         strategy = self._strategy(request)
+        if request.stream and not self._capabilities.streaming:
+            raise ProviderRequestError(f"provider {self.name!r} does not support streaming")
+        if request.stream and strategy is not None:
+            raise ProviderRequestError(
+                "structured output calls are completed without streaming (design.md section 8.2)"
+            )
         started = time.perf_counter()
         with self._tracer.start_as_current_span(
             chat_span_name(self._model),
@@ -311,7 +349,7 @@ class OpenAICompatibleProvider:
             span.set_attribute("switchboard.structured_output.strategy", strategy or "none")
             apply_request_metadata(span, request.metadata)
             try:
-                response = await self._complete(request, strategy, started)
+                response = await self._complete(request, strategy, started, stream=request.stream)
             except Exception as exc:
                 record_error(span, exc)
                 raise
@@ -330,7 +368,11 @@ class OpenAICompatibleProvider:
         request: CompletionRequest,
         strategy: Strategy | None,
         started: float,
+        *,
+        stream: bool,
     ) -> CompletionResponse:
+        if stream:
+            return await self._stream(request, started)
         usage = Usage(input_tokens=0, output_tokens=0)
         repair: str | None = None
 
@@ -370,3 +412,60 @@ class OpenAICompatibleProvider:
             )
 
         raise StructuredOutputError("structured output failed after one repair")
+
+    async def _stream(self, request: CompletionRequest, started: float) -> CompletionResponse:
+        """Consume the SDK stream and rebuild the same response shape.
+
+        Text fragments go to ``request.delta_callback`` as they arrive. Reasoning
+        fragments are accumulated on the side, never passed to the callback, and
+        tool-call fragments are merged by ``index`` before the JSON arguments are
+        parsed, so a streamed tool round normalises like a non-streamed one.
+        Usage is read from whichever chunk carries it; a gateway that sends none
+        leaves it at zero rather than guessing token counts.
+        """
+        messages = self._messages(request, None, None)
+        kwargs = self._kwargs(request, messages, None)
+        kwargs["stream"] = True
+        kwargs.setdefault("stream_options", {"include_usage": True})
+
+        text_parts: list[str] = []
+        reasoning_parts: list[str] = []
+        tool_parts: dict[int, dict[str, str]] = {}
+        usage = Usage(input_tokens=0, output_tokens=0)
+        model = self._model
+        try:
+            stream = await self._client.chat.completions.create(**kwargs)
+            async for chunk in stream:
+                model = getattr(chunk, "model", None) or model
+                chunk_usage = getattr(chunk, "usage", None)
+                if chunk_usage is not None:
+                    usage = _normalise_usage(chunk_usage)
+                for choice in getattr(chunk, "choices", None) or []:
+                    delta = getattr(choice, "delta", None)
+                    if delta is None:
+                        continue
+                    reasoning = _extract_reasoning(delta)
+                    if reasoning is not None:
+                        reasoning_parts.append(reasoning)
+                    content = getattr(delta, "content", None)
+                    if isinstance(content, str) and content:
+                        text_parts.append(content)
+                        if request.delta_callback is not None:
+                            request.delta_callback(content)
+                    for call in getattr(delta, "tool_calls", None) or []:
+                        _accumulate_tool_call(tool_parts, call)
+        except openai.OpenAIError as exc:
+            raise map_error(exc) from exc
+
+        return CompletionResponse(
+            text="".join(text_parts) or None,
+            reasoning="".join(reasoning_parts) or None,
+            tool_calls=_streamed_tool_calls(tool_parts),
+            parsed=None,
+            structured_output_strategy=None,
+            usage=usage,
+            model=model,
+            provider=self.name,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            cost_usd=compute_cost(usage, self._price) if self._price is not None else None,
+        )

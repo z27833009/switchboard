@@ -165,6 +165,17 @@ def test_no_retriever_configured_means_none() -> None:
     assert built.kwargs["retriever"] is None
 
 
+def test_orchestrators_receive_the_answer_delta_sink() -> None:
+    pool = cast(asyncpg.Pool, object())
+
+    def sink(run_id: str, text: str) -> None:
+        return None
+
+    orchestrators = build_orchestrators(settings_for(), registry(), pool, answer_delta=sink)
+    built = cast(FakeOrchestratorClass, orchestrators["fake"])
+    assert built.kwargs["answer_delta"] is sink
+
+
 def test_unknown_context_policy_is_a_config_error() -> None:
     with pytest.raises(ConfigError, match="unknown context policy"):
         context_policy_for("summarise_everything")

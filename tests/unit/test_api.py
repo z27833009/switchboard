@@ -12,6 +12,7 @@ import uuid
 from datetime import UTC
 from typing import Any
 
+from opentelemetry.sdk.trace import TracerProvider
 from tests.fakes import (
     AppHarness,
     FailingOrchestrator,
@@ -422,6 +423,51 @@ async def test_stream_emits_the_ordered_step_sequence(harness: AppHarness) -> No
     assert stored.status_code == 200
     assert stored.json()["status"] == "ok"
     assert stored.json()["answer"] == finished["answer"]
+
+
+async def test_stream_answer_deltas_concatenate_to_the_final_answer(
+    tenants: TenantsConfig,
+    store: MemoryRunStore,
+    publisher: StepEventPublisher,
+    tracer_provider: TracerProvider,
+) -> None:
+    fragments = ("There were ", "7262 ", "late orders in March 2018 (t1).")
+    streaming = FakeOrchestrator(
+        tracer=tracer_provider.get_tracer("switchboard.test.fake.streaming"),
+        agents=("data",),
+        publisher=publisher,
+        answer_deltas=fragments,
+    )
+    built = build_harness(
+        tenants=tenants,
+        store=store,
+        publisher=publisher,
+        provider=tracer_provider,
+        orchestrator=streaming,
+    )
+    try:
+        async with built.client.stream(
+            "POST", "/chat/stream", json={"query": "late orders?", "tenant_id": "default"}
+        ) as response:
+            assert response.status_code == 200
+            body = await response.aread()
+    finally:
+        await built.client.aclose()
+
+    events = parse_sse(body.decode("utf-8"))
+    types = [event_type for event_type, _ in events]
+    # Every delta arrives before the final event, and the final event is last.
+    assert types[-1] == "run.finished"
+    assert types.count("answer.delta") == len(fragments)
+    first_finished = types.index("run.finished")
+    delta_indexes = [index for index, kind in enumerate(types) if kind == "answer.delta"]
+    assert delta_indexes and max(delta_indexes) < first_finished
+
+    deltas = [payload["text"] for event_type, payload in events if event_type == "answer.delta"]
+    assert deltas == list(fragments)
+    assert "".join(deltas) == events[-1][1]["answer"]
+    assert events[-1][1]["answer"] == "".join(fragments)
+    assert events[-1][1]["status"] == "ok"
 
 
 async def test_stream_marks_a_failed_orchestrator(

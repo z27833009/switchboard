@@ -103,6 +103,19 @@ async def test_recording_writes_a_fixture_and_then_replays(tmp_path: Path) -> No
     assert replayed.latency_ms == 0
 
 
+async def test_streaming_replay_emits_deterministic_answer_fragments(tmp_path: Path) -> None:
+    provider = MockProvider(model="qwen3-8b", fixtures_dir=tmp_path, record_with=FakeRecorder())
+    await provider.complete(request())
+
+    replay = MockProvider(model="qwen3-8b", fixtures_dir=tmp_path)
+    deltas: list[str] = []
+    streamed = request().model_copy(update={"stream": True, "delta_callback": deltas.append})
+    response = await replay.complete(streamed)
+
+    assert deltas == ["OK."]
+    assert "".join(deltas) == response.text
+
+
 async def test_a_changed_prompt_misses_after_recording(tmp_path: Path) -> None:
     recorder = FakeRecorder()
     provider = MockProvider(model="qwen3-8b", fixtures_dir=tmp_path, record_with=recorder)
