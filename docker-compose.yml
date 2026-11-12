@@ -101,12 +101,16 @@ services:
       start_period: 10s
 
   web:
-    image: nginx:1.31.8-alpine
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    image: switchboard-web:local
     restart: unless-stopped
-    volumes:
-      - ./web:/usr/share/nginx/html:ro
     ports:
       - "8080:80"
+    depends_on:
+      api:
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
       interval: 5s

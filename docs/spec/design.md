@@ -1039,5 +1039,5 @@ This list is the allowlist referred to in the working agreements: a dependency n
 | SQL validation (v2) | sqlglot | |
 | Re-ranking (v1, optional) | sentence-transformers cross-encoder | only if T2.03 enables re-ranking |
 | Dev tools | ruff, mypy, pytest, pytest-asyncio, import-linter, pre-commit, httpx (the FastAPI test client needs it for HTTP and SSE tests) | |
-| Web | Node LTS, Vite, React, TypeScript | no UI framework in Phase 1 |
+| Web | Node LTS, Vite, React, TypeScript, @vitejs/plugin-react | the plugin builds React with Vite; @types/react and @types/react-dom are the type declarations. No UI framework in Phase 1 |
 | Local models | LM Studio on the host (8.1) | |
