@@ -161,7 +161,15 @@ class DataAgent(BaseAgent):
                         snippet=citation_snippet(result, view),
                     )
                 )
-                evidence.append(EvidenceRef(kind="tool", ref=ref, source_id=result_id))
+                evidence.append(
+                    EvidenceRef(
+                        kind="tool",
+                        ref=ref,
+                        source_id=result_id,
+                        text=view.model_dump_json(),
+                        empty=view.total_rows == 0,
+                    )
+                )
                 messages.append(
                     Message(
                         role="tool",

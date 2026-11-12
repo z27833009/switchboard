@@ -204,7 +204,7 @@ def _eval_provider(
 
 @eval_app.command("run")
 def eval_run(
-    suite: Annotated[str, typer.Option("--suite", help="Suite name: routing or toolcall.")],
+    suite: Annotated[str, typer.Option("--suite", help="Suite name: routing, toolcall or gate.")],
     provider: Annotated[
         str, typer.Option("--provider", help="Provider name from providers.yaml.")
     ] = "mock",
@@ -278,7 +278,10 @@ def eval_run(
         )
         cases: list[EvalCase] = eval_suite.load(dataset_version)
         selection = select_cases(cases, split=split, limit=limit)
-        model = settings.providers.providers[provider].model or "unknown"
+        if suite == "gate":
+            model = "deterministic"
+        else:
+            model = settings.providers.providers[provider].model or "unknown"
 
         deps = EvalDeps(provider=chosen_provider)
         results = asyncio.run(

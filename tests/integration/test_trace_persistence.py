@@ -129,7 +129,7 @@ def completion(
 class ScriptedCompletions:
     """Replays the three model calls of one data run, no network involved."""
 
-    def __init__(self) -> None:
+    def __init__(self, orders: int) -> None:
         self.responses = [
             completion(
                 tool_name=STRUCTURED_TOOL_NAME,
@@ -142,7 +142,7 @@ class ScriptedCompletions:
                 call_id="call-tool",
             ),
             completion(
-                content="There were 7262 orders in March 2018 (t1).",
+                content=f"There were {orders} orders in March 2018 [t1].",
                 call_id="call-answer",
             ),
         ]
@@ -172,10 +172,22 @@ async def test_one_run_is_readable_immediately_and_contains_both_processes() -> 
     tracer_provider.add_span_processor(BatchSpanProcessor(PostgresSpanExporter(APP_URL)))
     tracer = tracer_provider.get_tracer("switchboard.test.trace")
 
+    source = McpToolSource(url=MCP_URL, tracer=tracer)
+    # The scripted answer must use a number the tool result actually contains;
+    # the gate rejects an invented count. The pre-query uses its own run id so it
+    # does not add spans or audit rows to the run under test.
+    summary = await source.call(
+        "orders_summary@1",
+        {"date_from": "2018-03-01", "date_to": "2018-03-31"},
+        run_context(str(uuid.uuid4())),
+    )
+    orders = (summary.summary or {}).get("orders")
+    assert isinstance(orders, int), summary.summary
+
     client = type(
         "Client",
         (),
-        {"chat": type("Chat", (), {"completions": ScriptedCompletions()})()},
+        {"chat": type("Chat", (), {"completions": ScriptedCompletions(orders)})()},
     )()
     provider = Provider(
         name="lmstudio",
@@ -192,7 +204,6 @@ async def test_one_run_is_readable_immediately_and_contains_both_processes() -> 
         client=client,
         tracer=tracer,
     )
-    source = McpToolSource(url=MCP_URL, tracer=tracer)
     orchestrator = LangGraphOrchestrator(
         provider=provider,
         registry=Registry(),

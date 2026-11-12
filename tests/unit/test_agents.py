@@ -192,7 +192,14 @@ async def test_docs_agent_returns_citations_and_evidence() -> None:
     )
     assert result.citations[0].source_id == "chunk-1"
     assert result.citations[0].snippet.startswith("Electronics")
-    assert result.evidence == [EvidenceRef(kind="document", ref="d1", source_id="chunk-1")]
+    assert result.evidence == [
+        EvidenceRef(
+            kind="document",
+            ref="d1",
+            source_id="chunk-1",
+            text="Electronics can be returned within 15 days.",
+        )
+    ]
     assert policy.calls == 1
 
 

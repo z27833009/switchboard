@@ -1,0 +1,802 @@
+{
+  "suite": "gate",
+  "dataset_version": "v2",
+  "dataset_path": "evals/datasets/v2/gate.jsonl",
+  "split": "test",
+  "case_count": 30,
+  "dataset_case_count": 30,
+  "split_case_count": 30,
+  "smoke": false,
+  "orchestrator": "langgraph",
+  "provider": "mock",
+  "model": "deterministic",
+  "generated_at": "2026-11-12T21:05:05.969875+00:00",
+  "wall_time_s": 0.019,
+  "recording": false,
+  "recorded_with": null,
+  "metrics": {
+    "numbers_grounded_precision": 0.9,
+    "numbers_grounded_recall": 1.0,
+    "numbers_grounded_f1": 0.9474,
+    "citations_valid_precision": 1.0,
+    "citations_valid_recall": 1.0,
+    "citations_valid_f1": 1.0,
+    "evidence_present_precision": 1.0,
+    "evidence_present_recall": 1.0,
+    "evidence_present_f1": 1.0,
+    "merge_complete_precision": 1.0,
+    "merge_complete_recall": 1.0,
+    "merge_complete_f1": 1.0,
+    "case_accuracy": 0.9667,
+    "gate_precision": 0.9412,
+    "gate_recall": 1.0,
+    "good_case_specificity": 0.9286
+  },
+  "latency_ms": {
+    "p50": 0.0,
+    "p95": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "mean": 0.0
+  },
+  "runner_latency_ms": {
+    "p50": 0.0,
+    "p95": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "mean": 0.0
+  },
+  "usage": {
+    "input_tokens": 0,
+    "cached_input_tokens": 0,
+    "output_tokens": 0,
+    "total_tokens": 0
+  },
+  "cost_usd": null,
+  "error_count": 0,
+  "error_case_ids": [],
+  "gate_counts": {
+    "checks": {
+      "numbers_grounded": {
+        "tp": 9,
+        "fp": 1,
+        "fn": 0,
+        "tn": 20
+      },
+      "citations_valid": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 0,
+        "tn": 27
+      },
+      "evidence_present": {
+        "tp": 4,
+        "fp": 0,
+        "fn": 0,
+        "tn": 26
+      },
+      "merge_complete": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "tn": 28
+      }
+    },
+    "predicted_weak_cases": 17,
+    "labeled_weak_cases": 16,
+    "false_positive_cases": [
+      "g013"
+    ],
+    "false_negative_cases": []
+  },
+  "label_source": "constructed and audited by the implementation session, not an independent human annotator",
+  "deterministic": true,
+  "cases": [
+    {
+      "case_id": "g001",
+      "query": "What is the electronics return window?",
+      "answer": "Electronics can be returned within 15 days of delivery [d1].",
+      "agents": [
+        "docs"
+      ],
+      "plan": [
+        "docs"
+      ],
+      "expected_failed_checks": [],
+      "actual_failed_checks": [],
+      "action": "pass",
+      "reason": "all deterministic checks passed",
+      "feedback": null,
+      "labeled_weak": false,
+      "predicted_weak": false,
+      "correct": true,
+      "note": "Clear good docs answer: one grounded number, one valid citation, evidence present.",
+      "error": null
+    },
+    {
+      "case_id": "g002",
+      "query": "How quickly must a seller ship an order?",
+      "answer": "Sellers must hand the order to the carrier within two business days [d1].",
+      "agents": [
+        "docs"
+      ],
+      "plan": [
+        "docs"
+      ],
+      "expected_failed_checks": [],
+      "actual_failed_checks": [],
+      "action": "pass",
+      "reason": "all deterministic checks passed",
+      "feedback": null,
+      "labeled_weak": false,
+      "predicted_weak": false,
+      "correct": true,
+      "note": "Good docs answer with a number word, not a digit, and a valid citation.",
+      "error": null
+    },
+    {
+      "case_id": "g003",
+      "query": "What is the electronics return window?",
+      "answer": "Electronics can be returned within 30 days [d1].",
+      "agents": [
+        "docs"
+      ],
+      "plan": [
+        "docs"
+      ],
+      "expected_failed_checks": [
+        "numbers_grounded"
+      ],
+      "actual_failed_checks": [
+        "numbers_grounded"
+      ],
+      "action": "retry",
+      "reason": "a grounding or citation check failed: numbers_grounded",
+      "feedback": "These numbers are not in the evidence the agent saw: 30. Use only numbers from the tool results or documents, or remove them.",
+      "labeled_weak": true,
+      "predicted_weak": true,
+      "correct": true,
+      "note": "The 30 is absent from the evidence; the 15 in the answer would be grounded but the 30 is not.",
+      "error": null
+    },
+    {
+      "case_id": "g004",
+      "query": "What is the electronics return window?",
+      "answer": "Electronics can be returned within 15 days of delivery.",
+      "agents": [
+        "docs"
+      ],
+      "plan": [
+        "docs"
+      ],
+      "expected_failed_checks": [
+        "citations_valid"
+      ],
+      "actual_failed_checks": [
+        "citations_valid"
+      ],
+      "action": "retry",
+      "reason": "a grounding or citation check failed: citations_valid",
+      "feedback": "The answer from an evidence-based agent has no citation marker. Cite every fact as [dN] or [tN] using the evidence it saw.",
+      "labeled_weak": true,
+      "predicted_weak": true,
+      "correct": true,
+      "note": "The number is grounded and evidence exists, but the docs answer has no marker.",
+      "error": null
+    },
+    {
+      "case_id": "g005",
+      "query": "What is the electronics return window?",
+      "answer": "Electronics can be returned within 15 days [d9].",
+      "agents": [
+        "docs"
+      ],
+      "plan": [
+        "docs"
+      ],
+      "expected_failed_checks": [
+        "citations_valid"
+      ],
+      "actual_failed_checks": [
+        "citations_valid"
+      ],
+      "action": "retry",
+      "reason": "a grounding or citation check failed: citations_valid",
+      "feedback": "The answer cites [d9], which was not evidence the agent saw. Use only these refs: d1.",
+      "labeled_weak": true,
+      "predicted_weak": true,
+      "correct": true,
+      "note": "The marker points to d9, which the agent was never given.",
+      "error": null
+    },
+    {
+      "case_id": "g006",
+      "query": "How many orders were delivered late in March 2018?",
+      "answer": "There were 1,234 late orders in March 2018 [t1].",
+      "agents": [
+        "data"
+      ],
+      "plan": [
+        "data"
+      ],
+      "expected_failed_checks": [],
+      "actual_failed_checks": [],
+      "action": "pass",
+      "reason": "all deterministic checks passed",
+      "feedback": null,
+      "labeled_weak": false,
+      "predicted_weak": false,
+      "correct": true,
+      "note": "Good data answer: the thousands separator in the answer does not break grounding.",
+      "error": null
+    },
+    {
+      "case_id": "g007",
+      "query": "How many orders were delivered late in March 2018?",
+      "answer": "There were 1,500 late orders in March 2018 [t1].",
+      "agents": [
+        "data"
+      ],
+      "plan": [
+        "data"
+      ],
+      "expected_failed_checks": [
+        "numbers_grounded"
+      ],
+      "actual_failed_checks": [
+        "numbers_grounded"
+      ],
+      "action": "retry",
+      "reason": "a grounding or citation check failed: numbers_grounded",
+      "feedback": "These numbers are not in the evidence the agent saw: 1,500. Use only numbers from the tool results or documents, or remove them.",
+      "labeled_weak": true,
+      "predicted_weak": true,
+      "correct": true,
+      "note": "1,500 is absent from the result, which reports 1234.",
+      "error": null
+    },
+    {
+      "case_id": "g008",
+      "query": "What share of orders was delivered late?",
+      "answer": "Late deliveries were 3.5% of orders [t1].",
+      "agents": [
+        "data"
+      ],
+      "plan": [
+        "data"
+      ],
+      "expected_failed_checks": [],
+      "actual_failed_checks": [],
+      "action": "pass",
+      "reason": "all deterministic checks passed",
+      "feedback": null,
+      "labeled_weak": false,
+      "predicted_weak": false,
+      "correct": true,
+      "note": "Good data answer: percent spacing and the percent unit normalize to the same token.",
+      "error": null
+    },
+    {
+      "case_id": "g009",
+      "query": "What share of orders was delivered late?",
+      "answer": "Late deliveries were 3.4% of orders [t1].",
+      "agents": [
+        "data"
+      ],
+      "plan": [
+        "data"
+      ],
+      "expected_failed_checks": [
+        "numbers_grounded"
+      ],
+      "actual_failed_checks": [
+        "numbers_grounded"
+      ],
+      "action": "retry",
+      "reason": "a grounding or citation check failed: numbers_grounded",
+      "feedback": "These numbers are not in the evidence the agent saw: 3.4%. Use only numbers from the tool results or documents, or remove them.",
+      "labeled_weak": true,
+      "predicted_weak": true,
+      "correct": true,
+      "note": "The answer states 3.4% where the result says 3.5%.",
+      "error": null
+    },
+    {
+      "case_id": "g010",
+      "query": "When was order 044bcd01474ba715e7cb11d5a70ccf0e delivered?",
+      "answer": "Order 044bcd01474ba715e7cb11d5a70ccf0e was delivered on 2018-02-03 [t1].",
+      "agents": [
+        "data"
+      ],
+      "plan": [
+        "data"
+      ],
+      "expected_failed_checks": [],
+      "actual_failed_checks": [],
+      "action": "pass",
+      "reason": "all deterministic checks passed",
+      "feedback": null,
+      "labeled_weak": false,
+      "predicted_weak": false,
+      "correct": true,
+      "note": "Good data answer: the date parts normalize and the hex order id is not a number.",
+      "error": null
+    },
+    {
+      "case_id": "g011",
+      "query": "What was the item price for order 044bcd01474ba715e7cb11d5a70ccf0e?",
+      "answer": "The item price was 74.90 [t1].",
+      "agents": [
+        "data"
+      ],
+      "plan": [
+        "data"
+      ],
+      "expected_failed_checks": [],
+      "actual_failed_checks": [],
+      "action": "pass",
+      "reason": "all deterministic checks passed",
+      "feedback": null,
+      "labeled_weak": false,
+      "predicted_weak": false,
+      "correct": true,
+      "note": "Good data answer: 74.90 and 74.9 normalize to the same decimal.",
+      "error": null
+    },
+    {
+      "case_id": "g012",
+      "query": "What was the item price for order 044bcd01474ba715e7cb11d5a70ccf0e?",
+      "answer": "The item price was 79.90 [t1].",
+      "agents": [
+        "data"
+      ],
+      "plan": [
+        "data"
+      ],
+      "expected_failed_checks": [
+        "numbers_grounded"
+      ],
+      "actual_failed_checks": [
+        "numbers_grounded"
+      ],
+      "action": "retry",
+      "reason": "a grounding or citation check failed: numbers_grounded",
+      "feedback": "These numbers are not in the evidence the agent saw: 79.90. Use only numbers from the tool results or documents, or remove them.",
+      "labeled_weak": true,
+      "predicted_weak": true,
+      "correct": true,
+      "note": "The answer states 79.90 where the result says 74.9.",
+      "error": null
+    },
+    {
+      "case_id": "g013",
+      "query": "How many of the 100 orders were delivered late?",
+      "answer": "Of the 100 orders, 50 were delivered late, which is 50% [t1].",
+      "agents": [
+        "data"
+      ],
+      "plan": [
+        "data"
+      ],
+      "expected_failed_checks": [],
+      "actual_failed_checks": [
+        "numbers_grounded"
+      ],
+      "action": "retry",
+      "reason": "a grounding or citation check failed: numbers_grounded",
+      "feedback": "These numbers are not in the evidence the agent saw: 50%. Use only numbers from the tool results or documents, or remove them.",
+      "labeled_weak": false,
+      "predicted_weak": true,
+      "correct": false,
+      "note": "Derived-number false-positive case, labeled acceptable on purpose: 50% is the correct share of 50 out of 100 but is not written in the evidence. ADR 0013 documents this limitation.",
+      "error": null
+    },
+    {
+      "case_id": "g014",
+      "query": "Does the 30 day return window apply to electronics?",
+      "answer": "No, electronics must be returned within 15 days [d1], not 30 days.",
+      "agents": [
+        "docs"
+      ],
+      "plan": [
+        "docs"
+      ],
+      "expected_failed_checks": [],
+      "actual_failed_checks": [],
+      "action": "pass",
+      "reason": "all deterministic checks passed",
+      "feedback": null,
+      "labeled_weak": false,
+      "predicted_weak": false,
+      "correct": true,
+      "note": "Good docs answer: the 30 comes from the query and is excluded from grounding; the 15 is in the evidence.",
+      "error": null
+    },
+    {
+      "case_id": "g015",
+      "query": "What is the electronics return window?",
+      "answer": "The return window is 45 days [d1].",
+      "agents": [
+        "docs"
+      ],
+      "plan": [
+        "docs"
+      ],
+      "expected_failed_checks": [
+        "numbers_grounded"
+      ],
+      "actual_failed_checks": [
+        "numbers_grounded"
+      ],
+      "action": "retry",
+      "reason": "a grounding or citation check failed: numbers_grounded",
+      "feedback": "These numbers are not in the evidence the agent saw: 45. Use only numbers from the tool results or documents, or remove them.",
+      "labeled_weak": true,
+      "predicted_weak": true,
+      "correct": true,
+      "note": "45 is absent from the document.",
+      "error": null
+    },
+    {
+      "case_id": "g016",
+      "query": "How many orders were delivered late in March 2018?",
+      "answer": "There were 500 late orders in March 2018.",
+      "agents": [
+        "data"
+      ],
+      "plan": [
+        "data"
+      ],
+      "expected_failed_checks": [
+        "evidence_present",
+        "numbers_grounded"
+      ],
+      "actual_failed_checks": [
+        "evidence_present",
+        "numbers_grounded"
+      ],
+      "action": "replan",
+      "reason": "evidence_present failed: no usable evidence reached the agent",
+      "feedback": "These numbers are not in the evidence the agent saw: 500. Use only numbers from the tool results or documents, or remove them. The agent saw no usable evidence: the retrieval or tool result was empty, or every tool was denied. Plan a different source for this question.",
+      "labeled_weak": true,
+      "predicted_weak": true,
+      "correct": true,
+      "note": "No evidence at all: the number is unsupported and the agent saw nothing. citations_valid does not double-count because there is no evidence to cite.",
+      "error": null
+    },
+    {
+      "case_id": "g017",
+      "query": "What is the compensation for a late delivery?",
+      "answer": "I could not find any policy documents that answer this question.",
+      "agents": [
+        "docs"
+      ],
+      "plan": [
+        "docs"
+      ],
+      "expected_failed_checks": [
+        "evidence_present"
+      ],
+      "actual_failed_checks": [
+        "evidence_present"
+      ],
+      "action": "replan",
+      "reason": "evidence_present failed: no usable evidence reached the agent",
+      "feedback": "The agent saw no usable evidence: the retrieval or tool result was empty, or every tool was denied. Plan a different source for this question.",
+      "labeled_weak": true,
+      "predicted_weak": true,
+      "correct": true,
+      "note": "Isolates evidence_present: the answer has no numbers and no citation requirement when no evidence exists.",
+      "error": null
+    },
+    {
+      "case_id": "g018",
+      "query": "Were there any late orders in January 2015?",
+      "answer": "No late orders were found in that period [t1].",
+      "agents": [
+        "data"
+      ],
+      "plan": [
+        "data"
+      ],
+      "expected_failed_checks": [
+        "evidence_present"
+      ],
+      "actual_failed_checks": [
+        "evidence_present"
+      ],
+      "action": "replan",
+      "reason": "evidence_present failed: no usable evidence reached the agent",
+      "feedback": "The agent saw no usable evidence: the retrieval or tool result was empty, or every tool was denied. Plan a different source for this question.",
+      "labeled_weak": true,
+      "predicted_weak": true,
+      "correct": true,
+      "note": "The tool result was empty, so it is not usable evidence even though a ref exists.",
+      "error": null
+    },
+    {
+      "case_id": "g019",
+      "query": "How many orders were delivered in March 2018?",
+      "answer": "I could not retrieve the orders because the tool was denied.",
+      "agents": [
+        "data"
+      ],
+      "plan": [
+        "data"
+      ],
+      "expected_failed_checks": [
+        "evidence_present"
+      ],
+      "actual_failed_checks": [
+        "evidence_present"
+      ],
+      "action": "replan",
+      "reason": "evidence_present failed: no usable evidence reached the agent",
+      "feedback": "The agent saw no usable evidence: the retrieval or tool result was empty, or every tool was denied. Plan a different source for this question.",
+      "labeled_weak": true,
+      "predicted_weak": true,
+      "correct": true,
+      "note": "Every tool was denied, so the agent saw no evidence.",
+      "error": null
+    },
+    {
+      "case_id": "g020",
+      "query": "Were late deliveries in March 2018 eligible for compensation, and how many were late?",
+      "answer": "docs: Late deliveries may be eligible for compensation of 5% of the item value [d1].\n\ndata: There were 1,234 late orders in March 2018 [t1].",
+      "agents": [
+        "docs",
+        "data"
+      ],
+      "plan": [
+        "docs",
+        "data"
+      ],
+      "expected_failed_checks": [],
+      "actual_failed_checks": [],
+      "action": "pass",
+      "reason": "all deterministic checks passed",
+      "feedback": null,
+      "labeled_weak": false,
+      "predicted_weak": false,
+      "correct": true,
+      "note": "Good merged answer: both sources present, all numbers grounded, both markers valid.",
+      "error": null
+    },
+    {
+      "case_id": "g021",
+      "query": "Were late deliveries in March 2018 eligible for compensation, and how many were late?",
+      "answer": "docs: Late deliveries may be eligible for compensation of 5% of the item value [d1].",
+      "agents": [
+        "docs",
+        "data"
+      ],
+      "plan": [
+        "docs",
+        "data"
+      ],
+      "expected_failed_checks": [
+        "merge_complete"
+      ],
+      "actual_failed_checks": [
+        "merge_complete"
+      ],
+      "action": "none",
+      "reason": "merge_complete failed: the honest partial answer is the output",
+      "feedback": "The merged answer is missing the data source; the answer does not name it as missing.",
+      "labeled_weak": true,
+      "predicted_weak": true,
+      "correct": true,
+      "note": "The plan required data and docs, but only docs produced a result and the answer does not name the missing source.",
+      "error": null
+    },
+    {
+      "case_id": "g022",
+      "query": "Were late deliveries in March 2018 eligible for compensation, and how many were late?",
+      "answer": "docs: Late deliveries may be eligible for compensation of 5% of the item value [d1].\n\nMissing source: data. The answer above is partial.",
+      "agents": [
+        "docs",
+        "data"
+      ],
+      "plan": [
+        "docs",
+        "data"
+      ],
+      "expected_failed_checks": [
+        "merge_complete"
+      ],
+      "actual_failed_checks": [
+        "merge_complete"
+      ],
+      "action": "none",
+      "reason": "merge_complete failed: the honest partial answer is the output",
+      "feedback": "The merged answer is missing the data source; the answer names it as missing, which is the honest partial output.",
+      "labeled_weak": true,
+      "predicted_weak": true,
+      "correct": true,
+      "note": "The data source is missing but named. The check still fails; the honest note is the correct output.",
+      "error": null
+    },
+    {
+      "case_id": "g023",
+      "query": "What compensation applies to a late delivery?",
+      "answer": "The compensation is 5% of the item value [d1].",
+      "agents": [
+        "docs"
+      ],
+      "plan": [
+        "docs"
+      ],
+      "expected_failed_checks": [],
+      "actual_failed_checks": [],
+      "action": "pass",
+      "reason": "all deterministic checks passed",
+      "feedback": null,
+      "labeled_weak": false,
+      "predicted_weak": false,
+      "correct": true,
+      "note": "Good docs answer with a percent.",
+      "error": null
+    },
+    {
+      "case_id": "g024",
+      "query": "What compensation applies to a late delivery?",
+      "answer": "The compensation is 10% of the item value [d1].",
+      "agents": [
+        "docs"
+      ],
+      "plan": [
+        "docs"
+      ],
+      "expected_failed_checks": [
+        "numbers_grounded"
+      ],
+      "actual_failed_checks": [
+        "numbers_grounded"
+      ],
+      "action": "retry",
+      "reason": "a grounding or citation check failed: numbers_grounded",
+      "feedback": "These numbers are not in the evidence the agent saw: 10%. Use only numbers from the tool results or documents, or remove them.",
+      "labeled_weak": true,
+      "predicted_weak": true,
+      "correct": true,
+      "note": "10% is absent from the document.",
+      "error": null
+    },
+    {
+      "case_id": "g025",
+      "query": "What was the total revenue from sellers in 2017?",
+      "answer": "Sellers earned 1.5 million in revenue [t1].",
+      "agents": [
+        "data"
+      ],
+      "plan": [
+        "data"
+      ],
+      "expected_failed_checks": [],
+      "actual_failed_checks": [],
+      "action": "pass",
+      "reason": "all deterministic checks passed",
+      "feedback": null,
+      "labeled_weak": false,
+      "predicted_weak": false,
+      "correct": true,
+      "note": "Good data answer: the million unit normalizes to 1500000.",
+      "error": null
+    },
+    {
+      "case_id": "g026",
+      "query": "What was the total revenue from sellers in 2017?",
+      "answer": "Sellers earned 2.5 million in revenue [t1].",
+      "agents": [
+        "data"
+      ],
+      "plan": [
+        "data"
+      ],
+      "expected_failed_checks": [
+        "numbers_grounded"
+      ],
+      "actual_failed_checks": [
+        "numbers_grounded"
+      ],
+      "action": "retry",
+      "reason": "a grounding or citation check failed: numbers_grounded",
+      "feedback": "These numbers are not in the evidence the agent saw: 2.5 million. Use only numbers from the tool results or documents, or remove them.",
+      "labeled_weak": true,
+      "predicted_weak": true,
+      "correct": true,
+      "note": "2.5 million is 2500000, which is absent from the result.",
+      "error": null
+    },
+    {
+      "case_id": "g027",
+      "query": "How are refunds issued?",
+      "answer": "Refunds are issued to the original payment method [d1].",
+      "agents": [
+        "docs"
+      ],
+      "plan": [
+        "docs"
+      ],
+      "expected_failed_checks": [],
+      "actual_failed_checks": [],
+      "action": "pass",
+      "reason": "all deterministic checks passed",
+      "feedback": null,
+      "labeled_weak": false,
+      "predicted_weak": false,
+      "correct": true,
+      "note": "Good docs answer with no digits at all.",
+      "error": null
+    },
+    {
+      "case_id": "g028",
+      "query": "What can you do?",
+      "answer": "I can answer questions about orders, deliveries and shop policies.",
+      "agents": [
+        "direct"
+      ],
+      "plan": [
+        "direct"
+      ],
+      "expected_failed_checks": [],
+      "actual_failed_checks": [],
+      "action": "pass",
+      "reason": "all deterministic checks passed",
+      "feedback": null,
+      "labeled_weak": false,
+      "predicted_weak": false,
+      "correct": true,
+      "note": "Good direct answer: the evidence checks do not apply and the plan has one source, so no merge check applies.",
+      "error": null
+    },
+    {
+      "case_id": "g029",
+      "query": "What is the electronics return window?",
+      "answer": "The return window is 45 days [d9].",
+      "agents": [
+        "docs"
+      ],
+      "plan": [
+        "docs"
+      ],
+      "expected_failed_checks": [
+        "citations_valid",
+        "numbers_grounded"
+      ],
+      "actual_failed_checks": [
+        "citations_valid",
+        "numbers_grounded"
+      ],
+      "action": "retry",
+      "reason": "a grounding or citation check failed: numbers_grounded, citations_valid",
+      "feedback": "These numbers are not in the evidence the agent saw: 45. Use only numbers from the tool results or documents, or remove them. The answer cites [d9], which was not evidence the agent saw. Use only these refs: d1.",
+      "labeled_weak": true,
+      "predicted_weak": true,
+      "correct": true,
+      "note": "Two failures at once: 45 is absent and d9 was never given.",
+      "error": null
+    },
+    {
+      "case_id": "g030",
+      "query": "What is the maximum number of items in one order?",
+      "answer": "The policy covers orders up to 1,000 items [d1].",
+      "agents": [
+        "docs"
+      ],
+      "plan": [
+        "docs"
+      ],
+      "expected_failed_checks": [],
+      "actual_failed_checks": [],
+      "action": "pass",
+      "reason": "all deterministic checks passed",
+      "feedback": null,
+      "labeled_weak": false,
+      "predicted_weak": false,
+      "correct": true,
+      "note": "Good docs answer: the thousands separator in the answer normalizes to the evidence number.",
+      "error": null
+    }
+  ]
+}

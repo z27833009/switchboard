@@ -33,15 +33,20 @@ from switchboard.core.models import (
 )
 from switchboard.core.ports import Agent, AgentDeps, ContextPolicy, Embedder, ModelProvider
 from switchboard.core.validation import validate_plan
+from switchboard.gate import evaluate_gate
 from switchboard.registry import Registry
 from switchboard.routing import SUPERVISOR_SYSTEM, plan_schema, supervisor_prompt
 from switchboard.tracing.spans import (
     agent_span,
+    gate_span,
     record_error,
     run_span,
     set_attributes,
     supervisor_span,
 )
+
+# Design.md section 6.8: at most one corrective action (retry or re-plan) per run.
+MAX_CORRECTIVE_ACTIONS = 1
 
 
 def merge_results(
@@ -65,10 +70,12 @@ class RunState(TypedDict, total=False):
     ctx: RunContext
     started_at: datetime
     plan: RoutingDecision | None
+    previous_plan: RoutingDecision | None
     results: Annotated[dict[str, AgentResult], merge_results]
     answer: AgentResult | None
     verdict: GateVerdict | None
     attempts: int
+    feedback: str | None
     errors: Annotated[list[ErrorRecord], add_errors]
     supervisor_usage: Annotated[Usage, add_usage]
     cache_hit: bool
@@ -79,6 +86,7 @@ class BranchState(TypedDict):
     agent_name: str
     request: ChatRequest
     ctx: RunContext
+    feedback: str | None
 
 
 class LangGraphOrchestrator:
@@ -163,7 +171,15 @@ class LangGraphOrchestrator:
         builder.add_conditional_edges("supervisor", self._dispatch, ["run_agent"])
         builder.add_edge("run_agent", "merge")
         builder.add_edge("merge", "gate")
-        builder.add_edge("gate", "cache_store")
+        builder.add_conditional_edges(
+            "gate",
+            self._route_gate,
+            {
+                "cache_store": "cache_store",
+                "supervisor": "supervisor",
+                "run_agent": "run_agent",
+            },
+        )
         builder.add_edge("cache_store", "finish")
         builder.add_edge("finish", END)
         return builder.compile()
@@ -201,6 +217,8 @@ class LangGraphOrchestrator:
     async def _plan(self, state: RunState) -> dict[str, Any]:
         ctx = state["ctx"]
         request = state["request"]
+        previous = state.get("previous_plan")
+        verdict = state.get("verdict")
         available = self._available(ctx)
         if not available:
             raise PlanValidationError(["no agents are available for this tenant"])
@@ -210,6 +228,19 @@ class LangGraphOrchestrator:
             Message(role="system", content=SUPERVISOR_SYSTEM),
             Message(role="user", content=supervisor_prompt(available, request.query)),
         ]
+        if previous is not None:
+            gate_reason = verdict.reason if verdict is not None else "the plan was rejected"
+            messages.append(
+                Message(
+                    role="user",
+                    content=(
+                        f"The previous plan was {previous.label}. "
+                        f"The quality gate rejected it: {gate_reason}. "
+                        "Choose a different plan that can produce the evidence this "
+                        "question needs; the new plan must differ from the previous one."
+                    ),
+                )
+            )
         errors: list[ErrorRecord] = []
         usage = zero_usage()
 
@@ -234,6 +265,8 @@ class LangGraphOrchestrator:
                     agents=specs,
                     max_size=self._limits.max_plan_size,
                 )
+                if previous is not None and set(decision.agents) == set(previous.agents):
+                    raise PlanValidationError(["the new plan must differ from the previous plan"])
             except (ValidationError, PlanValidationError) as exc:
                 reasons = (
                     "; ".join(exc.reasons) if isinstance(exc, PlanValidationError) else str(exc)
@@ -257,11 +290,7 @@ class LangGraphOrchestrator:
                         )
                     )
                     continue
-                fallback_names = [name for name in self._limits.fallback_plan if name in specs][
-                    : self._limits.max_plan_size
-                ]
-                if not fallback_names:
-                    fallback_names = sorted(specs)[: self._limits.max_plan_size]
+                fallback_names = self._fallback_names(specs, previous)
                 fallback = RoutingDecision(
                     agents=fallback_names,
                     reason="Fallback plan after invalid model output.",
@@ -286,6 +315,37 @@ class LangGraphOrchestrator:
             }
         raise PlanValidationError(["supervisor returned no plan"])
 
+    def _fallback_names(
+        self,
+        specs: dict[str, AgentSpec],
+        previous: RoutingDecision | None,
+    ) -> list[str]:
+        """A valid fallback plan, different from the previous one when possible."""
+        candidates: list[list[str]] = []
+        configured = [name for name in self._limits.fallback_plan if name in specs][
+            : self._limits.max_plan_size
+        ]
+        if configured:
+            candidates.append(configured)
+        candidates.extend([[name] for name in sorted(specs)])
+        for candidate in candidates:
+            if previous is None or set(candidate) != set(previous.agents):
+                return candidate
+        if previous is not None:
+            return list(previous.agents)
+        return sorted(specs)[: self._limits.max_plan_size]
+
+    def _evidence_agents(self, plan: RoutingDecision) -> list[str]:
+        """Agents in the plan whose specs need tools or a retriever (design 6.8)."""
+        names: list[str] = []
+        for name in plan.agents:
+            agent = self._agents.get(name)
+            if agent is None:
+                continue
+            if agent.spec.needs:
+                names.append(name)
+        return names
+
     def _dispatch(self, state: RunState) -> list[Send]:
         plan = state.get("plan")
         if plan is None:
@@ -295,7 +355,12 @@ class LangGraphOrchestrator:
         return [
             Send(
                 "run_agent",
-                {"agent_name": name, "request": request, "ctx": ctx},
+                {
+                    "agent_name": name,
+                    "request": request,
+                    "ctx": ctx,
+                    "feedback": None,
+                },
             )
             for name in plan.agents
         ]
@@ -342,6 +407,7 @@ class LangGraphOrchestrator:
                 AgentTask(
                     query=request.query,
                     history=request.history,
+                    feedback=branch.get("feedback"),
                     budget=budget,
                 ),
                 self._deps(ctx),
@@ -386,14 +452,109 @@ class LangGraphOrchestrator:
         results = state.get("results", {})
         expected = set(plan.agents) if plan is not None else set(results)
         missing = sorted(expected - set(results))
-        answer = MergeAgent().merge(results, missing)
+        # A re-plan may leave results from the previous plan in the state; only
+        # the sources in the current plan belong in the merged answer.
+        selected = {name: result for name, result in results.items() if name in expected}
+        answer = MergeAgent().merge(selected, missing)
         return {"answer": answer}
 
     def _gate(self, state: RunState) -> dict[str, Any]:
-        return {
-            "verdict": GateVerdict(passed=True, action="pass"),
-            "attempts": state.get("attempts", 0),
-        }
+        ctx = state["ctx"]
+        plan = state.get("plan")
+        answer = state.get("answer")
+        results = state.get("results", {})
+        with gate_span(self._tracer, run_id=ctx.run_id) as span:
+            if plan is None or answer is None:
+                verdict = GateVerdict(
+                    passed=False,
+                    failed_checks=["evidence_present"],
+                    action="none",
+                    reason="there was no answer to check",
+                )
+                attempts = state.get("attempts", 0)
+            else:
+                planned = list(plan.agents)
+                produced = [name for name in planned if name in results]
+                verdict = evaluate_gate(
+                    query=state["request"].query,
+                    answer=answer,
+                    evidence_agents=self._evidence_agents(plan),
+                    expected_sources=planned,
+                    result_sources=produced,
+                    merged=len(planned) > 1,
+                )
+                attempts = state.get("attempts", 0)
+                if (
+                    not verdict.passed
+                    and verdict.action in {"retry", "replan"}
+                    and attempts >= MAX_CORRECTIVE_ACTIONS
+                ):
+                    verdict = verdict.model_copy(
+                        update={
+                            "action": "none",
+                            "reason": (
+                                f"{verdict.reason}; the attempts limit "
+                                f"({MAX_CORRECTIVE_ACTIONS}) is reached"
+                            ),
+                        }
+                    )
+            set_attributes(
+                span,
+                {
+                    "switchboard.gate.verdict": "pass" if verdict.passed else "fail",
+                    "switchboard.gate.failed_checks": (
+                        ",".join(verdict.failed_checks) if verdict.failed_checks else None
+                    ),
+                    "switchboard.gate.action": verdict.action,
+                },
+            )
+            outputs: dict[str, Any] = {"verdict": verdict}
+            if not verdict.passed:
+                outputs["errors"] = [
+                    ErrorRecord(
+                        kind="CheckFailed",
+                        message=verdict.feedback or verdict.reason,
+                        retryable=verdict.action in {"retry", "replan"},
+                        stage="gate",
+                        details={
+                            "failed_checks": list(verdict.failed_checks),
+                            "action": verdict.action,
+                        },
+                    )
+                ]
+            if verdict.action == "retry":
+                outputs["attempts"] = attempts + 1
+                outputs["feedback"] = verdict.feedback
+            elif verdict.action == "replan":
+                outputs["attempts"] = attempts + 1
+                outputs["previous_plan"] = plan
+                outputs["feedback"] = None
+            return outputs
+
+    def _route_gate(self, state: RunState) -> str | list[Send]:
+        verdict = state.get("verdict")
+        if verdict is None or verdict.action in {"pass", "none"}:
+            return "cache_store"
+        plan = state.get("plan")
+        if plan is None:
+            return "cache_store"
+        if verdict.action == "replan":
+            return "supervisor"
+        request = state["request"]
+        ctx = state["ctx"]
+        feedback = state.get("feedback")
+        return [
+            Send(
+                "run_agent",
+                {
+                    "agent_name": name,
+                    "request": request,
+                    "ctx": ctx,
+                    "feedback": feedback,
+                },
+            )
+            for name in plan.agents
+        ]
 
     def _cache_store(self, state: RunState) -> dict[str, Any]:
         return {}
@@ -401,23 +562,40 @@ class LangGraphOrchestrator:
     def _finish(self, state: RunState) -> dict[str, Any]:
         ctx = state["ctx"]
         answer = state.get("answer")
+        verdict = state.get("verdict")
         usage = state.get("supervisor_usage", zero_usage())
         if answer is not None:
             usage = usage.plus(answer.usage)
         status: RunStatus = "ok"
         if answer is None or answer.partial:
             status = "partial"
+        if verdict is not None and not verdict.passed:
+            status = "partial"
+            if (
+                answer is not None
+                and verdict.action == "none"
+                and verdict.failed_checks != ["merge_complete"]
+            ):
+                note = (
+                    "\n\nThe quality gate could not confirm this answer: "
+                    f"{verdict.feedback or verdict.reason}"
+                )
+                answer = answer.model_copy(
+                    update={"answer": answer.answer.rstrip() + note, "partial": True}
+                )
         return {
             "result": RunResult(
                 run_id=ctx.run_id,
                 tenant_id=ctx.tenant.tenant_id,
                 query=state["request"].query,
                 plan=state.get("plan"),
+                previous_plan=state.get("previous_plan"),
                 answer=answer,
                 status=status,
                 usage=usage,
                 cache_hit=state.get("cache_hit", False),
                 attempts=state.get("attempts", 0),
+                gate=verdict,
                 errors=state.get("errors", []),
                 started_at=state.get("started_at"),
                 ended_at=datetime.now(UTC),
@@ -459,10 +637,12 @@ class LangGraphOrchestrator:
             "ctx": ctx,
             "started_at": datetime.now(UTC),
             "plan": None,
+            "previous_plan": None,
             "results": {},
             "answer": None,
             "verdict": None,
             "attempts": 0,
+            "feedback": None,
             "errors": [],
             "supervisor_usage": zero_usage(),
             "cache_hit": False,

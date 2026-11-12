@@ -113,6 +113,7 @@ jobs:
         run: |
           uv run switchboard eval run --suite routing --provider mock
           uv run switchboard eval run --suite toolcall --provider mock
+          uv run switchboard eval run --suite gate --dataset-version v2 --provider mock
       - name: Regression gate
         run: |
           uv run switchboard eval gate --suite routing \

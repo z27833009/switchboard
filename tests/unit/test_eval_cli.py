@@ -113,3 +113,48 @@ def test_cli_mock_smoke_writes_reports(
     metric = "plan_accuracy" if suite == "routing" else "tool_name_accuracy"
     assert metric in report["metrics"]
     assert "Smoke run" in markdown_path.read_text(encoding="utf-8")
+
+
+def test_cli_gate_suite_writes_a_deterministic_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(REPO_ROOT)
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    write_config(config_dir)
+    output_dir = tmp_path / "reports"
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "eval",
+            "run",
+            "--suite",
+            "gate",
+            "--dataset-version",
+            "v2",
+            "--provider",
+            "mock",
+            "--config-dir",
+            str(config_dir),
+            "--dataset-dir",
+            str(REPO_ROOT / "evals" / "datasets"),
+            "--manifest",
+            str(REPO_ROOT / "mcp_servers" / "olist" / "manifest.yaml"),
+            "--output-dir",
+            str(output_dir),
+            "--limit",
+            "1",
+            "--timeout",
+            "10",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    report = json.loads((output_dir / "gate-mock.json").read_text(encoding="utf-8"))
+    assert report["suite"] == "gate"
+    assert report["dataset_version"] == "v2"
+    assert report["model"] == "deterministic"
+    assert report["deterministic"] is True
+    assert report["case_count"] == 1
+    assert "numbers_grounded_precision" in report["metrics"]

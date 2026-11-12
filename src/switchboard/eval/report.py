@@ -17,6 +17,7 @@ from typing import Any
 from switchboard.core.models import Usage
 from switchboard.eval.runner import CaseRun
 from switchboard.eval.scorers.routing import plan_label
+from switchboard.gate import CHECK_NAMES
 
 
 @dataclass(frozen=True)
@@ -102,6 +103,73 @@ def _toolcall_metrics(results: list[CaseRun]) -> dict[str, float]:
     }
 
 
+def _gate_counts(results: list[CaseRun]) -> dict[str, Any]:
+    checks: dict[str, dict[str, int]] = {}
+    for name in CHECK_NAMES:
+        counts = {}
+        for kind in ("tp", "fp", "fn", "tn"):
+            counts[kind] = int(sum(_metric_values(results, f"{name}_{kind}")))
+        checks[name] = counts
+    false_positives = [
+        result.case.id
+        for result in results
+        if result.score.metrics.get("weak_predicted")
+        and not result.case.payload.get("is_weak", False)
+    ]
+    false_negatives = [
+        result.case.id
+        for result in results
+        if not result.score.metrics.get("weak_predicted")
+        and result.case.payload.get("is_weak", False)
+    ]
+    return {
+        "checks": checks,
+        "predicted_weak_cases": int(
+            sum(1 for result in results if result.score.metrics.get("weak_predicted"))
+        ),
+        "labeled_weak_cases": int(
+            sum(1 for result in results if result.score.metrics.get("weak_labeled"))
+        ),
+        "false_positive_cases": false_positives,
+        "false_negative_cases": false_negatives,
+    }
+
+
+def _ratio(numerator: int, denominator: int) -> float:
+    return round(numerator / denominator, 4) if denominator else 0.0
+
+
+def _gate_metrics(results: list[CaseRun]) -> dict[str, float]:
+    counts = _gate_counts(results)
+    metrics: dict[str, float] = {}
+    for name in CHECK_NAMES:
+        check = counts["checks"][name]
+        precision = _ratio(check["tp"], check["tp"] + check["fp"])
+        recall = _ratio(check["tp"], check["tp"] + check["fn"])
+        metrics[f"{name}_precision"] = precision
+        metrics[f"{name}_recall"] = recall
+        denominator = precision + recall
+        metrics[f"{name}_f1"] = (
+            round(2 * precision * recall / denominator, 4) if denominator else 0.0
+        )
+    predicted = counts["predicted_weak_cases"]
+    labeled = counts["labeled_weak_cases"]
+    metrics["case_accuracy"] = _mean(_metric_values(results, "weak_correct"))
+    metrics["gate_precision"] = _ratio(
+        labeled - len(counts["false_negative_cases"]),
+        predicted,
+    )
+    metrics["gate_recall"] = _ratio(
+        labeled - len(counts["false_negative_cases"]),
+        labeled,
+    )
+    metrics["good_case_specificity"] = _ratio(
+        len(results) - labeled - len(counts["false_positive_cases"]),
+        len(results) - labeled,
+    )
+    return metrics
+
+
 def _usage_totals(results: list[CaseRun]) -> Usage:
     total = Usage(input_tokens=0, output_tokens=0)
     for result in results:
@@ -167,12 +235,42 @@ def _toolcall_case_row(result: CaseRun) -> dict[str, Any]:
     }
 
 
+def _gate_case_row(result: CaseRun) -> dict[str, Any]:
+    expected = sorted(result.case.payload.get("weakness", []))
+    actual = sorted(result.outcome.details.get("failed_checks", []))
+    predicted_weak = bool(actual)
+    labeled_weak = bool(result.case.payload.get("is_weak", False))
+    return {
+        "case_id": result.case.id,
+        "query": result.case.query,
+        "answer": result.outcome.answer,
+        "agents": list(result.case.payload.get("agents", [])),
+        "plan": list(result.case.payload.get("plan", [])),
+        "expected_failed_checks": expected,
+        "actual_failed_checks": actual,
+        "action": result.outcome.details.get("action"),
+        "reason": result.outcome.details.get("reason"),
+        "feedback": result.outcome.details.get("feedback"),
+        "labeled_weak": labeled_weak,
+        "predicted_weak": predicted_weak,
+        "correct": result.score.passed,
+        "note": result.case.payload.get("note"),
+        "error": result.outcome.error,
+    }
+
+
 def build_report(meta: ReportMeta, results: list[CaseRun]) -> dict[str, Any]:
     latencies = [result.outcome.latency_ms for result in results]
     runner_latencies = [result.runner_latency_ms for result in results]
     usage = _usage_totals(results)
     errors = [result.case.id for result in results if result.outcome.error]
 
+    if meta.suite == "routing":
+        metrics = _routing_metrics(results)
+    elif meta.suite == "gate":
+        metrics = _gate_metrics(results)
+    else:
+        metrics = _toolcall_metrics(results)
     report: dict[str, Any] = {
         "suite": meta.suite,
         "dataset_version": meta.dataset_version,
@@ -189,9 +287,7 @@ def build_report(meta: ReportMeta, results: list[CaseRun]) -> dict[str, Any]:
         "wall_time_s": round(meta.wall_time_s, 3),
         "recording": meta.recording,
         "recorded_with": meta.recorded_with,
-        "metrics": (
-            _routing_metrics(results) if meta.suite == "routing" else _toolcall_metrics(results)
-        ),
+        "metrics": metrics,
         "latency_ms": latency_summary(latencies),
         "runner_latency_ms": latency_summary(runner_latencies),
         "usage": {
@@ -215,6 +311,14 @@ def build_report(meta: ReportMeta, results: list[CaseRun]) -> dict[str, Any]:
             expected: dict(sorted(row.items())) for expected, row in sorted(matrix.items())
         }
         report["cases"] = [_routing_case_row(result) for result in results]
+    elif meta.suite == "gate":
+        report["gate_counts"] = _gate_counts(results)
+        report["label_source"] = (
+            "constructed and audited by the implementation session, "
+            "not an independent human annotator"
+        )
+        report["deterministic"] = True
+        report["cases"] = [_gate_case_row(result) for result in results]
     else:
         report["cases"] = [_toolcall_case_row(result) for result in results]
     return report
@@ -231,7 +335,49 @@ def _metric_table(metrics: dict[str, float]) -> list[str]:
     return lines
 
 
+def _gate_check_table(report: dict[str, Any]) -> list[str]:
+    lines = [
+        "| Check | TP | FP | FN | TN | Precision | Recall |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for name in CHECK_NAMES:
+        check = report["gate_counts"]["checks"][name]
+        precision = report["metrics"][f"{name}_precision"]
+        recall = report["metrics"][f"{name}_recall"]
+        lines.append(
+            f"| {name} | {check['tp']} | {check['fp']} | {check['fn']} | "
+            f"{check['tn']} | {precision:.4f} | {recall:.4f} |"
+        )
+    return lines
+
+
 def _case_table(report: dict[str, Any]) -> list[str]:
+    if report["suite"] == "gate":
+        lines = [
+            "| Case | Query | Expected checks | Actual checks | Action | Weak | Correct | Note |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        ]
+        for case in report["cases"]:
+            expected = ", ".join(case["expected_failed_checks"]) or "none"
+            actual = ", ".join(case["actual_failed_checks"]) or "none"
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        _cell(case["case_id"]),
+                        _cell(case["query"]),
+                        _cell(expected),
+                        _cell(actual),
+                        _cell(case["action"]),
+                        "yes" if case["labeled_weak"] else "no",
+                        "yes" if case["correct"] else "no",
+                        _cell(case["note"] or case["error"] or ""),
+                    ]
+                )
+                + " |"
+            )
+        return lines
+
     if report["suite"] == "routing":
         lines = [
             "| Case | Query | Expected | Actual | Exact | Jaccard | Latency ms "
@@ -335,6 +481,11 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.append(f"- Wall time: {report['wall_time_s']} s")
     if report["recording"]:
         lines.append(f"- Recording run: fixtures were recorded with `{report['recorded_with']}`")
+    elif report.get("deterministic"):
+        lines.append(
+            "- Deterministic suite: no model call is made; the provider and model fields are "
+            "recorded from the runner but unused."
+        )
     elif report["provider"] == "mock":
         lines.append(
             "- Mock replay: model latency is recorded as 0 and the CI gate measures "
@@ -346,6 +497,29 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.append("")
     lines.extend(_metric_table(report["metrics"]))
     lines.append("")
+
+    if report["suite"] == "gate":
+        lines.append("## Checks")
+        lines.append("")
+        lines.extend(_gate_check_table(report))
+        lines.append("")
+        lines.append(
+            "Labels: the cases and their expected failed checks were constructed and read "
+            "through by the implementation session, not by an independent human annotator. "
+            "Precision and recall measure the deterministic checks against those labels; "
+            "they are not a claim about real-world answer quality. The derived-percentage "
+            "case is labeled acceptable on purpose, so its false rejection is visible "
+            "instead of hidden (ADR 0013)."
+        )
+        lines.append("")
+        counts = report["gate_counts"]
+        lines.append(
+            f"Predicted weak cases: {counts['predicted_weak_cases']}; "
+            f"labeled weak cases: {counts['labeled_weak_cases']}; "
+            f"false positive ids: {', '.join(counts['false_positive_cases']) or 'none'}; "
+            f"false negative ids: {', '.join(counts['false_negative_cases']) or 'none'}."
+        )
+        lines.append("")
 
     lines.append("## Latency")
     lines.append("")

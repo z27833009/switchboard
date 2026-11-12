@@ -192,6 +192,20 @@ class AgentResult(BaseModel):
     usage: Usage
     partial: bool = False      # set when evidence was missing or a branch failed
 
+class EvidenceRef(BaseModel):
+    kind: Literal["document", "tool"]
+    ref: str                   # marker the agent used, "d1" or "t1"
+    source_id: str             # chunk id or tool result id
+    text: str = ""             # content the agent saw, for the deterministic gate (6.8)
+    empty: bool = False        # an empty tool result or blank chunk
+
+class GateVerdict(BaseModel):
+    passed: bool
+    failed_checks: list[str] = []
+    action: Literal["pass", "retry", "replan", "none"] = "pass"
+    reason: str = ""
+    feedback: str | None = None
+
 class RunContext(BaseModel):
     run_id: str
     tenant: TenantContext
@@ -210,6 +224,8 @@ class TenantContext(BaseModel):
 ```
 
 There is no `Route` enum. The routing decision carries no self-reported confidence: a model's self-assessed confidence is not calibrated and nothing in the design consumed it, so it was removed rather than logged as if it meant something.
+
+`RunResult` carries the final `plan`, the `previous_plan` set on a re-plan, the final `gate` verdict, `attempts` and `errors`, so a caller can see what the gate rejected and which corrective action ran (6.8).
 
 Dependencies are injected through `AgentDeps` and `RunContext` (provider, embedder, tool sources, retriever, cache, context policy, tracer), never imported globally.
 
@@ -285,7 +301,7 @@ flowchart TD
   cache_store --> finish
 ```
 
-`dispatch` uses LangGraph's `Send` API to start one `run_agent` branch per agent in the plan, so a plan of one, two or three agents uses the same nodes. Phase 1 ships every node; `cache_lookup`, `cache_store` and `gate` are pass-through in Phase 1 and get real implementations in v1, so the graph shape does not change between phases.
+`dispatch` uses LangGraph's `Send` API to start one `run_agent` branch per agent in the plan, so a plan of one, two or three agents uses the same nodes. Every node ships from the start, so the graph shape does not change between phases. From v1 (T2.01) `gate` runs the deterministic checks and may send work back to `run_agent` (retry) or `supervisor` (re-plan); `cache_lookup` and `cache_store` remain pass-through until the semantic cache (T2.18).
 
 ### 6.2 State
 
@@ -301,10 +317,11 @@ class RunState(TypedDict):
     answer: AgentResult | None
     verdict: GateVerdict | None
     attempts: int
+    feedback: str | None                                  # concrete feedback for a retry
     errors: Annotated[list[ErrorRecord], operator.add]
 ```
 
-`results` and `errors` need reducers because parallel branches update them in the same step; without a reducer LangGraph raises on concurrent writes.
+`results` and `errors` need reducers because parallel branches update them in the same step; without a reducer LangGraph raises on concurrent writes. `attempts` counts corrective actions, not agent calls, and stops at one (6.8).
 
 ### 6.3 Supervisor and plans
 
@@ -371,20 +388,24 @@ LangGraph interrupts are placed before any tool call whose `ToolSpec.risk == "wr
 
 The gate produces a signal; the orchestrator decides what to do with it. Design rationale and alternatives are in ADR 0013.
 
-**Layer 1: deterministic checks** (v1). Pure functions over the answer, its citations and the evidence the agent saw:
+**Layer 1: deterministic checks** (v1). Pure functions in `switchboard.gate.checks` over the answer, its citations and the evidence the agent saw. An agent is evidence-based when its `AgentSpec.needs` names `tools` or `retriever`, so the gate never hard-codes agent names:
 
 | Check | Fails when | Corrective action |
 | --- | --- | --- |
 | `numbers_grounded` | A number in the answer (excluding numbers that appear in the user's query) does not occur in any tool result or chunk the agent saw, after normalization of separators and units | Retry the same agent with feedback naming the unsupported numbers |
-| `citations_valid` | An answer from `docs` or `data` has no citation, or a marker refers to evidence the agent was not given | Retry the same agent with feedback |
-| `evidence_present` | The agent saw no evidence at all (empty retrieval, empty tool results, every tool denied) | Re-plan: the supervisor chooses again with the reason |
-| `merge_complete` | A merged answer is missing a source | None; the honest partial note is the correct output |
+| `citations_valid` | An evidence-based answer has no citation, or a marker refers to evidence the agent was not given. When no evidence exists at all the check passes, because `evidence_present` already reports that failure and a citation retry would be the wrong action | Retry the same agent with feedback |
+| `evidence_present` | The agent saw no usable evidence at all (empty retrieval, an empty tool result, every tool denied) | Re-plan: the supervisor chooses again with the reason |
+| `merge_complete` | A merged answer is missing a source. The check fails whether or not the answer names the missing source | None; the honest partial note is the correct output |
 
-The retry is Reflexion-style: the failure message is concrete and comes from an external check, not from the model criticizing itself, because self-critique without an external signal is not reliable. At most one corrective action (retry or re-plan) per run; `attempts` enforces it.
+Number normalization removes thousands separators (comma, space, underscore), normalizes decimals, maps the words thousand, million and billion and the attached multipliers k, M and B to plain digits, and keeps percent as a unit, so `1,234` matches `1234`, `1.5 million` matches `1500000`, and `3.5 %` matches `3.5%` but not `3.5`. It does not compute derived numbers (ADR 0013). Evidence carries the text the agent saw in `EvidenceRef.text` and an `empty` flag, so an empty tool result is distinguishable from no evidence.
+
+The aggregate is a `GateVerdict` with the failed check names, a concrete `feedback` string and an `action` of `retry`, `replan`, `none` or `pass`. `evidence_present` takes precedence over a retry; `merge_complete` alone recommends `none`.
+
+The retry is Reflexion-style: the failure message is concrete and comes from an external check, not from the model criticizing itself, because self-critique without an external signal is not reliable. At most one corrective action (retry or re-plan) per run; `attempts` enforces it. A retry re-runs every agent in the current plan with `AgentTask.feedback` set. A re-plan passes the previous plan and the gate reason to the supervisor and requires a plan that differs from it; if the model repeats the plan after its one repair, the configured fallback is used, or a single-agent plan when the fallback is identical to the previous one. The final `RunResult` carries `attempts`, `previous_plan`, `gate` and an `errors` entry of kind `CheckFailed`; the `gate` span records `switchboard.gate.verdict`, `switchboard.gate.failed_checks` (comma-separated) and `switchboard.gate.action`, so both attempts and the failed checks are visible in the trace.
 
 **Layer 2: LLM judge** (v2). Runs only when layer 1 passes. Enabled only after its verdicts are compared against a human-labeled sample and the agreement is reported (T3.08).
 
-The `gate` eval suite labels answers as acceptable or weak and reports precision and recall of layer 1 per check, so false rejections from `numbers_grounded` (for example a correct derived percentage) are measured rather than assumed away.
+The `gate` eval suite (dataset `v2`, 30 cases) labels answers as acceptable or weak and reports precision, recall and F1 of layer 1 per check, so false rejections from `numbers_grounded` (for example a correct derived percentage) are measured rather than assumed away. The labels in that version are constructed and read through by the implementation session, not by an independent human annotator; the report says so. The one deliberately acceptable derived-percentage case makes the known false positive visible.
 
 ### 6.9 Agent loop orchestrator (v1)
 
@@ -1003,10 +1024,12 @@ JSONL, versioned by directory (`evals/datasets/v1`). A dataset version never cha
 | toolcall | `query`, `expected_tool`, `expected_args`, `tool_version` | 40 | tool name match and argument AST match (required args exact, optional args if present); trajectory: tool calls per case and redundant calls |
 | rag (v1) | `query`, `relevant_chunk_ids`, `answer_rubric`, `needs_rewrite` tag | 40 | recall@5, MRR for four retrieval strategies (9.3); rubric scoring by judge in v2 |
 | cache (v1) | `query_a`, `query_b`, `should_hit` | 50 pairs, including cross-type near misses | hit rate, false-hit rate per threshold |
-| gate (v1) | `query`, `answer`, `evidence`, `is_weak`, `weakness` | 30 | precision, recall, per check |
+| gate (v1) | `query`, `answer`, `agents`, `plan`, `result_sources`, `evidence`, `is_weak`, `weakness` | 30 | precision, recall and F1 per check; overall weak precision, recall and good-case specificity |
 | injection (v1) | `content`, `is_malicious` | 40 | detection rate, false positive rate |
 
 Construction (Phase 1): routing questions are written by a separate session from a brief and labeled blind by the author; toolcall cases are generated from templates with arguments computed by code. Every case has a deterministic `dev` or `test` split; prompt work may read only dev cases, and reports score the test split. Details in `evals/datasets/v1/README.md`.
+
+Dataset versions are per suite when a suite is added later: `v2/gate.jsonl` holds the 30 gate cases and leaves `v1/` untouched for routing and toolcall. The gate labels are constructed by the implementation session and audited by reading, not blind human labels; the suite README and the report state this. One case is labeled acceptable although `numbers_grounded` rejects it, so the known derived-number false positive is measured. Details in `evals/datasets/v2/README.md`.
 
 Feedback (v1): `POST /runs/{id}/feedback` stores a rating and a note. `switchboard eval harvest --since <date>` exports negatively rated runs to `evals/candidates/` as unlabeled cases. A human labels them; labeled cases enter the next dataset version, never the current one.
 
@@ -1014,7 +1037,7 @@ Feedback (v1): `POST /runs/{id}/feedback` stores a rating and a note. `switchboa
 
 `switchboard eval run --suite <name> --provider <name> [--orchestrator <name>] [--limit n] [--record]` executes cases concurrently (bounded, default 4), applies a per-case timeout, times each case, collects usage including cached input tokens, scores, and writes `evals/reports/<suite>-<provider>.md` and `.json`. The JSON report carries the dataset version, split, orchestrator, provider, model, metrics, p50 and p95 latency, input, cached input and output tokens and one row per case. A run with `--limit` is marked as a smoke run in both files. `--provider mock --record` records missing fixtures through the real provider named by the default tenant; a plain mock run replays them with no network. `--provider deepseek` prints the estimated cost from the price table and the case count and refuses to proceed without `--confirm-cost` or above the cap in `platform.yaml`.
 
-Suites receive `EvalDeps(provider)`. The routing suite builds the production supervisor request from the shared `switchboard.routing` helpers and the toolcall suite sends the five manifest tool specs with the data agent prompt prefix; both make one completion per case and do not run the agents or execute tools. This keeps 60 routing and 40 toolcall cases within the local-model budget and lets the mock provider replay them in CI.
+Suites receive `EvalDeps(provider)`. The routing suite builds the production supervisor request from the shared `switchboard.routing` helpers and the toolcall suite sends the five manifest tool specs with the data agent prompt prefix; both make one completion per case and do not run the agents or execute tools. This keeps 60 routing and 40 toolcall cases within the local-model budget and lets the mock provider replay them in CI. The gate suite makes no model call: it runs the same deterministic checks as the orchestrator and reports the model as `deterministic`, so its result depends only on the dataset and the code.
 
 ### 20.3 Comparison and regression
 

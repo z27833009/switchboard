@@ -167,7 +167,7 @@ The first request after loading the model can be slow while LM Studio loads it; 
 
 Most "agent platform" demos hide three things: how the router decided, how often it was wrong, and what the run cost. Switchboard is built around making those three visible:
 
-- A supervisor with a structured routing decision (`direct`, `rag`, `sql`, `parallel`) and a quality gate that can re-route a weak answer once.
+- A supervisor with a structured routing decision (`direct`, `docs`, `data`, or both) and a quality gate that can retry or re-plan a weak answer once.
 - An MCP tool server over a public e-commerce dataset (Olist), exposing parameterized, read-only tools with a per-tenant permission model.
 - A model layer that treats every OpenAI-compatible endpoint (LM Studio locally, DeepSeek in the cloud) the same way, so providers can be compared on the same test set.
 - OpenTelemetry instrumentation from day one, stored in PostgreSQL and rendered in a trace view.
@@ -190,7 +190,7 @@ Python 3.12 with uv, FastAPI, LangGraph (as one orchestrator adapter), MCP (Fast
 
 ## Continuous integration
 
-CI runs lint, type checks, unit and contract tests, the integration tests against a PostgreSQL 16 service and a locally started Olist MCP server, and the routing and toolcall eval suites on the `mock` provider. The mock provider replays recorded model output, so the eval gate measures the pipeline (parsing, plan validation, tool normalization, scoring), not the model. A prompt change alters the fixture keys, which forces a re-record against a real model and produces a new report. The gate compares against the committed files in [evals/baselines/](evals/baselines/) and fails on a drop larger than 0.05; baselines are updated by committing a new file. See [ADR 0008](docs/adr/0008-evaluation-strategy.md).
+CI runs lint, type checks, unit and contract tests, the integration tests against a PostgreSQL 16 service and a locally started Olist MCP server, and the routing, toolcall and gate eval suites on the `mock` provider. The routing and toolcall suites replay recorded model output, so the eval gate measures the pipeline (parsing, plan validation, tool normalization, scoring), not the model. The gate suite makes no model call at all: it runs the deterministic checks over the 30 labeled cases in dataset v2 and reports per-check precision and recall. A prompt change alters the fixture keys, which forces a re-record against a real model and produces a new report. The regression gate compares against the committed files in [evals/baselines/](evals/baselines/) and fails on a drop larger than 0.05; baselines are updated by committing a new file. See [ADR 0008](docs/adr/0008-evaluation-strategy.md).
 
 ## License
 

@@ -161,6 +161,10 @@ class EvidenceRef(BaseModel):
     kind: Literal["document", "tool"]
     ref: str
     source_id: str
+    # The content the agent was shown, so the deterministic gate can check
+    # numbers against it (design.md sections 6.8 and 4).
+    text: str = ""
+    empty: bool = False
 
 
 class AgentSpec(BaseModel):
@@ -290,27 +294,29 @@ class ErrorRecord(BaseModel):
     details: dict[str, Any] = Field(default_factory=dict)
 
 
+class GateVerdict(BaseModel):
+    passed: bool
+    failed_checks: list[str] = Field(default_factory=list)
+    action: Literal["pass", "retry", "replan", "none"] = "pass"
+    reason: str = ""
+    feedback: str | None = None
+
+
 class RunResult(BaseModel):
     run_id: str
     tenant_id: str
     query: str
     plan: RoutingDecision | None = None
+    previous_plan: RoutingDecision | None = None
     answer: AgentResult | None = None
     status: RunStatus = "running"
     usage: Usage = Field(default_factory=lambda: Usage(input_tokens=0, output_tokens=0))
     cache_hit: bool = False
     attempts: int = Field(default=0, ge=0)
+    gate: GateVerdict | None = None
     errors: list[ErrorRecord] = Field(default_factory=list)
     started_at: datetime | None = None
     ended_at: datetime | None = None
-
-
-class GateVerdict(BaseModel):
-    passed: bool
-    failed_checks: list[str] = Field(default_factory=list)
-    action: Literal["pass", "retry", "replan"] = "pass"
-    reason: str = ""
-    feedback: str | None = None
 
 
 class ContextBudget(BaseModel):

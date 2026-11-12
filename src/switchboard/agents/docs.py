@@ -79,7 +79,15 @@ class DocsAgent(BaseAgent):
                     snippet=chunk.text[:SNIPPET_CHARS],
                 )
             )
-            evidence.append(EvidenceRef(kind="document", ref=ref, source_id=chunk.chunk_id))
+            evidence.append(
+                EvidenceRef(
+                    kind="document",
+                    ref=ref,
+                    source_id=chunk.chunk_id,
+                    text=chunk.text,
+                    empty=not chunk.text.strip(),
+                )
+            )
         answer = response.text or ""
         citations = registry.parse(answer)
         return AgentResult(

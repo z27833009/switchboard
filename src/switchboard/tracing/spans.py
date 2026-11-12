@@ -169,6 +169,17 @@ def supervisor_span(tracer: trace.Tracer, *, run_id: str) -> Iterator[Span]:
 
 
 @contextmanager
+def gate_span(tracer: trace.Tracer, *, run_id: str) -> Iterator[Span]:
+    with tracer.start_as_current_span(
+        "gate",
+        record_exception=False,
+        set_status_on_exception=False,
+        attributes={"switchboard.run_id": run_id},
+    ) as span:
+        yield span
+
+
+@contextmanager
 def agent_span(tracer: trace.Tracer, *, agent: str, run_id: str) -> Iterator[Span]:
     with tracer.start_as_current_span(
         agent_span_name(agent),
@@ -195,6 +206,7 @@ __all__ = [
     "chat_span_name",
     "embeddings_span_name",
     "extract_traceparent",
+    "gate_span",
     "inject_traceparent",
     "record_error",
     "run_span",

@@ -397,7 +397,7 @@ async def test_orchestrator_emits_run_supervisor_and_agent_spans(collector: Coll
         ChatRequest(query="hello", tenant_id="default"), run_context(run_id)
     )
     assert result.status == "ok"
-    assert sorted(collector.names()) == ["agent.direct", "run", "supervisor.plan"]
+    assert sorted(collector.names()) == ["agent.direct", "gate", "run", "supervisor.plan"]
 
     run = collector.by_name("run")
     run_attributes = attributes_of(run)

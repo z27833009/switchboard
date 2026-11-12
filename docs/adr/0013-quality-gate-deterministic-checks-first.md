@@ -25,5 +25,6 @@ Switchboard has an external signal available for free: every answer is supposed 
 ## Consequences
 
 - The gate is cheap (no model call unless a corrective action fires) and its verdicts are explainable in the trace (`switchboard.gate.failed_checks`).
+- The `gate` suite labels are constructed and read through by the implementation session, not by an independent human annotator; the report states this, so the precision and recall are read as a regression measurement rather than a human agreement study.
 - `numbers_grounded` will reject some correct answers with derived numbers (percentages, differences). This is measured, and the planned fix is an allowance for numbers computable from evidence numbers, not removing the check (review R12).
 - Small local models that ignore citation markers will fail `citations_valid` often; the rate is reported per model (review R11).
