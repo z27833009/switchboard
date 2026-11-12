@@ -16,13 +16,12 @@ import openai
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion
 
+from switchboard.adapters._openai_errors import map_error
 from switchboard.core.config import ProviderConfig
 from switchboard.core.errors import (
     ConfigError,
     ProviderRequestError,
-    ProviderTransientError,
     StructuredOutputError,
-    SwitchboardError,
     ToolValidationError,
 )
 from switchboard.core.models import (
@@ -140,30 +139,6 @@ def _normalise_tool_calls(message: Any, *, skip_structured: bool) -> list[ToolCa
             raise ToolValidationError(f"tool {function.name!r} arguments must be a JSON object")
         calls.append(ToolCall(name=function.name, arguments=arguments, call_id=call.id))
     return calls
-
-
-def map_error(exc: openai.OpenAIError) -> SwitchboardError:
-    """Map SDK exceptions to the core taxonomy from design.md section 15."""
-    status = getattr(exc, "status_code", None)
-    transient = isinstance(
-        exc,
-        (
-            openai.APITimeoutError,
-            openai.APIConnectionError,
-            openai.RateLimitError,
-            openai.InternalServerError,
-        ),
-    ) or (isinstance(status, int) and (status >= 500 or status in {408, 429}))
-    details: dict[str, Any] = {"status_code": status} if isinstance(status, int) else {}
-    body = getattr(exc, "body", None)
-    if body:
-        details["body"] = body
-    message = str(exc)
-    if body and str(body) not in message:
-        message = f"{message}: {body}"
-    if transient:
-        return ProviderTransientError(message, details=details)
-    return ProviderRequestError(message, details=details)
 
 
 class OpenAICompatibleProvider:

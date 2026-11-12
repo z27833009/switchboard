@@ -14,10 +14,10 @@ import openai
 import pytest
 from openai.types.chat import ChatCompletion
 
+from switchboard.adapters._openai_errors import map_error
 from switchboard.adapters.providers.openai_compat import (
     STRUCTURED_TOOL_NAME,
     OpenAICompatibleProvider,
-    map_error,
     parse_json_object,
 )
 from switchboard.core.config import ProviderConfig

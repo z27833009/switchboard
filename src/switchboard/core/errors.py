@@ -79,6 +79,10 @@ class ConfigError(SwitchboardError):
     retryable = False
 
 
+class FixtureMissError(SwitchboardError):
+    retryable = False
+
+
 class RegistryError(SwitchboardError):
     retryable = False
 

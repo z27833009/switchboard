@@ -1,0 +1,35 @@
+{
+  "key": "67331fa14766a899ae278157db743c9a71323575e2a04826f8aa86c5f02f8aed",
+  "purpose": "demo",
+  "model": "qwen3-8b",
+  "request": {
+    "purpose": "demo",
+    "model": "qwen3-8b",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Reply with the single word OK.",
+        "name": null,
+        "tool_call_id": null,
+        "tool_calls": []
+      }
+    ],
+    "tools": [],
+    "response_schema": null
+  },
+  "response": {
+    "text": "OK.",
+    "reasoning": null,
+    "tool_calls": [],
+    "parsed": null,
+    "structured_output_strategy": null,
+    "usage": {
+      "input_tokens": 19,
+      "cached_input_tokens": 0,
+      "output_tokens": 3
+    },
+    "model": "qwen3-8b",
+    "provider": "lmstudio",
+    "latency_ms": 3043
+  }
+}

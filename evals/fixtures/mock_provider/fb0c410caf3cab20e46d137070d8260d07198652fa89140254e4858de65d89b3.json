@@ -1,0 +1,70 @@
+{
+  "key": "fb0c410caf3cab20e46d137070d8260d07198652fa89140254e4858de65d89b3",
+  "purpose": "routing",
+  "model": "qwen3-8b",
+  "request": {
+    "purpose": "routing",
+    "model": "qwen3-8b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are the routing supervisor of Switchboard. Choose the agents that can answer the question. direct: small talk only. docs: shop policies. data: the orders database. Return agents and a one-sentence reason.",
+        "name": null,
+        "tool_call_id": null,
+        "tool_calls": []
+      },
+      {
+        "role": "user",
+        "content": "How many orders were delivered late in March 2018?",
+        "name": null,
+        "tool_call_id": null,
+        "tool_calls": []
+      }
+    ],
+    "tools": [],
+    "response_schema": {
+      "type": "object",
+      "properties": {
+        "agents": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "docs",
+              "data"
+            ]
+          },
+          "minItems": 1
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "agents",
+        "reason"
+      ]
+    }
+  },
+  "response": {
+    "text": null,
+    "reasoning": null,
+    "tool_calls": [],
+    "parsed": {
+      "agents": [
+        "data"
+      ],
+      "reason": "The question requires accessing the orders database to determine the number of late deliveries in March 2018."
+    },
+    "structured_output_strategy": "tool_call",
+    "usage": {
+      "input_tokens": 250,
+      "cached_input_tokens": 0,
+      "output_tokens": 49
+    },
+    "model": "qwen3-8b",
+    "provider": "lmstudio",
+    "latency_ms": 1641
+  }
+}

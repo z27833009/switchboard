@@ -505,6 +505,7 @@ providers:
     capabilities: {tools: true, json_schema: true, streaming: true, reasoning: false, context_window: 65536}
   mock:
     adapter: mock
+    model: ${LMSTUDIO_MODEL}
     fixtures: evals/fixtures/mock_provider
 embedders:
   lmstudio:
@@ -874,6 +875,7 @@ Error taxonomy in `core/errors.py`:
 | `BudgetExceeded` | no | agent | orchestrator finishes with partial answer |
 | `CheckFailed` | once (retry or re-plan) | gate | orchestrator corrective action (6.8) |
 | `RunTimeout` | no | orchestrator | run status `timeout` |
+| `FixtureMissError` | no | mock provider | eval harness asks for a re-record |
 
 Every error becomes an `ErrorRecord` in the run state and a span event, so the trace shows what went wrong even when the run ends with an answer.
 

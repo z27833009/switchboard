@@ -32,6 +32,11 @@ switchboard = "switchboard.cli:app"
 
 [project.entry-points."switchboard.providers"]
 openai_compatible = "switchboard.adapters.providers.openai_compat:OpenAICompatibleProvider"
+mock = "switchboard.adapters.providers.mock:MockProvider"
+
+[project.entry-points."switchboard.embedders"]
+openai_compatible = "switchboard.adapters.embedders.openai_compat:OpenAICompatibleEmbedder"
+mock = "switchboard.adapters.embedders.mock:MockEmbedder"
 
 [dependency-groups]
 dev = [
