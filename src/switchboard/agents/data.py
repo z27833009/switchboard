@@ -30,6 +30,7 @@ from switchboard.core.models import (
     Usage,
 )
 from switchboard.core.ports import AgentDeps, ToolSource
+from switchboard.core.pricing import add_cost
 
 
 class DataAgent(BaseAgent):
@@ -66,11 +67,13 @@ class DataAgent(BaseAgent):
         evidence: list[EvidenceRef] = []
         records: list[ToolCallRecord] = []
         usage = Usage(input_tokens=0, output_tokens=0)
+        cost: float | None = None
         last_text = ""
 
         for _ in range(task.budget.max_tool_steps + 1):
             response = await self.complete(messages, deps, task, tools)
             usage = usage.plus(response.usage)
+            cost = add_cost(cost, response.cost_usd)
             last_text = response.text or last_text
 
             if not response.tool_calls:
@@ -81,6 +84,7 @@ class DataAgent(BaseAgent):
                     tool_calls=records,
                     evidence=evidence,
                     usage=usage,
+                    cost_usd=cost,
                     partial=not evidence and bool(answer),
                 )
 
@@ -208,6 +212,7 @@ class DataAgent(BaseAgent):
                 "tool_calls": records,
                 "evidence": evidence,
                 "usage": usage,
+                "cost_usd": cost,
                 "citations": registry.parse(last_text),
             }
         )

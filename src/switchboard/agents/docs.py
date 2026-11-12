@@ -18,6 +18,7 @@ from switchboard.core.models import (
     RetrievedChunk,
 )
 from switchboard.core.ports import AgentDeps
+from switchboard.core.pricing import add_cost
 
 TOP_K = 5
 SNIPPET_CHARS = 240
@@ -107,10 +108,12 @@ class DocsAgent(BaseAgent):
         # The rewrite calls run on the same provider, so their tokens belong to
         # the run's accounting as well (AC-19a).
         usage = response.usage.plus(run.usage)
+        cost = add_cost(response.cost_usd, run.cost_usd)
         return AgentResult(
             answer=answer,
             citations=citations,
             evidence=evidence,
             usage=usage,
+            cost_usd=cost,
             partial=not citations,
         )

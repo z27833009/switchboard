@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from typer.testing import CliRunner
+from typer.testing import CliRunner, Result
 
 from switchboard.cli import app
 
@@ -22,7 +22,20 @@ def write_config(directory: Path) -> None:
                 "adapter": "mock",
                 "model": "qwen3-8b",
                 "fixtures": FIXTURES.as_posix(),
-            }
+            },
+            "deepseek": {
+                "adapter": "openai_compatible",
+                "base_url": "https://api.deepseek.com/v1",
+                "api_key": "",
+                "model": "deepseek-flash",
+                "capabilities": {
+                    "tools": True,
+                    "json_schema": False,
+                    "streaming": True,
+                    "reasoning": True,
+                    "context_window": 1000000,
+                },
+            },
         },
         "embedders": {"mock": {"adapter": "mock", "dimension": 1024}},
     }
@@ -49,6 +62,7 @@ def write_config(directory: Path) -> None:
         "cache": "none",
         "embedder": "mock",
         "tracing": {"exporter": "none"},
+        "cost_cap_usd": 5.0,
         "limits": {"max_plan_size": 3},
     }
     prices = {
@@ -61,7 +75,15 @@ def write_config(directory: Path) -> None:
                 "cached_input_per_million": 0.0,
                 "output_per_million": 0.0,
                 "note": "no API cost",
-            }
+            },
+            {
+                "provider": "deepseek",
+                "model": "deepseek-flash",
+                "input_per_million": 0.30,
+                "cached_input_per_million": 0.006,
+                "output_per_million": 1.20,
+                "source": "https://api-docs.deepseek.com/quick_start/pricing",
+            },
         ],
     }
     for name, payload in (
@@ -172,3 +194,72 @@ def test_cli_gate_suite_writes_a_deterministic_report(
     assert report["deterministic"] is True
     assert report["case_count"] == 1
     assert "numbers_grounded_precision" in report["metrics"]
+
+
+def invoke_deepseek(
+    tmp_path: Path,
+    *extra: str,
+) -> Result:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(exist_ok=True)
+    write_config(config_dir)
+    return CliRunner().invoke(
+        app,
+        [
+            "eval",
+            "run",
+            "--suite",
+            "routing",
+            "--provider",
+            "deepseek",
+            "--config-dir",
+            str(config_dir),
+            "--dataset-dir",
+            str(REPO_ROOT / "evals" / "datasets"),
+            "--manifest",
+            str(REPO_ROOT / "mcp_servers" / "olist" / "manifest.yaml"),
+            "--output-dir",
+            str(tmp_path / "reports"),
+            "--limit",
+            "1",
+            *extra,
+        ],
+    )
+
+
+def test_a_paid_run_prints_the_estimate_and_refuses_without_confirmation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(REPO_ROOT)
+    result = invoke_deepseek(tmp_path)
+
+    assert result.exit_code == 1
+    assert "cost estimate: provider deepseek" in result.output
+    assert "1 case," in result.output
+    assert "model deepseek-flash" in result.output
+    assert "estimated 0.002400 USD" in result.output
+    assert "--confirm-cost" in result.output
+    assert "needs an api_key" not in result.output
+
+
+def test_an_estimate_above_the_cap_is_refused_even_with_confirmation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(REPO_ROOT)
+    result = invoke_deepseek(tmp_path, "--confirm-cost", "--cost-cap-usd", "0.000001")
+
+    assert result.exit_code == 1
+    assert "exceeds cost_cap_usd" in result.output
+    assert "needs an api_key" not in result.output
+
+
+def test_confirmation_proceeds_to_provider_creation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(REPO_ROOT)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    result = invoke_deepseek(tmp_path, "--confirm-cost")
+
+    assert result.exit_code == 1
+    assert "needs an api_key" in result.output
+    assert "cost estimate" in result.output

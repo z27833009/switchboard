@@ -6,6 +6,7 @@ from collections.abc import Iterable, Mapping
 
 from switchboard.agents.base import zero_usage
 from switchboard.core.models import AgentResult, Usage
+from switchboard.core.pricing import add_cost
 
 
 class MergeAgent:
@@ -35,6 +36,7 @@ class MergeAgent:
         tool_calls = []
         evidence = []
         usage = Usage(input_tokens=0, output_tokens=0)
+        cost: float | None = None
         partial = False
         for name in sorted(results):
             result = results[name]
@@ -44,6 +46,7 @@ class MergeAgent:
             tool_calls.extend(result.tool_calls)
             evidence.extend(result.evidence)
             usage = usage.plus(result.usage)
+            cost = add_cost(cost, result.cost_usd)
             partial = partial or result.partial
         if missing_list:
             parts.append(
@@ -56,5 +59,6 @@ class MergeAgent:
             tool_calls=tool_calls,
             evidence=evidence,
             usage=usage,
+            cost_usd=cost,
             partial=partial,
         )

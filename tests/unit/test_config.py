@@ -1,14 +1,29 @@
 """YAML loading, ${VAR} substitution and tenant resolution."""
 
 import textwrap
+from datetime import date
 from pathlib import Path
 
 import pytest
 
 from switchboard.config import load_settings
-from switchboard.core.config import substitute_env, tenant_context
+from switchboard.core.config import (
+    EmbedderConfig,
+    PlatformConfig,
+    PriceEntry,
+    PricesConfig,
+    ProviderConfig,
+    ProvidersConfig,
+    Settings,
+    TenantAgentSettings,
+    TenantConfig,
+    TenantsConfig,
+    TenantToolSettings,
+    substitute_env,
+    tenant_context,
+)
 from switchboard.core.errors import ConfigError
-from switchboard.core.models import RetrievalSettings
+from switchboard.core.models import ProviderCapabilities, RetrievalSettings
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -102,6 +117,12 @@ def test_substitute_env_walks_nested_values() -> None:
 def test_missing_environment_variable_is_named() -> None:
     with pytest.raises(ConfigError, match="MISSING_VAR"):
         substitute_env("${MISSING_VAR}", ENV)
+
+
+def test_env_default_is_used_only_when_the_variable_is_unset() -> None:
+    assert substitute_env("${MISSING_VAR:-}", {}) == ""
+    assert substitute_env("${MISSING_VAR:-fallback}", {}) == "fallback"
+    assert substitute_env("${BASE_URL:-fallback}", ENV) == ENV["BASE_URL"]
 
 
 def test_load_settings_substitutes_and_validates(tmp_path: Path) -> None:
@@ -212,6 +233,15 @@ def test_committed_config_files_load() -> None:
     deepseek = settings.prices.lookup("deepseek", "deepseek-flash")
     assert deepseek is not None
     assert deepseek.source == "https://api-docs.deepseek.com/quick_start/pricing"
+    deepseek_config = settings.providers.providers["deepseek"]
+    assert deepseek_config.base_url == "https://api.deepseek.com/v1"
+    assert deepseek_config.model == "deepseek-flash"
+    assert deepseek_config.api_key == ""
+    assert deepseek_config.capabilities is not None
+    assert deepseek_config.capabilities.json_schema is False
+    assert deepseek_config.capabilities.reasoning is True
+    assert deepseek_config.capabilities.context_window == 1_000_000
+    assert settings.platform.cost_cap_usd == 5.0
     assert settings.prices.lookup("mock") is None
     assert set(settings.tenants.tenants) == {"default", "seller_a"}
     assert settings.tenants.tenants["seller_a"].seller_ids == ["955fee9216a65b617aa5c0531780ce60"]
@@ -272,3 +302,98 @@ def test_retrieval_settings_default_to_the_phase_one_path() -> None:
 def test_unknown_retrieval_search_mode_is_rejected() -> None:
     with pytest.raises(ValueError, match="search"):
         RetrievalSettings(search="bm25")  # type: ignore[arg-type]
+
+
+CAPABILITIES = ProviderCapabilities(
+    tools=True,
+    json_schema=False,
+    streaming=True,
+    reasoning=False,
+    context_window=8192,
+)
+
+
+def settings_with_fallback(
+    *,
+    fallback: str = "local",
+    nested: bool = False,
+    with_price: bool = True,
+) -> Settings:
+    local = ProviderConfig(
+        adapter="openai_compatible",
+        base_url="http://test.invalid/v1",
+        api_key="local",
+        model="local-model",
+        capabilities=CAPABILITIES,
+        fallback_provider="paid" if nested else None,
+    )
+    paid = ProviderConfig(
+        adapter="openai_compatible",
+        base_url="https://paid.invalid/v1",
+        api_key="paid",
+        model="paid-model",
+        capabilities=CAPABILITIES,
+        fallback_provider=fallback,
+    )
+    entries = [
+        PriceEntry(
+            provider="local",
+            model="local-model",
+            input_per_million=0.0,
+            cached_input_per_million=0.0,
+            output_per_million=0.0,
+        ),
+        PriceEntry(
+            provider="paid",
+            model="paid-model",
+            input_per_million=1.0,
+            cached_input_per_million=0.1,
+            output_per_million=2.0,
+            source="https://paid.invalid/prices",
+        ),
+    ]
+    if not with_price:
+        entries = entries[:1]
+    return Settings(
+        platform=PlatformConfig(
+            orchestrator="langgraph",
+            retriever="pgvector",
+            cache="none",
+            embedder="local",
+        ),
+        providers=ProvidersConfig(
+            providers={"local": local, "paid": paid},
+            embedders={"local": EmbedderConfig(adapter="mock", dimension=8)},
+        ),
+        tenants=TenantsConfig(
+            tenants={
+                "default": TenantConfig(
+                    provider="paid",
+                    agents=TenantAgentSettings(allow=["direct"]),
+                    tools=TenantToolSettings(allow=[]),
+                )
+            }
+        ),
+        prices=PricesConfig(verified_on=date(2026, 11, 12), entries=entries),
+    )
+
+
+def test_a_provider_fallback_is_validated_and_needs_both_price_rows() -> None:
+    settings = settings_with_fallback()
+    assert settings.providers.providers["paid"].fallback_provider == "local"
+
+    with pytest.raises(ValueError, match="unknown fallback"):
+        settings_with_fallback(fallback="ghost")
+    with pytest.raises(ValueError, match="cannot use itself"):
+        settings_with_fallback(fallback="paid")
+    with pytest.raises(ValueError, match="only one fallback level"):
+        settings_with_fallback(nested=True)
+    with pytest.raises(ValueError, match="needs a price entry"):
+        settings_with_fallback(with_price=False)
+
+
+def test_a_retry_budget_needs_one_backoff_value_per_attempt() -> None:
+    with pytest.raises(ValueError, match="retry_backoff_s"):
+        ProviderConfig(adapter="mock", retry_attempts=3, retry_backoff_s=[1.0])
+    with pytest.raises(ValueError, match="zero or positive"):
+        ProviderConfig(adapter="mock", retry_attempts=1, retry_backoff_s=[-1.0])

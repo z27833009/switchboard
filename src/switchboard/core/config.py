@@ -23,7 +23,10 @@ from switchboard.core.models import (
     TenantContext,
 )
 
-ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+# ``${VAR}`` is required, ``${VAR:-default}`` falls back to the default (which
+# may be empty) when the variable is unset. The default form exists for a key
+# that a local-only setup does not need, so the config can load without it.
+ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 # A tool wire name is ``name@major`` (design.md section 7.2), so a missing or
 # misspelled version is caught at startup instead of turning into a denied call
 # at run time.
@@ -33,17 +36,22 @@ WIRE_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*@[1-9][0-9]*$")
 def substitute_env(value: Any, env: Mapping[str, str]) -> Any:
     """Replace every ``${VAR}`` in strings, recursively.
 
-    A missing variable is an error rather than an empty string: a silently
-    empty API key or base URL is harder to diagnose than a refused start.
+    A missing variable without a default is an error rather than an empty
+    string: a silently empty API key or base URL is harder to diagnose than a
+    refused start. ``${VAR:-default}`` (including an empty default) is the
+    explicit opt-in for a value that may be absent.
     """
 
     if isinstance(value, str):
 
         def replace(match: re.Match[str]) -> str:
             name = match.group(1)
-            if name not in env:
-                raise ConfigError(f"environment variable {name} is not set")
-            return env[name]
+            default = match.group(2)
+            if name in env:
+                return env[name]
+            if default is not None:
+                return default
+            raise ConfigError(f"environment variable {name} is not set")
 
         return ENV_PATTERN.sub(replace, value)
     if isinstance(value, dict):
@@ -95,6 +103,10 @@ class PlatformConfig(BaseModel):
     embedder: str
     context_policy: str = "clear_oldest_tool_results"
     tracing: TracingSettings = Field(default_factory=TracingSettings)
+    # Hard ceiling for one eval run against a paid provider (design.md section
+    # 20.2). The CLI refuses an estimate above it even with --confirm-cost; a
+    # one-off run may lower or raise it with --cost-cap-usd.
+    cost_cap_usd: float = Field(default=5.0, ge=0.0)
     limits: Limits = Field(default_factory=Limits)
 
 
@@ -109,6 +121,39 @@ class ProviderConfig(BaseModel):
     fixtures: str | None = None
     timeout_s: float = Field(default=120.0, gt=0)
     extra_body: dict[str, Any] = Field(default_factory=dict)
+    # A provider may name one fallback provider (design.md section 8.4). The
+    # factory wraps the pair in a decorator, so agents and the orchestrator see
+    # a single ModelProvider. The fallback is used only after the primary's
+    # retry budget is exhausted on a transient error.
+    fallback_provider: str | None = None
+    retry_attempts: int = Field(default=2, ge=0)
+    retry_backoff_s: list[float] = Field(default_factory=lambda: [1.0, 3.0])
+
+    @field_validator("fallback_provider")
+    @classmethod
+    def _check_fallback_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("fallback_provider must be a provider name or null")
+        return cleaned
+
+    @field_validator("retry_backoff_s")
+    @classmethod
+    def _check_backoff(cls, values: list[float]) -> list[float]:
+        if any(value < 0 for value in values):
+            raise ValueError("retry_backoff_s values must be zero or positive")
+        return values
+
+    @model_validator(mode="after")
+    def _check_retry_budget(self) -> Self:
+        if len(self.retry_backoff_s) < self.retry_attempts:
+            raise ValueError(
+                "retry_backoff_s needs at least one value per retry attempt "
+                f"({self.retry_attempts} attempts, {len(self.retry_backoff_s)} values)"
+            )
+        return self
 
 
 class EmbedderConfig(BaseModel):
@@ -308,6 +353,31 @@ class Settings(BaseModel):
         for tenant_id, tenant in self.tenants.tenants.items():
             if tenant.provider not in provider_names:
                 raise ValueError(f"tenant {tenant_id!r} uses unknown provider {tenant.provider!r}")
+        for name, provider in self.providers.providers.items():
+            fallback_name = provider.fallback_provider
+            if fallback_name is None:
+                continue
+            if fallback_name == name:
+                raise ValueError(f"provider {name!r} cannot use itself as a fallback")
+            if fallback_name not in provider_names:
+                raise ValueError(
+                    f"provider {name!r} names unknown fallback provider {fallback_name!r}"
+                )
+            fallback = self.providers.providers[fallback_name]
+            if fallback.fallback_provider is not None:
+                raise ValueError(
+                    f"provider {name!r} fallback {fallback_name!r} declares its own "
+                    "fallback; only one fallback level is supported"
+                )
+            # A mixed run must still be costed exactly, so both rows are
+            # required before the decorator may be built (design.md 12.4).
+            if self.prices.lookup(name, provider.model) is None:
+                raise ValueError(f"provider {name!r} with a fallback needs a price entry")
+            if self.prices.lookup(fallback_name, fallback.model) is None:
+                raise ValueError(
+                    f"fallback provider {fallback_name!r} needs a price entry "
+                    f"before it can absorb a run from {name!r}"
+                )
         if len(set(self.platform.limits.fallback_plan)) != len(self.platform.limits.fallback_plan):
             raise ValueError("fallback_plan contains duplicates")
         return self

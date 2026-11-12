@@ -108,6 +108,10 @@ class CompletionResponse(BaseModel):
     model: str
     provider: str
     latency_ms: int = Field(ge=0)
+    # USD cost of this call from the provider's price row, summed over repair
+    # attempts. None means the provider has no price entry; the orchestrator
+    # can then fall back to its configured row (design.md 12.4).
+    cost_usd: float | None = Field(default=None, ge=0)
 
 
 class ToolResultView(BaseModel):
@@ -249,6 +253,9 @@ class AgentResult(BaseModel):
     tool_calls: list[ToolCallRecord] = Field(default_factory=list)
     evidence: list[EvidenceRef] = Field(default_factory=list)
     usage: Usage
+    # Sum of the per-call costs this agent's provider responses reported; None
+    # when the provider has no price entry (design.md 12.4).
+    cost_usd: float | None = Field(default=None, ge=0)
     partial: bool = False
 
 

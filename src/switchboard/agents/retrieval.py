@@ -33,6 +33,7 @@ from switchboard.core.models import (
     Usage,
 )
 from switchboard.core.ports import ModelProvider, Retriever
+from switchboard.core.pricing import add_cost
 
 RewriteMode = Literal["never", "always", "conditional"]
 SearchMode = Literal["vector", "hybrid"]
@@ -61,6 +62,7 @@ class RetrievalRun:
     rewrite_rounds: int = 0
     retrieval_rounds: int = 0
     usage: Usage = field(default_factory=lambda: Usage(input_tokens=0, output_tokens=0))
+    cost_usd: float | None = None
     rewrite_error: str | None = None
 
     @property
@@ -105,7 +107,7 @@ async def _rewrite(
     history: list[Turn],
     ctx: RunContext,
     retry: bool,
-) -> tuple[str, Usage]:
+) -> tuple[str, Usage, float | None]:
     request = CompletionRequest(
         messages=[
             Message(role="system", content=REWRITE_SYSTEM),
@@ -124,7 +126,7 @@ async def _rewrite(
     cleaned = clean_rewrite(response.text)
     if not cleaned:
         raise ValueError("the rewrite returned no usable query")
-    return cleaned, response.usage
+    return cleaned, response.usage, response.cost_usd
 
 
 async def retrieve_with_strategy(
@@ -140,6 +142,7 @@ async def retrieve_with_strategy(
     """Retrieve once or twice, rewriting only when the strategy says so."""
     turns = list(history or [])
     usage = Usage(input_tokens=0, output_tokens=0)
+    cost: float | None = None
     queries: list[str] = []
     rewritten_queries: list[str] = []
     rewrite_rounds = 0
@@ -150,7 +153,7 @@ async def retrieve_with_strategy(
     rewrite_first = strategy.rewrite_mode == "always" and not turns
     if contextualize or rewrite_first:
         try:
-            current, spent = await _rewrite(
+            current, spent, spent_cost = await _rewrite(
                 provider,
                 query=current,
                 history=turns,
@@ -163,6 +166,7 @@ async def retrieve_with_strategy(
             rewrite_error = f"{type(exc).__name__}: {exc}"
         else:
             usage = usage.plus(spent)
+            cost = add_cost(cost, spent_cost)
             rewrite_rounds += 1
             rewritten_queries.append(current)
 
@@ -177,7 +181,7 @@ async def retrieve_with_strategy(
         and max((chunk.score for chunk in chunks), default=0.0) < ctx.tenant.retrieval.min_score
     ):
         try:
-            rewritten, spent = await _rewrite(
+            rewritten, spent, spent_cost = await _rewrite(
                 provider,
                 query=query,
                 history=turns,
@@ -190,6 +194,7 @@ async def retrieve_with_strategy(
             rewrite_error = f"{type(exc).__name__}: {exc}"
         else:
             usage = usage.plus(spent)
+            cost = add_cost(cost, spent_cost)
             rewrite_rounds += 1
             rewritten_queries.append(rewritten)
             if rewritten != current:
@@ -206,6 +211,7 @@ async def retrieve_with_strategy(
         rewrite_rounds=rewrite_rounds,
         retrieval_rounds=retrieval_rounds,
         usage=usage,
+        cost_usd=cost,
         rewrite_error=rewrite_error,
     )
 

@@ -32,7 +32,7 @@ from switchboard.core.models import (
     Usage,
 )
 from switchboard.core.ports import Agent, AgentDeps, ContextPolicy, Embedder, ModelProvider
-from switchboard.core.pricing import compute_cost
+from switchboard.core.pricing import add_cost, compute_cost
 from switchboard.core.validation import validate_plan
 from switchboard.gate import evaluate_gate
 from switchboard.registry import Registry
@@ -79,9 +79,14 @@ class RunState(TypedDict, total=False):
     feedback: str | None
     errors: Annotated[list[ErrorRecord], add_errors]
     supervisor_usage: Annotated[Usage, add_usage]
+    # Per-call costs the providers reported, summed the same way as usage. A
+    # run that used a fallback provider stays exact because each call carries
+    # its own price (design.md 12.4).
+    supervisor_cost: Annotated[float | None, add_cost]
     # Every agent invocation, including a first attempt that the gate rejected.
     # The cost of those calls is real, so the run total must include them.
     spent_usage: Annotated[Usage, add_usage]
+    spent_cost: Annotated[float | None, add_cost]
     cache_hit: bool
     result: RunResult | None
 
@@ -249,6 +254,7 @@ class LangGraphOrchestrator:
             )
         errors: list[ErrorRecord] = []
         usage = zero_usage()
+        cost: float | None = None
 
         for attempt in range(2):
             response = await self._provider.complete(
@@ -264,6 +270,7 @@ class LangGraphOrchestrator:
                 )
             )
             usage = usage.plus(response.usage)
+            cost = add_cost(cost, response.cost_usd)
             try:
                 decision = RoutingDecision.model_validate(response.parsed or {})
                 validate_plan(
@@ -312,11 +319,13 @@ class LangGraphOrchestrator:
                 return {
                     "plan": fallback,
                     "supervisor_usage": usage,
+                    "supervisor_cost": cost,
                     "errors": errors,
                 }
             return {
                 "plan": decision,
                 "supervisor_usage": usage,
+                "supervisor_cost": cost,
                 "errors": errors,
             }
         raise PlanValidationError(["supervisor returned no plan"])
@@ -427,6 +436,7 @@ class LangGraphOrchestrator:
             return {
                 "results": {name: result},
                 "spent_usage": result.usage,
+                "spent_cost": result.cost_usd,
                 "errors": [
                     ErrorRecord(
                         kind=type(exc).__name__,
@@ -445,6 +455,7 @@ class LangGraphOrchestrator:
             return {
                 "results": {name: result},
                 "spent_usage": result.usage,
+                "spent_cost": result.cost_usd,
                 "errors": [
                     ErrorRecord(
                         kind=type(exc).__name__,
@@ -453,7 +464,11 @@ class LangGraphOrchestrator:
                     )
                 ],
             }
-        return {"results": {name: result}, "spent_usage": result.usage}
+        return {
+            "results": {name: result},
+            "spent_usage": result.usage,
+            "spent_cost": result.cost_usd,
+        }
 
     def _merge(self, state: RunState) -> dict[str, Any]:
         plan = state.get("plan")
@@ -576,6 +591,12 @@ class LangGraphOrchestrator:
         usage = state.get("supervisor_usage", zero_usage()).plus(
             state.get("spent_usage", zero_usage())
         )
+        # Exact per-call sum when the providers report costs (a fallback run can
+        # mix two price rows). The orchestrator still accepts one price row for
+        # callers that provide usage only, such as tests and older adapters.
+        cost = add_cost(state.get("supervisor_cost"), state.get("spent_cost"))
+        if cost is None and self._price is not None:
+            cost = compute_cost(usage, self._price)
         status: RunStatus = "ok"
         if answer is None or answer.partial:
             status = "partial"
@@ -603,11 +624,10 @@ class LangGraphOrchestrator:
                 answer=answer,
                 status=status,
                 usage=usage,
-                # One price row covers every call of a v1 run, because a run
-                # uses one provider. The total is computed from the summed
-                # usage so cached and uncached input keep their own rates
+                # Per-call sum when available; one price row covers a legacy
+                # single-provider run whose responses carry no cost
                 # (design 12.4).
-                cost_usd=compute_cost(usage, self._price) if self._price is not None else None,
+                cost_usd=cost,
                 cache_hit=state.get("cache_hit", False),
                 attempts=state.get("attempts", 0),
                 gate=verdict,
@@ -661,6 +681,8 @@ class LangGraphOrchestrator:
             "errors": [],
             "supervisor_usage": zero_usage(),
             "spent_usage": zero_usage(),
+            "supervisor_cost": None,
+            "spent_cost": None,
             "cache_hit": False,
         }
         try:

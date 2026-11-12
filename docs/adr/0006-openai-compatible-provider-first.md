@@ -11,11 +11,13 @@ Most providers cache identical prompt prefixes and bill cached input tokens at a
 ## Decision
 
 - The first `ModelProvider` adapter is `OpenAICompatibleProvider`, configured per provider with base URL, key, model name and declared capabilities. LM Studio is the Phase 1 default; DeepSeek is enabled in v1 for comparison runs.
+- The DeepSeek entry was verified on 2026-11-12 against its price page and chat-completions reference: `deepseek-flash` and `deepseek-v4-pro`, 1M context, tools and streaming supported, thinking on by default, and `response_format` limited to `json_object` rather than a JSON schema. The capability block therefore declares `json_schema: false`, and `extra_body: {reasoning_effort: none}` keeps the forced tool-call strategy valid (named or required tool choice is rejected in thinking mode).
 - Capabilities (tools, JSON schema output, streaming, reasoning, context window) are declared in config, not probed, because small local models accept parameters they then ignore.
 - Structured output uses the best strategy the declared capabilities allow (native JSON schema, forced tool call, or prompted JSON with one repair).
 - Usage is normalized to input, cached input and output tokens, reading cached tokens from whichever field the provider returns and defaulting to zero.
 - Prompt builders follow a fixed layout: static system prompt, sorted tool definitions and static instructions first; tenant facts, history, query and evidence last. A unit test asserts byte-identical prefixes across different queries (design 8.5).
 - A `MockProvider` replays recorded fixtures for CI.
+- A provider may name one `fallback_provider`. A `FallbackProvider` decorator retries transient transport failures within the configured budget and then calls the fallback; non-retryable request errors fail fast. Agents and the orchestrator see one `ModelProvider` (design 8.4).
 
 ## Alternatives
 

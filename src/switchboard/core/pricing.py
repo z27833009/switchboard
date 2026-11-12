@@ -65,9 +65,24 @@ def cost_usd(
     return compute_cost(usage, price)
 
 
+def add_cost(left: float | None, right: float | None) -> float | None:
+    """Add two per-call costs, keeping None as "no priced call recorded".
+
+    A run that mixes providers is costed by summing the per-call figures the
+    adapters report (design.md 12.4). None does not mean zero, so it never
+    erases a known cost; an unpriced-only sequence stays None.
+    """
+    if left is None:
+        return right
+    if right is None:
+        return left
+    return round(left + right, COST_DECIMALS)
+
+
 __all__ = [
     "COST_DECIMALS",
     "TOKENS_PER_MILLION",
+    "add_cost",
     "compute_cost",
     "cost_usd",
     "lookup_price",

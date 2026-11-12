@@ -16,6 +16,34 @@ providers:
     adapter: mock
     model: ${LMSTUDIO_MODEL}
     fixtures: evals/fixtures/mock_provider
+  # DeepSeek's OpenAI-compatible API. Values verified on 2026-11-12 against
+  # https://api-docs.deepseek.com/quick_start/pricing and
+  # https://api-docs.deepseek.com/api/create-chat-completion: both listed
+  # models accept tools and streaming, the context window is 1M and thinking
+  # is on by default. `json_schema` is false because the API accepts
+  # response_format `json_object`, not a JSON schema, so the adapter uses the
+  # forced tool-call strategy. `reasoning_effort: none` keeps plans and data
+  # calls non-thinking (design 8.3); `tool_choice: "required"` is rejected in
+  # thinking mode. The key may be absent for a local-only setup: the config
+  # still loads, and building this provider without a key fails at startup.
+  deepseek:
+    adapter: openai_compatible
+    base_url: https://api.deepseek.com/v1
+    api_key: ${DEEPSEEK_API_KEY:-}
+    model: deepseek-flash
+    capabilities:
+      tools: true
+      json_schema: false
+      streaming: true
+      reasoning: true
+      context_window: 1000000
+    extra_body:
+      reasoning_effort: none
+    # Retry and fallback policy (design 6.6 and 8.4). The retry budget is only
+    # used by the fallback decorator, so leaving `fallback_provider` unset also
+    # leaves transient errors unretried here. A comparison run must not
+    # silently score a second provider, so the demo config sets none. Example:
+    #   fallback_provider: lmstudio
 embedders:
   lmstudio:
     adapter: openai_compatible

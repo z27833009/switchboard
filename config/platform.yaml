@@ -12,6 +12,9 @@ embedder: lmstudio
 context_policy: clear_oldest_tool_results
 tracing:
   exporter: postgres
+# One eval run against a paid provider must estimate at or below this (USD) and
+# carry --confirm-cost; see design 20.2.
+cost_cap_usd: 5.0
 limits:
   run_timeout_s: 60
   max_tool_steps: 4

@@ -154,6 +154,7 @@ class CompletionResponse(BaseModel):
     model: str
     provider: str
     latency_ms: int
+    cost_usd: float | None = None   # per call from the price row (12.4)
 
 class ToolSpec(BaseModel):
     name: str
@@ -192,6 +193,7 @@ class AgentResult(BaseModel):
     tool_calls: list[ToolCallRecord]
     evidence: list[EvidenceRef]  # ids of chunks and tool results the agent saw, for the gate
     usage: Usage
+    cost_usd: float | None = None   # sum of this agent's calls (12.4)
     partial: bool = False      # set when evidence was missing or a branch failed
 
 class EvidenceRef(BaseModel):
@@ -525,9 +527,10 @@ providers:
   deepseek:
     adapter: openai_compatible
     base_url: https://api.deepseek.com/v1
-    api_key: ${DEEPSEEK_API_KEY}
-    model: deepseek-chat
-    capabilities: {tools: true, json_schema: true, streaming: true, reasoning: false, context_window: 65536}
+    api_key: ${DEEPSEEK_API_KEY:-}
+    model: deepseek-flash
+    capabilities: {tools: true, json_schema: false, streaming: true, reasoning: true, context_window: 1000000}
+    extra_body: {reasoning_effort: none}   # thinking is on by default; plans stay non-thinking
   mock:
     adapter: mock
     model: ${LMSTUDIO_MODEL}
@@ -544,6 +547,8 @@ embedders:
 ```
 
 Prices live in `config/prices.yaml` (12.4), not here.
+
+The DeepSeek rows were verified on 2026-11-12 against the provider's price page and chat-completions reference: `deepseek-flash` and `deepseek-v4-pro` accept tools and streaming, the context window is 1M, thinking is on by default, and `response_format` accepts `json_object` but not a JSON schema, so `json_schema` is false and the adapter uses the forced tool-call strategy. `reasoning_effort: none` keeps the model non-thinking, which the forced tool-call strategy needs because `tool_choice: "required"` is rejected in thinking mode. The key is written as `${DEEPSEEK_API_KEY:-}`: an unset key is an empty value, so all four config files still load for a local or mock run, and only building the `deepseek` provider (a tenant or an eval that selects it, and `--record` through it) fails, with a named `ConfigError`, before any request. A literal placeholder such as LM Studio's `lm-studio` is still written directly.
 
 **Phase 1 local models** (decided 2026-11-12, to be confirmed by the live smoke in T1.02). The development machine has an 8 GB laptop GPU and 32 GB RAM, and must hold a chat model and an embedding model at the same time.
 
@@ -574,7 +579,7 @@ Usage is normalized the same way: cached input tokens are read from whichever fi
 
 ### 8.4 Fallback and routing by policy (v1, v2)
 
-v1: a tenant may name a `fallback_provider`; it is used after the retry budget of the primary is exhausted. v2: a `ModelRouter` policy chooses a provider per call based on purpose (plans on a cheap fast model without reasoning, final answers on a stronger model, optionally with reasoning when `capabilities.reasoning` is true), with cost and latency ceilings from the tenant config. Both are implemented as a `ModelProvider` decorator so agents do not know about them.
+v1: a provider may name one `fallback_provider` in `providers.yaml`; it is used after the retry budget of the primary is exhausted. Provider level, not tenant level, because the provider object and the orchestrator that holds it are built once per provider name, so two tenants with the same provider cannot silently get different fallbacks. Only transient transport failures (timeout, connection error, 429 or 5xx) are retried (default twice, 1 s and 3 s); a non-retryable request error such as auth failure or malformed request fails fast and is never sent to the fallback. Both providers need a price row, so a run that used the fallback is still costed exactly (12.4). The eval runner builds the named provider without the fallback, so a comparison run cannot silently score a second provider. v2: a `ModelRouter` policy chooses a provider per call based on purpose (plans on a cheap fast model without reasoning, final answers on a stronger model, optionally with reasoning when `capabilities.reasoning` is true), with cost and latency ceilings from the tenant config. Both are implemented as a `ModelProvider` decorator so agents do not know about them.
 
 ### 8.5 Prompt layout for provider prefix caching
 
@@ -758,7 +763,7 @@ The author's `langgraph-visualizer` project can be attached as an optional devel
 
 The math is `core/pricing.py`, a pure module: `compute_cost(usage, entry)` bills `input_tokens - cached_input_tokens` at the input rate, `cached_input_tokens` at the cached rate and `output_tokens` at the output rate, per million tokens. It is the single implementation used by the provider adapter, the orchestrator and the report writer. A provider with no row yields `None`: the chat span omits `switchboard.cost_usd` rather than writing zero, and a run or report stores null cost. A local model such as LM Studio has an explicit zero row, so its span, run and report say 0.0 and the report labels it "no API cost" rather than "free".
 
-The provider adapter resolves its row once at construction (through `create_provider`) and writes the per-call cost on the `chat <model>` span. The orchestrator computes the run total once at finish from the summed usage, which is exact because a v1 run uses one provider. The summed usage counts every model call the run made, including a first attempt the gate rejected, a re-plan and the conditional retrieval rewrites, so a discarded attempt is still billed. If a run can later mix providers (the T2.07 fallback), the run total must move to summing the per-call costs; the span attribute stays the per-call record either way. The API persists the total in `runs.cost_usd` and records the tenant's configured provider in `runs.provider` so the number can be grouped.
+The provider adapter resolves its row once at construction (through `create_provider`) and writes the per-call cost on the `chat <model>` span and in `CompletionResponse.cost_usd`. Agents sum the responses they received into `AgentResult.cost_usd`, the orchestrator sums the supervisor call and every agent invocation (including a first attempt the gate rejected, a re-plan and the conditional retrieval rewrites), and the run total is that per-call sum. A run that uses the fallback provider therefore stays exact although it mixed two price rows; a call the provider could not price leaves None, and the orchestrator computes from the summed usage and its one price row only when no call reported a cost (older adapters and tests). The summed usage still counts every model call the run made, so a discarded attempt is visible in tokens even when its cost is zero. The API persists the total in `runs.cost_usd` and records the tenant's configured provider in `runs.provider` so the number can be grouped; a fallback call's own provider is on its chat span.
 
 `GET /runs?tenant_id=...&group_by=day|provider` groups the tenant's runs into UTC days or providers and returns, per bucket, the run count, input, cached input and output tokens, the summed `cost_usd` and `unpriced_runs`. The sum is null when no run in the bucket is priced, and `unpriced_runs` counts the null-cost rows, so an aggregate never passes an incomplete sum off as the full cost. Rows written before the `provider` column existed group as `unknown`. Without `group_by`, `GET /runs` keeps the run-list shape.
 
@@ -791,7 +796,7 @@ Phase 1 ships step events; answer token streaming (`answer.delta`) needs provide
 
 ### 13.2 Secrets
 
-API keys and `SWITCHBOARD_RUN_TOKEN_SECRET` come from environment variables through `.env` (git-ignored) with an `.env.example`. The compose file refuses to start the API or the tool server if the token secret is missing or shorter than 32 bytes. No secret or token is logged; the provider adapter redacts `Authorization` headers in debug logs. v2 moves cloud secrets to Azure Key Vault.
+API keys and `SWITCHBOARD_RUN_TOKEN_SECRET` come from environment variables through `.env` (git-ignored) with an `.env.example`. A key that a local-only setup does not need is written as `${VAR:-}`, so the config loads without it and only building that provider fails, with a named error, before a request (8.1). The compose file refuses to start the API or the tool server if the token secret is missing or shorter than 32 bytes. No secret or token is logged; the provider adapter redacts `Authorization` headers in debug logs. v2 moves cloud secrets to Azure Key Vault.
 
 ### 13.3 Audit
 
@@ -962,6 +967,7 @@ retriever: pgvector
 cache: none                      # v1: pg_semantic
 embedder: lmstudio
 context_policy: clear_oldest_tool_results
+cost_cap_usd: 5.0                # v1: eval run hard ceiling (20.2)
 tracing:
   exporter: postgres             # v1: postgres, otlp
 limits:
@@ -974,6 +980,8 @@ limits:
   context_fill: 0.7
   history_turns: 3               # v1
 ```
+
+A provider entry may also carry `fallback_provider`, `retry_attempts` (default 2) and `retry_backoff_s` (default `[1.0, 3.0]`); the schema requires one backoff value per retry and rejects a self reference, an unknown name, a second fallback level and a missing price row for either side (8.4, 12.4). Environment substitution supports `${VAR:-default}`, including an empty default, which is how a paid provider's key can be absent in a local-only setup.
 
 The registry resolves names through entry points declared in `pyproject.toml`:
 
@@ -1083,7 +1091,7 @@ Feedback (v1): `POST /runs/{id}/feedback` stores a rating and a note. `switchboa
 
 ### 20.2 Runner
 
-`switchboard eval run --suite <name> --provider <name> [--orchestrator <name>] [--limit n] [--record]` executes cases concurrently (bounded, default 4), applies a per-case timeout, times each case, collects usage including cached input tokens, scores, and writes `evals/reports/<suite>-<provider>.md` and `.json`. The JSON report carries the dataset version, split, orchestrator, provider, model, metrics, p50 and p95 latency, input, cached input and output tokens and one row per case. It also carries `cost_usd`, computed from the run's summed usage and the provider's price row, plus the row itself (`price`: rates, `verified_on`, `source`) and `no_api_cost` for a zero-price local provider; `cost_usd` and `price` are null when the provider has no row, and a mock replay has no row on purpose. A report is never backfilled: a report written before the price table keeps its null. A run with `--limit` is marked as a smoke run in both files. `--provider mock --record` records missing fixtures through the real provider named by the default tenant; a plain mock run replays them with no network. `--provider deepseek` prints the estimated cost from the price table and the case count and refuses to proceed without `--confirm-cost` or above the cap in `platform.yaml`.
+`switchboard eval run --suite <name> --provider <name> [--orchestrator <name>] [--limit n] [--record]` executes cases concurrently (bounded, default 4), applies a per-case timeout, times each case, collects usage including cached input tokens, scores, and writes `evals/reports/<suite>-<provider>.md` and `.json`. The JSON report carries the dataset version, split, orchestrator, provider, model, metrics, p50 and p95 latency, input, cached input and output tokens and one row per case. It also carries `cost_usd`, computed from the run's summed usage and the provider's price row, plus the row itself (`price`: rates, `verified_on`, `source`) and `no_api_cost` for a zero-price local provider; `cost_usd` and `price` are null when the provider has no row, and a mock replay has no row on purpose. A report is never backfilled: a report written before the price table keeps its null. A run with `--limit` is marked as a smoke run in both files. `--provider mock --record` records missing fixtures through the real provider named by the default tenant; a plain mock run replays them with no network. `--provider deepseek` prints the estimated cost from the price table and the case count and refuses to proceed without `--confirm-cost` or above the cap in `platform.yaml`. The estimate is deliberately conservative: 4,000 input and 1,000 output tokens per model call, no cached tokens (cached input is cheaper), one call per routing and toolcall case and six per rag case (four strategies plus up to two rewrites). It is a planning figure, not a measurement: the report records the provider's usage. The cap is `platform.cost_cap_usd` (default 5.0 USD) and `--cost-cap-usd` overrides it for one run; a refusal exits non-zero before the provider is built, so it needs no key and makes no network call. A provider with an explicit zero row (LM Studio) prints 0 and needs no confirmation; a mock replay is exempt; a non-mock provider with no price row is refused, because its run cannot be estimated.
 
 Suites receive `EvalDeps(provider)`. The routing suite builds the production supervisor request from the shared `switchboard.routing` helpers and the toolcall suite sends the five manifest tool specs with the data agent prompt prefix; both make one completion per case and do not run the agents or execute tools. This keeps 60 routing and 40 toolcall cases within the local-model budget and lets the mock provider replay them in CI. The gate suite makes no model call: it runs the same deterministic checks as the orchestrator and reports the model as `deterministic`, so its result depends only on the dataset and the code.
 

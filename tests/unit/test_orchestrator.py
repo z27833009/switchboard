@@ -46,6 +46,7 @@ class StubAgent:
         delay: float = 0.0,
         partial: bool = False,
         error: Exception | None = None,
+        cost_usd: float | None = None,
     ) -> None:
         self.spec = AgentSpec(
             name=name,
@@ -55,6 +56,7 @@ class StubAgent:
         self.delay = delay
         self.partial = partial
         self.error = error
+        self.cost_usd = cost_usd
 
     async def run(self, task: AgentTask, deps: AgentDeps) -> AgentResult:
         await asyncio.sleep(self.delay)
@@ -63,6 +65,7 @@ class StubAgent:
         return AgentResult(
             answer=f"{self.spec.name} answer",
             usage=Usage(input_tokens=1, output_tokens=1),
+            cost_usd=self.cost_usd,
             partial=self.partial,
         )
 
@@ -70,9 +73,10 @@ class StubAgent:
 class PlanProvider:
     name = "fake"
 
-    def __init__(self, plans: list[dict[str, Any]]) -> None:
+    def __init__(self, plans: list[dict[str, Any]], *, cost_usd: float | None = None) -> None:
         self.plans = list(plans)
         self.requests: list[Any] = []
+        self.cost_usd = cost_usd
 
     def capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities(
@@ -92,6 +96,7 @@ class PlanProvider:
             model="fake",
             provider="fake",
             latency_ms=1,
+            cost_usd=self.cost_usd,
         )
 
 
@@ -160,6 +165,29 @@ async def test_a_priced_run_carries_its_cost() -> None:
         + usage.output_tokens * 2.0
     ) / 1_000_000
     assert result.cost_usd == pytest.approx(expected)
+
+
+async def test_a_mixed_run_sums_the_per_call_costs() -> None:
+    provider = PlanProvider(
+        [{"agents": ["docs", "data"], "reason": "both sources"}], cost_usd=0.001
+    )
+    orchestrator = make(
+        provider,
+        [StubAgent("docs", cost_usd=0.002), StubAgent("data", cost_usd=0.003)],
+        price=PriceEntry(
+            provider="fake",
+            model=None,
+            input_per_million=100.0,
+            cached_input_per_million=0.0,
+            output_per_million=100.0,
+            source="https://example.invalid/prices",
+        ),
+    )
+    result = await orchestrator.run(ChatRequest(query="question", tenant_id="default"), context())
+
+    # The supervisor and both branches report their own provider's price, so
+    # the fallback path stays exact even though one row cannot cover it.
+    assert result.cost_usd == pytest.approx(0.006)
 
 
 @pytest.mark.parametrize(("agent_name", "plan_label"), [("docs", "docs"), ("data", "data")])

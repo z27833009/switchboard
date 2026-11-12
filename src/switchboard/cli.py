@@ -17,7 +17,7 @@ from switchboard.adapters.providers.factory import create_provider
 from switchboard.adapters.providers.mock import MockProvider
 from switchboard.adapters.retrievers.ingest import IngestResult, ingest_directory
 from switchboard.config import load_settings
-from switchboard.core.config import PriceEntry, Settings
+from switchboard.core.config import PriceEntry, ProviderConfig, Settings
 from switchboard.core.errors import ConfigError, SwitchboardError
 from switchboard.core.models import AgentSpec, EvalCase
 from switchboard.core.ports import EvalDeps, EvalSuite, ModelProvider
@@ -28,6 +28,7 @@ from switchboard.data.olist import (
     load_directory,
     read_expected,
 )
+from switchboard.eval.cost_guard import estimate_eval_cost
 from switchboard.eval.datasets import dataset_path
 from switchboard.eval.gate import DEFAULT_MAX_DROP, default_report_path, evaluate_gate
 from switchboard.eval.manifest import DEFAULT_TOOL_MANIFEST, load_tool_specs
@@ -163,6 +164,43 @@ def _agent_specs(settings: Settings, registry: Registry) -> list[AgentSpec]:
     return sorted(specs, key=lambda spec: spec.name)
 
 
+def _eval_cost_target(
+    settings: Settings,
+    name: str,
+    *,
+    record: bool,
+) -> tuple[str, ProviderConfig, PriceEntry | None]:
+    """The provider whose calls an eval run would actually bill.
+
+    A plain run bills ``--provider``. A ``--record`` run drives the mock from
+    the default tenant's real provider, so that provider is the billable one.
+    """
+    if not record:
+        try:
+            config = settings.providers.providers[name]
+        except KeyError as exc:
+            available = ", ".join(sorted(settings.providers.providers))
+            raise ConfigError(f"unknown provider {name!r}; configured: {available}") from exc
+        return name, config, lookup_price(settings.prices, name, config.model)
+    if name != "mock":
+        raise ConfigError("--record writes fixtures for the mock provider; pass --provider mock")
+    try:
+        recorder_name = settings.tenants.tenants["default"].provider
+    except KeyError as exc:
+        raise ConfigError("the eval runner needs a tenant named 'default'") from exc
+    if recorder_name == "mock":
+        raise ConfigError("--record needs a real provider in the default tenant")
+    try:
+        recorder_config = settings.providers.providers[recorder_name]
+    except KeyError as exc:
+        raise ConfigError(f"recorder provider {recorder_name!r} is not configured") from exc
+    return (
+        recorder_name,
+        recorder_config,
+        lookup_price(settings.prices, recorder_name, recorder_config.model),
+    )
+
+
 def _eval_provider(
     settings: Settings,
     registry: Registry,
@@ -178,7 +216,14 @@ def _eval_provider(
     price = lookup_price(settings.prices, name, config.model)
 
     if not record:
-        return create_provider(registry, name, config, price), False, None, price
+        # Evaluation measures the named provider; a configured fallback would
+        # score a second provider under the first one's name (design 20.2).
+        return (
+            create_provider(registry, name, config, price, use_fallback=False),
+            False,
+            None,
+            price,
+        )
 
     if name != "mock":
         raise ConfigError("--record writes fixtures for the mock provider; pass --provider mock")
@@ -199,6 +244,7 @@ def _eval_provider(
         recorder_name,
         recorder_config,
         lookup_price(settings.prices, recorder_name, recorder_config.model),
+        use_fallback=False,
     )
     provider = MockProvider(
         name="mock",
@@ -259,6 +305,20 @@ def eval_run(
     timeout: Annotated[
         float, typer.Option("--timeout", help="Per-case timeout in seconds.")
     ] = DEFAULT_CASE_TIMEOUT_S,
+    confirm_cost: Annotated[
+        bool,
+        typer.Option(
+            "--confirm-cost",
+            help="Allow a paid provider after reviewing the printed cost estimate.",
+        ),
+    ] = False,
+    cost_cap_usd: Annotated[
+        float | None,
+        typer.Option(
+            "--cost-cap-usd",
+            help="Override platform.yaml cost_cap_usd for this run.",
+        ),
+    ] = None,
 ) -> None:
     """Run one eval suite and write markdown and JSON reports."""
     started = time.perf_counter()
@@ -276,9 +336,6 @@ def eval_run(
                 f"cannot run --orchestrator {orchestrator!r}"
             )
 
-        chosen_provider, recording, recorded_with, price = _eval_provider(
-            settings, registry, provider, record=record
-        )
         eval_suite: EvalSuite = create_suite(
             registry,
             suite,
@@ -297,6 +354,38 @@ def eval_run(
         else:
             model = settings.providers.providers[provider].model or "unknown"
 
+        # Print and enforce the cost guard before the provider is built, so a
+        # refused run makes no network call and needs no API key.
+        target_name, target_config, target_price = _eval_cost_target(
+            settings, provider, record=record
+        )
+        cap = settings.platform.cost_cap_usd if cost_cap_usd is None else cost_cap_usd
+        if cap < 0:
+            raise ConfigError("--cost-cap-usd must be zero or positive")
+        if target_config.adapter != "mock" and suite not in {"gate", "injection"}:
+            if target_price is None:
+                raise ConfigError(
+                    f"provider {target_name!r} has no price entry in config/prices.yaml; "
+                    "a paid run cannot be estimated"
+                )
+            estimate = estimate_eval_cost(
+                suite=suite,
+                provider=target_name,
+                model=target_config.model,
+                case_count=len(selection.cases),
+                price=target_price,
+                cap_usd=cap,
+                confirmed=confirm_cost,
+            )
+            typer.echo(estimate.describe())
+            refusal = estimate.refusal()
+            if refusal is not None:
+                typer.echo(f"error: {refusal}", err=True)
+                raise typer.Exit(1)
+
+        chosen_provider, recording, recorded_with, price = _eval_provider(
+            settings, registry, provider, record=record
+        )
         deps = EvalDeps(provider=chosen_provider)
 
         async def run_suite() -> list[CaseRun]:

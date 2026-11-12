@@ -183,11 +183,19 @@ class OpenAICompatibleProvider:
     ) -> OpenAICompatibleProvider:
         if not config.base_url or not config.model or config.capabilities is None:
             raise ConfigError(f"provider {name!r} needs base_url, model and capabilities")
+        # A literal placeholder is fine (LM Studio ignores the key), but an
+        # empty value means the environment variable behind it is unset. Fail
+        # here, before a request, instead of sending an unauthenticated call.
+        if not config.api_key:
+            raise ConfigError(
+                f"provider {name!r} needs an api_key; set the environment variable "
+                "named in config/providers.yaml"
+            )
         return cls(
             name=name,
             model=config.model,
             base_url=config.base_url,
-            api_key=config.api_key or "lm-studio",
+            api_key=config.api_key,
             capabilities=config.capabilities,
             timeout_s=config.timeout_s,
             extra_body=config.extra_body,
@@ -356,6 +364,9 @@ class OpenAICompatibleProvider:
                 model=getattr(response, "model", None) or self._model,
                 provider=self.name,
                 latency_ms=latency_ms,
+                # The response carries the same figure as the span so a run
+                # that mixes providers can sum the exact per-call costs.
+                cost_usd=compute_cost(usage, self._price) if self._price is not None else None,
             )
 
         raise StructuredOutputError("structured output failed after one repair")

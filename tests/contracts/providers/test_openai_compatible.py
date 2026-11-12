@@ -259,6 +259,7 @@ def test_from_config_requires_model_and_capabilities() -> None:
     config = ProviderConfig(
         adapter="openai_compatible",
         base_url="http://test.invalid/v1",
+        api_key="lm-studio",
         model="qwen3-8b",
         capabilities=ProviderCapabilities(
             tools=True,
@@ -274,6 +275,18 @@ def test_from_config_requires_model_and_capabilities() -> None:
     with pytest.raises(ConfigError, match="base_url"):
         OpenAICompatibleProvider.from_config(
             "lmstudio", ProviderConfig(adapter="openai_compatible")
+        )
+
+    with pytest.raises(ConfigError, match="needs an api_key"):
+        OpenAICompatibleProvider.from_config(
+            "deepseek",
+            ProviderConfig(
+                adapter="openai_compatible",
+                base_url="https://api.deepseek.com/v1",
+                api_key="",
+                model="deepseek-flash",
+                capabilities=config.capabilities,
+            ),
         )
 
 

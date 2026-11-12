@@ -25,4 +25,5 @@ class DirectAgent(BaseAgent):
         return AgentResult(
             answer=response.text or "",
             usage=response.usage,
+            cost_usd=response.cost_usd,
         )
