@@ -43,4 +43,4 @@ docker compose up
 
 Switchboard is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, modify and share it for noncommercial purposes with attribution to the author, Jiajun (GitHub: z27833009). Commercial use requires a separate license from the author.
 
-The Olist dataset used for the demo is licensed CC BY-NC-SA 4.0 by its authors and is not redistributed in this repository.
+The full Olist dataset is licensed CC BY-NC-SA 4.0 by its authors and is not redistributed here. A 1000-order subset for tests lives in [data/olist/sample/](data/olist/sample/) under the same license, with attribution.

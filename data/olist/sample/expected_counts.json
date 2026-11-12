@@ -1,0 +1,11 @@
+{
+  "customers": 1000,
+  "geolocation": 0,
+  "orders": 1000,
+  "order_items": 1139,
+  "order_payments": 1034,
+  "order_reviews": 994,
+  "products": 928,
+  "sellers": 537,
+  "product_category_name_translation": 71
+}

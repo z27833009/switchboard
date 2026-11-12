@@ -21,8 +21,12 @@ dependencies = [
   "asyncpg==0.32.0",
   "fastapi==0.162.5",
   "pydantic==2.14.3",
+  "typer==0.29.1",
   "uvicorn==0.54.0",
 ]
+
+[project.scripts]
+switchboard = "switchboard.cli:app"
 
 [dependency-groups]
 dev = [
@@ -72,6 +76,9 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra --strict-markers"
+markers = [
+  "integration: needs the compose PostgreSQL with the Olist data loaded",
+]
 
 [tool.importlinter]
 root_package = "switchboard"
