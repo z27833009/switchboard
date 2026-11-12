@@ -1,0 +1,20 @@
+orchestrator: langgraph
+tool_sources:
+  - name: olist
+    adapter: mcp
+    url: ${MCP_OLIST_URL}
+retriever: pgvector
+cache: none
+embedder: lmstudio
+context_policy: clear_oldest_tool_results
+tracing:
+  exporter: postgres
+limits:
+  run_timeout_s: 60
+  max_tool_steps: 4
+  max_loop_steps: 8
+  max_plan_size: 3
+  fallback_plan: ["docs", "data"]
+  model_view_rows: 20
+  context_fill: 0.7
+  history_turns: 3

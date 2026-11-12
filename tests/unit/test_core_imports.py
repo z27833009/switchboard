@@ -14,22 +14,31 @@ CORE = Path(__file__).resolve().parents[2] / "src" / "switchboard" / "core"
 ALLOWED_THIRD_PARTY = {"pydantic"}
 
 
-def imported_top_level_modules(path: Path) -> set[str]:
+def imported_modules(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     modules: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            modules.update(alias.name.split(".")[0] for alias in node.names)
+            modules.update(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-            modules.add(node.module.split(".")[0])
+            modules.add(node.module)
     return modules
+
+
+def is_allowed(module: str) -> bool:
+    if module.split(".")[0] in sys.stdlib_module_names:
+        return True
+    if module in ALLOWED_THIRD_PARTY:
+        return True
+    # Core modules may import each other; nothing else under switchboard.
+    return module == "switchboard.core" or module.startswith("switchboard.core.")
 
 
 def test_core_imports_only_stdlib_and_pydantic() -> None:
     violations: list[str] = []
     for path in sorted(CORE.rglob("*.py")):
-        for module in imported_top_level_modules(path):
-            if module in sys.stdlib_module_names or module in ALLOWED_THIRD_PARTY:
+        for module in imported_modules(path):
+            if is_allowed(module):
                 continue
             violations.append(f"{path.relative_to(CORE.parent.parent.parent)} imports {module}")
     assert not violations, "core dependency rule broken:\n" + "\n".join(violations)

@@ -21,6 +21,7 @@ dependencies = [
   "asyncpg==0.32.0",
   "fastapi==0.162.5",
   "pydantic==2.14.3",
+  "pyyaml==6.0.3",
   "typer==0.29.1",
   "uvicorn==0.54.0",
 ]
@@ -67,8 +68,8 @@ pretty = true
 show_error_codes = true
 
 [[tool.mypy.overrides]]
-# asyncpg does not ship type information or a py.typed marker.
-module = ["asyncpg"]
+# asyncpg and PyYAML do not ship type information.
+module = ["asyncpg", "yaml"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

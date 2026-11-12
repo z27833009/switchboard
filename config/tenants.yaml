@@ -1,0 +1,22 @@
+tenants:
+  default:
+    provider: lmstudio
+    agents:
+      allow: ["direct", "docs", "data"]
+    tools:
+      allow:
+        - orders_summary@1
+        - orders_late@1
+        - order_lookup@1
+        - top_products@1
+        - describe_schema@1
+      ask: []
+    seller_ids: null
+  seller_a:
+    provider: lmstudio
+    agents:
+      allow: ["docs", "data"]
+    tools:
+      allow: ["orders_summary@1", "order_lookup@1"]
+      ask: []
+    seller_ids: ["3442f8959a84dea7ee197c632cb2df15"]

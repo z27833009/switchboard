@@ -1,0 +1,25 @@
+providers:
+  lmstudio:
+    adapter: openai_compatible
+    base_url: ${LMSTUDIO_BASE_URL}
+    api_key: lm-studio
+    model: ${LMSTUDIO_MODEL}
+    capabilities:
+      tools: true
+      json_schema: false
+      streaming: true
+      reasoning: false
+      context_window: 8192
+  mock:
+    adapter: mock
+    fixtures: evals/fixtures/mock_provider
+embedders:
+  lmstudio:
+    adapter: openai_compatible
+    base_url: ${LMSTUDIO_BASE_URL}
+    api_key: lm-studio
+    model: ${LMSTUDIO_EMBEDDING_MODEL}
+    dimension: 1024
+  mock:
+    adapter: mock
+    dimension: 1024

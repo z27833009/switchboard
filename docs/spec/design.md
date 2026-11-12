@@ -930,6 +930,7 @@ switchboard/
     adr/             0001-...md
     demo.md          five minute demo script
   src/switchboard/
+    config.py        YAML parsing via PyYAML; core/config.py holds the schema
     core/            ports.py  models.py  errors.py  registry.py  config.py  context.py  guardrails.py
     agents/          direct.py  docs.py  data.py  clarify.py (v1)  merge.py  citations.py  prompts/
     gate/            checks.py (v1)
@@ -1024,7 +1025,7 @@ This list is the allowlist referred to in the working agreements: a dependency n
 | Database | asyncpg; PostgreSQL 16 with pgvector via the `pgvector/pgvector` image (pg16 tag) | no ORM |
 | Observability | opentelemetry-api, opentelemetry-sdk; v1 adds the OTLP exporter | |
 | Tokens | PyJWT | ADR 0014 |
-| Config | PyYAML | env substitution is hand-written in `core/config.py` |
+| Config | PyYAML | env substitution and the schema are hand-written in core/config.py; YAML parsing lives in switchboard/config.py so core stays standard library plus pydantic |
 | CLI | typer | |
 | SQL validation (v2) | sqlglot | |
 | Re-ranking (v1, optional) | sentence-transformers cross-encoder | only if T2.03 enables re-ranking |
