@@ -61,7 +61,8 @@ class BaseAgent:
         task: AgentTask,
         tools: list[ToolSpec] | None = None,
     ) -> CompletionResponse:
-        fitted = deps.context_policy.fit(messages, self.context_budget(task, deps)).messages
+        fitted_result = deps.context_policy.fit(messages, self.context_budget(task, deps))
+        fitted = fitted_result.messages
         request = CompletionRequest(
             messages=fitted,
             tools=sorted(tools or [], key=lambda tool: tool.wire_name),
@@ -70,6 +71,9 @@ class BaseAgent:
             metadata={
                 "purpose": f"agent.{self.spec.name}",
                 "run_id": deps.ctx.run_id,
+                "context_tokens_estimated": fitted_result.estimated_tokens,
+                "context_compacted": fitted_result.compacted,
+                "context_cleared_results": fitted_result.cleared_results,
             },
         )
         return await deps.provider.complete(request)

@@ -15,6 +15,8 @@ from typing import Any, Literal
 import openai
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion
+from opentelemetry import trace
+from opentelemetry.trace import SpanKind
 
 from switchboard.adapters._openai_errors import map_error
 from switchboard.core.config import ProviderConfig
@@ -32,6 +34,12 @@ from switchboard.core.models import (
     ToolCall,
     ToolSpec,
     Usage,
+)
+from switchboard.tracing.spans import (
+    apply_request_metadata,
+    apply_usage,
+    chat_span_name,
+    record_error,
 )
 
 Strategy = Literal["native_json_schema", "tool_call", "prompted_json"]
@@ -155,11 +163,13 @@ class OpenAICompatibleProvider:
         timeout_s: float = 120.0,
         extra_body: dict[str, Any] | None = None,
         client: Any | None = None,
+        tracer: trace.Tracer | None = None,
     ) -> None:
         self.name = name
         self._model = model
         self._capabilities = capabilities
         self._extra_body = dict(extra_body or {})
+        self._tracer = tracer or trace.get_tracer("switchboard.provider.openai_compatible")
         self._client: Any = client or AsyncOpenAI(
             base_url=base_url, api_key=api_key, timeout=timeout_s
         )
@@ -274,8 +284,34 @@ class OpenAICompatibleProvider:
         if request.stream:
             raise ProviderRequestError("streaming is not implemented until T2.08")
         strategy = self._strategy(request)
-        usage = Usage(input_tokens=0, output_tokens=0)
         started = time.perf_counter()
+        with self._tracer.start_as_current_span(
+            chat_span_name(self._model),
+            kind=SpanKind.CLIENT,
+            record_exception=False,
+            set_status_on_exception=False,
+        ) as span:
+            span.set_attribute("gen_ai.operation.name", "chat")
+            span.set_attribute("gen_ai.system", self.name)
+            span.set_attribute("gen_ai.request.model", self._model)
+            span.set_attribute("switchboard.structured_output.strategy", strategy or "none")
+            apply_request_metadata(span, request.metadata)
+            try:
+                response = await self._complete(request, strategy, started)
+            except Exception as exc:
+                record_error(span, exc)
+                raise
+            apply_usage(span, response.usage)
+            span.set_attribute("switchboard.latency_ms", response.latency_ms)
+            return response
+
+    async def _complete(
+        self,
+        request: CompletionRequest,
+        strategy: Strategy | None,
+        started: float,
+    ) -> CompletionResponse:
+        usage = Usage(input_tokens=0, output_tokens=0)
         repair: str | None = None
 
         for attempt in range(2):

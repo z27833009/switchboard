@@ -8,6 +8,7 @@ from typing import Annotated, Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
+from opentelemetry import trace
 from pydantic import ValidationError
 
 from switchboard.agents.base import zero_usage
@@ -33,6 +34,13 @@ from switchboard.core.models import (
 from switchboard.core.ports import Agent, AgentDeps, ContextPolicy, Embedder, ModelProvider
 from switchboard.core.validation import validate_plan
 from switchboard.registry import Registry
+from switchboard.tracing.spans import (
+    agent_span,
+    record_error,
+    run_span,
+    set_attributes,
+    supervisor_span,
+)
 
 SUPERVISOR_SYSTEM = (
     "You are Switchboard's routing supervisor. Choose the smallest set of "
@@ -131,7 +139,7 @@ class LangGraphOrchestrator:
         self._tool_sources = list(tool_sources or [])
         self._retriever = retriever
         self._cache = cache
-        self._tracer = tracer
+        self._tracer = tracer or trace.get_tracer("switchboard.orchestrator.langgraph")
         self._agents = self._load_agents(registry)
         self._graph = self._build_graph()
 
@@ -202,6 +210,30 @@ class LangGraphOrchestrator:
         return "hit" if state.get("cache_hit") else "miss"
 
     async def _supervisor(self, state: RunState) -> dict[str, Any]:
+        ctx = state["ctx"]
+        with supervisor_span(self._tracer, run_id=ctx.run_id) as span:
+            try:
+                outputs = await self._plan(state)
+            except Exception as exc:
+                record_error(span, exc)
+                raise
+            plan = outputs.get("plan")
+            if isinstance(plan, RoutingDecision):
+                set_attributes(
+                    span,
+                    {
+                        "switchboard.plan": plan.label,
+                        "switchboard.plan.size": len(plan.agents),
+                        "switchboard.plan.reason": plan.reason,
+                        "switchboard.plan.fallback": any(
+                            error.message == "fallback plan used"
+                            for error in outputs.get("errors", [])
+                        ),
+                    },
+                )
+            return outputs
+
+    async def _plan(self, state: RunState) -> dict[str, Any]:
         ctx = state["ctx"]
         request = state["request"]
         available = self._available(ctx)
@@ -305,6 +337,34 @@ class LangGraphOrchestrator:
 
     async def _run_agent(self, branch: BranchState) -> dict[str, Any]:
         name = branch["agent_name"]
+        ctx = branch["ctx"]
+        with agent_span(self._tracer, agent=name, run_id=ctx.run_id) as span:
+            try:
+                outputs = await self._run_agent_branch(branch)
+            except Exception as exc:
+                record_error(span, exc)
+                raise
+            result = outputs.get("results", {}).get(name)
+            if isinstance(result, AgentResult):
+                set_attributes(
+                    span,
+                    {
+                        "switchboard.partial": result.partial,
+                        "switchboard.citations": len(result.citations),
+                    },
+                )
+            for error in outputs.get("errors", []):
+                span.add_event(
+                    "agent.error",
+                    {
+                        "switchboard.error.kind": error.kind,
+                        "switchboard.error.stage": error.stage or "",
+                    },
+                )
+            return outputs
+
+    async def _run_agent_branch(self, branch: BranchState) -> dict[str, Any]:
+        name = branch["agent_name"]
         request = branch["request"]
         ctx = branch["ctx"]
         agent = self._agents[name]
@@ -400,6 +460,35 @@ class LangGraphOrchestrator:
         }
 
     async def run(self, request: ChatRequest, ctx: RunContext) -> RunResult:
+        with run_span(
+            self._tracer,
+            tenant_id=ctx.tenant.tenant_id,
+            run_id=ctx.run_id,
+            orchestrator=self.name,
+        ) as span:
+            try:
+                result = await self._execute(request, ctx)
+            except asyncio.CancelledError:
+                raise
+            except BaseException as exc:
+                record_error(span, exc)
+                raise
+            set_attributes(
+                span,
+                {
+                    "switchboard.plan": result.plan.label if result.plan else None,
+                    "switchboard.cache.hit": result.cache_hit,
+                    "switchboard.attempts": result.attempts,
+                    "switchboard.status": result.status,
+                },
+            )
+            if result.status == "ok":
+                span.set_status(trace.Status(trace.StatusCode.OK))
+            elif result.status in {"timeout", "provider_error", "auth_error"}:
+                span.set_status(trace.Status(trace.StatusCode.ERROR, result.status))
+            return result
+
+    async def _execute(self, request: ChatRequest, ctx: RunContext) -> RunResult:
         initial: RunState = {
             "request": request,
             "ctx": ctx,

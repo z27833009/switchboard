@@ -20,6 +20,8 @@ from typing import Any, Literal
 import asyncpg
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from opentelemetry import trace
+from opentelemetry.trace import SpanKind
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
@@ -37,6 +39,17 @@ from mcp_servers.olist.settings import (
     ToolDefinition,
     load_manifest,
     load_tenants,
+)
+from switchboard.tracing import (
+    TracingHandle,
+    add_tool_result_event,
+    args_hash,
+    configure_tracing,
+    extract_traceparent,
+    force_flush_async,
+    record_error,
+    set_attributes,
+    tool_span_name,
 )
 
 MANIFEST_PATH = Path(__file__).with_name("manifest.yaml")
@@ -66,6 +79,7 @@ class ServerState:
     pool: asyncpg.Pool
     tenants: dict[str, TenantSettings]
     secret: str
+    dsn: str
 
     @classmethod
     async def create(cls) -> ServerState:
@@ -79,15 +93,19 @@ class ServerState:
         tenants = load_tenants(tenants_path)
         pool = await asyncpg.create_pool(dsn=dsn, min_size=1, max_size=5, timeout=5.0)
         try:
-            exists = await pool.fetchval("SELECT to_regclass('public.tool_audit')")
-            if exists is None:
-                raise RuntimeError(
-                    "public.tool_audit is missing; apply docker/postgres/init/02-platform.sql"
-                )
+            for table, migration in (
+                ("public.tool_audit", "02-platform.sql"),
+                ("public.spans", "04-runs-spans.sql"),
+            ):
+                exists = await pool.fetchval("SELECT to_regclass($1)", table)
+                if exists is None:
+                    raise RuntimeError(
+                        f"{table} is missing; apply docker/postgres/init/{migration}"
+                    )
         except Exception:
             await pool.close()
             raise
-        return cls(pool=pool, tenants=tenants, secret=secret)
+        return cls(pool=pool, tenants=tenants, secret=secret, dsn=dsn)
 
 
 _STATE: ServerState | None = None
@@ -104,10 +122,17 @@ async def lifespan(_: MCPServer[ServerState]) -> AsyncIterator[ServerState]:
     global _STATE
     created = await ServerState.create()
     _STATE = created
+    tracing: TracingHandle | None = configure_tracing(
+        service_name="mcp-olist",
+        dsn=created.dsn,
+        exporter=os.environ.get("SWITCHBOARD_TRACING_EXPORTER", "postgres"),
+    )
     try:
         yield created
     finally:
         _STATE = None
+        if tracing is not None:
+            tracing.shutdown()
         await created.pool.close()
 
 
@@ -158,53 +183,105 @@ async def _dispatch(
     run_id: str | None = None
 
     try:
-        try:
-            headers = ctx.headers or {}
-        except ValueError as exc:
-            raise TokenError("missing request context") from exc
-        claims = verify_token(bearer_token(headers), state().secret)
-        tenant_id = claims.tenant_id
-        run_id = claims.run_id
-        tenant = state().tenants.get(tenant_id)
-        if tenant is None:
-            raise TokenError(f"tenant {tenant_id!r} is not configured")
-        if wire_name not in tenant.allowed_tools:
-            raise PermissionError(f"tool {wire_name} is not allowed for tenant {tenant_id!r}")
+        headers = ctx.headers or {}
+    except ValueError:
+        headers = {}
 
-        outcome = await run_readonly(state().pool, lambda connection: operation(connection, tenant))
-        duration_ms = int((time.perf_counter() - started) * 1000)
-        audit_id = await insert_audit(
-            state().pool,
-            run_id=run_id,
-            tenant_id=tenant_id,
-            tool_name=tool.name,
-            tool_version=tool.version,
-            args=clean,
-            sensitive_args=tool.sensitive_args,
-            status="ok",
-            duration_ms=duration_ms,
-        )
-        return {
-            "summary": outcome.summary,
-            "rows": outcome.rows,
-            "total_rows": outcome.total_rows,
-            "audit_id": str(audit_id),
-        }
-    except Exception as exc:
-        duration_ms = int((time.perf_counter() - started) * 1000)
-        status = "denied" if isinstance(exc, (TokenError, PermissionError)) else "error"
-        await insert_audit(
-            state().pool,
-            run_id=run_id,
-            tenant_id=tenant_id,
-            tool_name=tool.name,
-            tool_version=tool.version,
-            args=clean,
-            sensitive_args=tool.sensitive_args,
-            status=status,
-            duration_ms=duration_ms,
-        )
-        raise
+    tracer = trace.get_tracer("switchboard.mcp_olist")
+    span = tracer.start_span(
+        tool_span_name(wire_name),
+        context=extract_traceparent(headers.get("traceparent")),
+        kind=SpanKind.SERVER,
+        attributes={
+            "gen_ai.tool.name": wire_name,
+            "switchboard.tool.version": tool.version,
+            "switchboard.tool.args_hash": args_hash(clean),
+        },
+    )
+    try:
+        with trace.use_span(span, end_on_exit=False):
+            try:
+                try:
+                    claims = verify_token(bearer_token(headers), state().secret)
+                except ValueError as exc:
+                    raise TokenError("missing request context") from exc
+                tenant_id = claims.tenant_id
+                run_id = claims.run_id
+                set_attributes(
+                    span,
+                    {
+                        "switchboard.tenant_id": tenant_id,
+                        "switchboard.run_id": run_id,
+                    },
+                )
+                tenant = state().tenants.get(tenant_id)
+                if tenant is None:
+                    raise TokenError(f"tenant {tenant_id!r} is not configured")
+                if wire_name not in tenant.allowed_tools:
+                    raise PermissionError(
+                        f"tool {wire_name} is not allowed for tenant {tenant_id!r}"
+                    )
+
+                outcome = await run_readonly(
+                    state().pool, lambda connection: operation(connection, tenant)
+                )
+                duration_ms = int((time.perf_counter() - started) * 1000)
+                audit_id = await insert_audit(
+                    state().pool,
+                    run_id=run_id,
+                    tenant_id=tenant_id,
+                    tool_name=tool.name,
+                    tool_version=tool.version,
+                    args=clean,
+                    sensitive_args=tool.sensitive_args,
+                    status="ok",
+                    duration_ms=duration_ms,
+                )
+                payload = {
+                    "summary": outcome.summary,
+                    "rows": outcome.rows,
+                    "total_rows": outcome.total_rows,
+                    "audit_id": str(audit_id),
+                }
+                set_attributes(
+                    span,
+                    {
+                        "switchboard.tool.status": "ok",
+                        "switchboard.tool.total_rows": outcome.total_rows,
+                        "switchboard.tool.audit_id": str(audit_id),
+                    },
+                )
+                add_tool_result_event(span, payload)
+                span.set_status(trace.Status(trace.StatusCode.OK))
+                return payload
+            except Exception as exc:
+                duration_ms = int((time.perf_counter() - started) * 1000)
+                status = "denied" if isinstance(exc, (TokenError, PermissionError)) else "error"
+                set_attributes(
+                    span,
+                    {
+                        "switchboard.tenant_id": tenant_id,
+                        "switchboard.run_id": run_id,
+                        "switchboard.tool.status": status,
+                    },
+                )
+                record_error(span, exc)
+                await insert_audit(
+                    state().pool,
+                    run_id=run_id,
+                    tenant_id=tenant_id,
+                    tool_name=tool.name,
+                    tool_version=tool.version,
+                    args=clean,
+                    sensitive_args=tool.sensitive_args,
+                    status=status,
+                    duration_ms=duration_ms,
+                )
+                raise
+    finally:
+        span.end()
+        # The trace must be readable as soon as the tool call returns (12.2).
+        await force_flush_async(timeout_s=2.0)
 
 
 async def _call_tool(

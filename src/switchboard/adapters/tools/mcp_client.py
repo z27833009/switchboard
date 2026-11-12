@@ -20,6 +20,8 @@ from mcp.client.streamable_http import (  # type: ignore[attr-defined]
 )
 from mcp.types import CallToolResult, TextContent
 from mcp.types import Tool as McpTool
+from opentelemetry import trace
+from opentelemetry.trace import SpanKind
 
 from switchboard.core.config import ToolSourceConfig
 from switchboard.core.errors import (
@@ -30,6 +32,13 @@ from switchboard.core.errors import (
     ToolValidationError,
 )
 from switchboard.core.models import RunContext, ToolResult, ToolSpec
+from switchboard.tracing.spans import (
+    args_hash,
+    inject_traceparent,
+    record_error,
+    set_attributes,
+    tool_span_name,
+)
 
 Risk = Literal["read", "write"]
 
@@ -90,10 +99,18 @@ def parse_payload(result: CallToolResult) -> dict[str, Any]:
 class McpToolSource:
     name: str
 
-    def __init__(self, *, name: str = "olist", url: str, timeout_s: float = 30.0) -> None:
+    def __init__(
+        self,
+        *,
+        name: str = "olist",
+        url: str,
+        timeout_s: float = 30.0,
+        tracer: trace.Tracer | None = None,
+    ) -> None:
         self.name = name
         self._url = url.rstrip("/")
         self._timeout_s = timeout_s
+        self._tracer = tracer or trace.get_tracer("switchboard.tools.mcp_client")
 
     @classmethod
     def from_config(cls, config: ToolSourceConfig) -> McpToolSource:
@@ -106,9 +123,12 @@ class McpToolSource:
         return self._url if self._url.endswith("/mcp") else self._url + "/mcp"
 
     def headers(self, ctx: RunContext) -> dict[str, str]:
+        # The current span is the tool span created in call(); the server
+        # continues that trace. Without an active span (list_tools, tests) the
+        # static value from the run context keeps the old contract.
         return {
             "Authorization": f"Bearer {ctx.run_token}",
-            "traceparent": ctx.trace_parent,
+            "traceparent": inject_traceparent() or ctx.trace_parent,
         }
 
     @asynccontextmanager
@@ -128,6 +148,39 @@ class McpToolSource:
         return [spec for spec in specs if spec.wire_name in ctx.tenant.allowed_tools]
 
     async def call(self, name: str, args: dict[str, Any], ctx: RunContext) -> ToolResult:
+        with self._tracer.start_as_current_span(
+            tool_span_name(name),
+            kind=SpanKind.CLIENT,
+            record_exception=False,
+            set_status_on_exception=False,
+            attributes={
+                "gen_ai.tool.name": name,
+                "switchboard.tool.version": version_of(name),
+                "switchboard.tool.args_hash": args_hash(args),
+                "switchboard.run_id": ctx.run_id,
+                "switchboard.tenant_id": ctx.tenant.tenant_id,
+            },
+        ) as span:
+            try:
+                result = await self._call(name, args, ctx)
+            except Exception as exc:
+                status = (
+                    "denied" if isinstance(exc, RunTokenError | ToolPermissionError) else "error"
+                )
+                set_attributes(span, {"switchboard.tool.status": status})
+                record_error(span, exc)
+                raise
+            set_attributes(
+                span,
+                {
+                    "switchboard.tool.status": "ok",
+                    "switchboard.tool.total_rows": result.total_rows,
+                    "switchboard.tool.audit_id": result.audit_id,
+                },
+            )
+            return result
+
+    async def _call(self, name: str, args: dict[str, Any], ctx: RunContext) -> ToolResult:
         started = time.perf_counter()
         try:
             async with self._session(ctx) as session:

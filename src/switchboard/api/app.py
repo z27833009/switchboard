@@ -19,6 +19,8 @@ import asyncpg
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
+from switchboard.tracing import configure_tracing
+
 RUN_TOKEN_MIN_BYTES = 32
 HTTP_TIMEOUT_S = 3.0
 
@@ -34,7 +36,16 @@ def require_run_token_secret() -> str:
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     require_run_token_secret()
-    yield
+    tracing = configure_tracing(
+        service_name="switchboard-api",
+        dsn=os.environ.get("SWITCHBOARD_DATABASE_URL", ""),
+        exporter=os.environ.get("SWITCHBOARD_TRACING_EXPORTER", "postgres"),
+    )
+    try:
+        yield
+    finally:
+        if tracing is not None:
+            tracing.shutdown()
 
 
 app = FastAPI(title="Switchboard API", version="0.1.0", lifespan=lifespan)

@@ -674,12 +674,14 @@ The code uses the OpenTelemetry API directly. Span names and attributes follow t
 | `run` | server | `switchboard.tenant_id`, `switchboard.run_id`, `switchboard.orchestrator`, `switchboard.plan`, `switchboard.cache.hit`, `switchboard.attempts`, `switchboard.status` |
 | `supervisor.plan` | internal | `switchboard.plan`, `switchboard.plan.size`, `switchboard.plan.reason`, `switchboard.plan.fallback` |
 | `agent.<name>` | internal | `switchboard.agent`, `switchboard.partial`, `switchboard.citations` |
-| `chat <model>` | client | `gen_ai.operation.name=chat`, `gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `switchboard.usage.cached_input_tokens`, `switchboard.structured_output.strategy`, `switchboard.context.tokens_estimated`, `switchboard.context.compacted`, `switchboard.context.cleared_results`, `switchboard.cost_usd` |
+| `chat <model>` | client | `gen_ai.operation.name=chat`, `gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `switchboard.usage.cached_input_tokens`, `switchboard.structured_output.strategy`, `switchboard.context.tokens_estimated`, `switchboard.context.compacted`, `switchboard.context.cleared_results`, `switchboard.latency_ms`, `switchboard.cost_usd` |
 | `embeddings <model>` | client | `gen_ai.operation.name=embeddings`, token usage |
 | `execute_tool <name>` | client | `gen_ai.tool.name`, `switchboard.tool.version`, `switchboard.tool.args_hash`, `switchboard.tool.status`, `switchboard.tool.total_rows`, `switchboard.tool.audit_id`; event `tool.result` with the full result capped at 64 KB |
 | `retrieve` | internal | `switchboard.retrieval.k`, `switchboard.retrieval.strategy`, `switchboard.retrieval.hits`, `switchboard.retrieval.round`, `switchboard.retrieval.top_score` |
 | `cache.lookup` | internal | see 10.4 |
 | `gate` | internal | `switchboard.gate.verdict`, `switchboard.gate.failed_checks`, `switchboard.gate.action` |
+
+`execute_tool <name>` exists twice per call: the client span in `McpToolSource` carries the network timing and the tool attributes, and the server span inside the MCP process continues the trace from the `traceparent` header. The server writes the `tool.result` event because it is the process that holds the full result. `switchboard.cost_usd` appears once `config/prices.yaml` exists (section 12.4, v1); until then the attribute is absent rather than zero for a paid model.
 
 ### 12.2 Export, storage and read-after-run consistency
 
@@ -855,7 +857,7 @@ erDiagram
 
 `spans.run_id` and `tool_audit.run_id` are indexed without a foreign key (12.2). Run status values: `running`, `ok`, `partial`, `needs_clarification`, `timeout`, `provider_error`, `auth_error`, `waiting_approval` (v2).
 
-The Olist tables live in a separate schema `olist` loaded from the public CSV files. Two database roles: `switchboard_app` (read and write on the platform tables, no access to `olist`) and `switchboard_tools` (SELECT on `olist`, INSERT on `tool_audit`, nothing else).
+The Olist tables live in a separate schema `olist` loaded from the public CSV files. Two database roles: `switchboard_app` (read and write on the platform tables, no access to `olist`) and `switchboard_tools` (SELECT on `olist`, INSERT on `tool_audit` and `spans`, nothing else). The tool role has no SELECT on `spans`, so the exporter's insert uses `ON CONFLICT DO NOTHING` without a conflict target.
 
 ## 15. Error handling
 
