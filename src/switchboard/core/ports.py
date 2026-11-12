@@ -132,8 +132,15 @@ class AgentDeps:
 
 @dataclass(frozen=True)
 class EvalDeps:
-    """Dependencies handed to an evaluation suite."""
+    """Dependencies handed to an evaluation suite.
 
-    orchestrator: Orchestrator
-    context_policy: ContextPolicy
+    ``provider`` lets the routing and toolcall suites call the model directly,
+    one completion per case, instead of running the agents (design.md section
+    20.2). ``orchestrator`` and ``context_policy`` stay for suites that execute a
+    full run (v1).
+    """
+
+    provider: ModelProvider
+    orchestrator: Orchestrator | None = None
+    context_policy: ContextPolicy | None = None
     tracer: Any = None

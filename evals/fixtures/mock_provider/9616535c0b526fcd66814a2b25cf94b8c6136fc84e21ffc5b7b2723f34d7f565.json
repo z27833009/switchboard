@@ -1,0 +1,71 @@
+{
+  "key": "9616535c0b526fcd66814a2b25cf94b8c6136fc84e21ffc5b7b2723f34d7f565",
+  "purpose": "supervisor.plan",
+  "model": "qwen3-8b",
+  "request": {
+    "purpose": "supervisor.plan",
+    "model": "qwen3-8b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are Switchboard's routing supervisor. Choose the smallest set of registered agents that can answer the user's question. direct handles small talk only. docs answers policy questions from the document index. data answers order and product questions from read-only tools. Return a JSON object with an agents array and a one-sentence reason. Do not invent agent names and do not add an agent that is not needed.",
+        "name": null,
+        "tool_call_id": null,
+        "tool_calls": []
+      },
+      {
+        "role": "user",
+        "content": "Available agents:\n- data: Order, delivery, product and seller questions answered from the Olist tools.\n- direct: Small talk and questions about the assistant; no lookups.\n- docs: Shop policies and other knowledge from the document index.\nChoose one or more agents that can answer the question. Return a JSON object with an agents array and a reason.\nQuestion: Give me a count of late deliveries from 1 to 7 August 2018.",
+        "name": null,
+        "tool_call_id": null,
+        "tool_calls": []
+      }
+    ],
+    "tools": [],
+    "response_schema": {
+      "type": "object",
+      "properties": {
+        "agents": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "data",
+              "direct",
+              "docs"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "agents",
+        "reason"
+      ]
+    }
+  },
+  "response": {
+    "text": null,
+    "reasoning": null,
+    "tool_calls": [],
+    "parsed": {
+      "agents": [
+        "data"
+      ],
+      "reason": "The data agent can access order and delivery information to provide the count of late deliveries."
+    },
+    "structured_output_strategy": "tool_call",
+    "usage": {
+      "input_tokens": 373,
+      "cached_input_tokens": 0,
+      "output_tokens": 44
+    },
+    "model": "qwen3-8b",
+    "provider": "lmstudio",
+    "latency_ms": 2232
+  }
+}

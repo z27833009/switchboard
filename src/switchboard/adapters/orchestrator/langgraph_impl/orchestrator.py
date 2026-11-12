@@ -34,21 +34,13 @@ from switchboard.core.models import (
 from switchboard.core.ports import Agent, AgentDeps, ContextPolicy, Embedder, ModelProvider
 from switchboard.core.validation import validate_plan
 from switchboard.registry import Registry
+from switchboard.routing import SUPERVISOR_SYSTEM, plan_schema, supervisor_prompt
 from switchboard.tracing.spans import (
     agent_span,
     record_error,
     run_span,
     set_attributes,
     supervisor_span,
-)
-
-SUPERVISOR_SYSTEM = (
-    "You are Switchboard's routing supervisor. Choose the smallest set of "
-    "registered agents that can answer the user's question. direct handles small "
-    "talk only. docs answers policy questions from the document index. data "
-    "answers order and product questions from read-only tools. Return a JSON "
-    "object with an agents array and a one-sentence reason. Do not invent agent "
-    "names and do not add an agent that is not needed."
 )
 
 
@@ -87,33 +79,6 @@ class BranchState(TypedDict):
     agent_name: str
     request: ChatRequest
     ctx: RunContext
-
-
-def plan_schema(names: list[str], max_items: int) -> dict[str, Any]:
-    return {
-        "type": "object",
-        "properties": {
-            "agents": {
-                "type": "array",
-                "items": {"type": "string", "enum": names},
-                "minItems": 1,
-                "maxItems": max_items,
-            },
-            "reason": {"type": "string"},
-        },
-        "required": ["agents", "reason"],
-    }
-
-
-def supervisor_prompt(available: list[AgentSpec], query: str) -> str:
-    lines = ["Available agents:"]
-    lines.extend(f"- {spec.name}: {spec.description}" for spec in available)
-    lines.append(
-        "Choose one or more agents that can answer the question. Return a JSON "
-        "object with an agents array and a reason."
-    )
-    lines.append(f"Question: {query}")
-    return "\n".join(lines)
 
 
 class LangGraphOrchestrator:

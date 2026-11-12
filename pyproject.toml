@@ -57,6 +57,10 @@ data = "switchboard.agents.data:DataAgent"
 [project.entry-points."switchboard.orchestrators"]
 langgraph = "switchboard.adapters.orchestrator.langgraph_impl:LangGraphOrchestrator"
 
+[project.entry-points."switchboard.eval_suites"]
+routing = "switchboard.eval.suites.routing:RoutingSuite"
+toolcall = "switchboard.eval.suites.toolcall:ToolCallSuite"
+
 [dependency-groups]
 dev = [
   "httpx==0.28.1",

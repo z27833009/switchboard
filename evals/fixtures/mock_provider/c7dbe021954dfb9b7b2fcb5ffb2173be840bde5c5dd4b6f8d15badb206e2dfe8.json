@@ -1,0 +1,71 @@
+{
+  "key": "c7dbe021954dfb9b7b2fcb5ffb2173be840bde5c5dd4b6f8d15badb206e2dfe8",
+  "purpose": "supervisor.plan",
+  "model": "qwen3-8b",
+  "request": {
+    "purpose": "supervisor.plan",
+    "model": "qwen3-8b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are Switchboard's routing supervisor. Choose the smallest set of registered agents that can answer the user's question. direct handles small talk only. docs answers policy questions from the document index. data answers order and product questions from read-only tools. Return a JSON object with an agents array and a one-sentence reason. Do not invent agent names and do not add an agent that is not needed.",
+        "name": null,
+        "tool_call_id": null,
+        "tool_calls": []
+      },
+      {
+        "role": "user",
+        "content": "Available agents:\n- data: Order, delivery, product and seller questions answered from the Olist tools.\n- direct: Small talk and questions about the assistant; no lookups.\n- docs: Shop policies and other knowledge from the document index.\nChoose one or more agents that can answer the question. Return a JSON object with an agents array and a reason.\nQuestion: 成为卖家需要提供哪些材料？",
+        "name": null,
+        "tool_call_id": null,
+        "tool_calls": []
+      }
+    ],
+    "tools": [],
+    "response_schema": {
+      "type": "object",
+      "properties": {
+        "agents": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "data",
+              "direct",
+              "docs"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "agents",
+        "reason"
+      ]
+    }
+  },
+  "response": {
+    "text": null,
+    "reasoning": null,
+    "tool_calls": [],
+    "parsed": {
+      "agents": [
+        "data"
+      ],
+      "reason": "The question about becoming a seller requires information on the required materials, which can be answered using the data agent."
+    },
+    "structured_output_strategy": "tool_call",
+    "usage": {
+      "input_tokens": 361,
+      "cached_input_tokens": 0,
+      "output_tokens": 49
+    },
+    "model": "qwen3-8b",
+    "provider": "lmstudio",
+    "latency_ms": 2647
+  }
+}

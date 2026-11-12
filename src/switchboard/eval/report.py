@@ -1,0 +1,415 @@
+"""Markdown and JSON eval reports (design.md sections 20.2 and 20.3).
+
+Every number in a report comes from the run that produced it. A value that was
+not measured (cost, before the price table in T2.06) is ``null`` and the
+markdown says so, rather than a guessed number.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+from switchboard.core.models import Usage
+from switchboard.eval.runner import CaseRun
+from switchboard.eval.scorers.routing import plan_label
+
+
+@dataclass(frozen=True)
+class ReportMeta:
+    suite: str
+    dataset_version: str
+    dataset_path: str
+    split: str
+    orchestrator: str
+    provider: str
+    model: str
+    generated_at: datetime
+    wall_time_s: float
+    dataset_case_count: int
+    split_case_count: int
+    smoke: bool
+    recording: bool = False
+    recorded_with: str | None = None
+
+
+def percentile(values: list[int], percent: float) -> float:
+    """Linear interpolation between the closest ranks; 0.0 for no values."""
+    if not values:
+        return 0.0
+    if percent <= 0:
+        return float(min(values))
+    if percent >= 100:
+        return float(max(values))
+    ordered = sorted(values)
+    rank = (percent / 100.0) * (len(ordered) - 1)
+    lower = math.floor(rank)
+    upper = math.ceil(rank)
+    if lower == upper:
+        return float(ordered[lower])
+    fraction = rank - lower
+    return ordered[lower] + (ordered[upper] - ordered[lower]) * fraction
+
+
+def latency_summary(values: list[int]) -> dict[str, float]:
+    return {
+        "p50": round(percentile(values, 50), 3),
+        "p95": round(percentile(values, 95), 3),
+        "min": float(min(values)) if values else 0.0,
+        "max": float(max(values)) if values else 0.0,
+        "mean": round(sum(values) / len(values), 3) if values else 0.0,
+    }
+
+
+def _mean(values: list[float]) -> float:
+    return round(sum(values) / len(values), 4) if values else 0.0
+
+
+def _metric_values(results: list[CaseRun], name: str) -> list[float]:
+    return [result.score.metrics.get(name, 0.0) for result in results]
+
+
+def _routing_metrics(results: list[CaseRun]) -> dict[str, float]:
+    metrics = {
+        "plan_accuracy": _mean(_metric_values(results, "exact_match")),
+        "plan_jaccard": _mean(_metric_values(results, "jaccard")),
+        "case_pass_rate": _mean(_metric_values(results, "exact_match")),
+    }
+    for label, wants_ambiguous in (("unambiguous", False), ("ambiguous", True)):
+        group = [
+            result for result in results if ("ambiguous" in result.case.tags) == wants_ambiguous
+        ]
+        if group:
+            metrics[f"{label}_plan_accuracy"] = _mean(_metric_values(group, "exact_match"))
+    return metrics
+
+
+def _toolcall_metrics(results: list[CaseRun]) -> dict[str, float]:
+    call_counts = [float(len(result.outcome.tool_calls)) for result in results]
+    redundant = _metric_values(results, "redundant")
+    return {
+        "tool_name_accuracy": _mean(_metric_values(results, "tool_name_match")),
+        "argument_accuracy": _mean(_metric_values(results, "argument_match")),
+        "both_accuracy": _mean(_metric_values(results, "both")),
+        "tool_calls_per_case": round(sum(call_counts) / len(call_counts), 4),
+        "redundant_call_rate": _mean(redundant),
+        "cases_with_redundant_calls": float(sum(1 for value in redundant if value)),
+        "case_pass_rate": _mean(_metric_values(results, "both")),
+    }
+
+
+def _usage_totals(results: list[CaseRun]) -> Usage:
+    total = Usage(input_tokens=0, output_tokens=0)
+    for result in results:
+        if result.outcome.usage is not None:
+            total = total.plus(result.outcome.usage)
+    return total
+
+
+def _routing_case_row(result: CaseRun) -> dict[str, Any]:
+    usage = result.outcome.usage or Usage(input_tokens=0, output_tokens=0)
+    return {
+        "case_id": result.case.id,
+        "query": result.case.query,
+        "tags": list(result.case.tags),
+        "split": result.case.split,
+        "expected_agents": list(result.case.expected_agents),
+        "expected_plan": plan_label(result.case.expected_agents),
+        "actual_agents": list(result.outcome.plan),
+        "actual_plan": plan_label(result.outcome.plan),
+        "exact_match": result.score.metrics.get("exact_match", 0.0),
+        "jaccard": result.score.metrics.get("jaccard", 0.0),
+        "passed": result.score.passed,
+        "latency_ms": result.outcome.latency_ms,
+        "runner_latency_ms": result.runner_latency_ms,
+        "input_tokens": usage.input_tokens,
+        "cached_input_tokens": usage.cached_input_tokens,
+        "output_tokens": usage.output_tokens,
+        "reason": result.outcome.details.get("reason"),
+        "error": result.outcome.error,
+    }
+
+
+def _toolcall_case_row(result: CaseRun) -> dict[str, Any]:
+    usage = result.outcome.usage or Usage(input_tokens=0, output_tokens=0)
+    calls = [
+        {"name": name, "arguments": arguments}
+        for name, arguments in zip(
+            result.outcome.tool_calls,
+            result.outcome.tool_arguments,
+            strict=False,
+        )
+    ]
+    return {
+        "case_id": result.case.id,
+        "query": result.case.query,
+        "tags": list(result.case.tags),
+        "split": result.case.split,
+        "expected_tool": result.case.expected_tool,
+        "expected_args": dict(result.case.expected_args),
+        "actual_calls": calls,
+        "tool_name_match": result.score.metrics.get("tool_name_match", 0.0),
+        "argument_match": result.score.metrics.get("argument_match", 0.0),
+        "both": result.score.metrics.get("both", 0.0),
+        "call_count": len(result.outcome.tool_calls),
+        "redundant": result.score.metrics.get("redundant", 0.0),
+        "passed": result.score.passed,
+        "latency_ms": result.outcome.latency_ms,
+        "runner_latency_ms": result.runner_latency_ms,
+        "input_tokens": usage.input_tokens,
+        "cached_input_tokens": usage.cached_input_tokens,
+        "output_tokens": usage.output_tokens,
+        "error": result.outcome.error,
+    }
+
+
+def build_report(meta: ReportMeta, results: list[CaseRun]) -> dict[str, Any]:
+    latencies = [result.outcome.latency_ms for result in results]
+    runner_latencies = [result.runner_latency_ms for result in results]
+    usage = _usage_totals(results)
+    errors = [result.case.id for result in results if result.outcome.error]
+
+    report: dict[str, Any] = {
+        "suite": meta.suite,
+        "dataset_version": meta.dataset_version,
+        "dataset_path": meta.dataset_path,
+        "split": meta.split,
+        "case_count": len(results),
+        "dataset_case_count": meta.dataset_case_count,
+        "split_case_count": meta.split_case_count,
+        "smoke": meta.smoke,
+        "orchestrator": meta.orchestrator,
+        "provider": meta.provider,
+        "model": meta.model,
+        "generated_at": meta.generated_at.isoformat(),
+        "wall_time_s": round(meta.wall_time_s, 3),
+        "recording": meta.recording,
+        "recorded_with": meta.recorded_with,
+        "metrics": (
+            _routing_metrics(results) if meta.suite == "routing" else _toolcall_metrics(results)
+        ),
+        "latency_ms": latency_summary(latencies),
+        "runner_latency_ms": latency_summary(runner_latencies),
+        "usage": {
+            "input_tokens": usage.input_tokens,
+            "cached_input_tokens": usage.cached_input_tokens,
+            "output_tokens": usage.output_tokens,
+            "total_tokens": usage.total_tokens,
+        },
+        "cost_usd": None,
+        "error_count": len(errors),
+        "error_case_ids": errors,
+    }
+    if meta.suite == "routing":
+        matrix: dict[str, dict[str, int]] = {}
+        for result in results:
+            expected = plan_label(result.case.expected_agents)
+            actual = plan_label(result.outcome.plan)
+            row = matrix.setdefault(expected, {})
+            row[actual] = row.get(actual, 0) + 1
+        report["confusion_matrix"] = {
+            expected: dict(sorted(row.items())) for expected, row in sorted(matrix.items())
+        }
+        report["cases"] = [_routing_case_row(result) for result in results]
+    else:
+        report["cases"] = [_toolcall_case_row(result) for result in results]
+    return report
+
+
+def _cell(value: Any) -> str:
+    return str(value).replace("|", "\\|").replace("\n", " ")
+
+
+def _metric_table(metrics: dict[str, float]) -> list[str]:
+    lines = ["| Metric | Value |", "| --- | --- |"]
+    for name, value in metrics.items():
+        lines.append(f"| {name} | {value:.4f} |")
+    return lines
+
+
+def _case_table(report: dict[str, Any]) -> list[str]:
+    if report["suite"] == "routing":
+        lines = [
+            "| Case | Query | Expected | Actual | Exact | Jaccard | Latency ms "
+            "| Tokens in/cached/out | Note |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        ]
+        for case in report["cases"]:
+            note = case["error"] or case.get("reason") or ""
+            tokens = f"{case['input_tokens']}/{case['cached_input_tokens']}/{case['output_tokens']}"
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        _cell(case["case_id"]),
+                        _cell(case["query"]),
+                        _cell(case["expected_plan"]),
+                        _cell(case["actual_plan"]),
+                        "yes" if case["exact_match"] else "no",
+                        f"{case['jaccard']:.3f}",
+                        str(case["latency_ms"]),
+                        tokens,
+                        _cell(note),
+                    ]
+                )
+                + " |"
+            )
+        return lines
+
+    lines = [
+        "| Case | Query | Expected tool | Actual calls | Name | Args | Calls "
+        "| Latency ms | Tokens in/cached/out | Note |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for case in report["cases"]:
+        actual = ", ".join(
+            f"{call['name']}({json.dumps(call['arguments'], ensure_ascii=False)})"
+            for call in case["actual_calls"]
+        )
+        expected = (
+            f"{case['expected_tool']} {json.dumps(case['expected_args'], ensure_ascii=False)}"
+        )
+        note = case["error"] or ""
+        tokens = f"{case['input_tokens']}/{case['cached_input_tokens']}/{case['output_tokens']}"
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    _cell(case["case_id"]),
+                    _cell(case["query"]),
+                    _cell(expected),
+                    _cell(actual),
+                    "yes" if case["tool_name_match"] else "no",
+                    "yes" if case["argument_match"] else "no",
+                    str(case["call_count"]),
+                    str(case["latency_ms"]),
+                    tokens,
+                    _cell(note),
+                ]
+            )
+            + " |"
+        )
+    return lines
+
+
+def _confusion_table(matrix: dict[str, dict[str, int]]) -> list[str]:
+    actual_labels = sorted({actual for row in matrix.values() for actual in row})
+    lines = [
+        "| Expected \\ Actual | " + " | ".join(actual_labels) + " |",
+        "| --- | " + " | ".join("---" for _ in actual_labels) + " |",
+    ]
+    for expected, row in matrix.items():
+        lines.append(
+            "| "
+            + _cell(expected)
+            + " | "
+            + " | ".join(str(row.get(actual, 0)) for actual in actual_labels)
+            + " |"
+        )
+    return lines
+
+
+def render_markdown(report: dict[str, Any]) -> str:
+    lines = [f"# {str(report['suite']).title()} eval: {report['provider']}", ""]
+    lines.append("## Run")
+    lines.append("")
+    lines.append(f"- Dataset: `{report['dataset_version']}` at `{report['dataset_path']}`")
+    lines.append(
+        f"- Split: `{report['split']}`, scored {report['case_count']} of "
+        f"{report['split_case_count']} cases in the split "
+        f"({report['dataset_case_count']} in the dataset)"
+    )
+    if report["smoke"]:
+        lines.append(
+            "- **Smoke run:** `--limit` was used, so this report is not a full-suite result."
+        )
+    lines.append(
+        f"- Orchestrator: `{report['orchestrator']}`; provider: `{report['provider']}`; "
+        f"model: `{report['model']}`"
+    )
+    lines.append(f"- Generated: {report['generated_at']}")
+    lines.append(f"- Wall time: {report['wall_time_s']} s")
+    if report["recording"]:
+        lines.append(f"- Recording run: fixtures were recorded with `{report['recorded_with']}`")
+    elif report["provider"] == "mock":
+        lines.append(
+            "- Mock replay: model latency is recorded as 0 and the CI gate measures "
+            "the pipeline, not the model (design.md section 18)."
+        )
+    lines.append("")
+
+    lines.append("## Metrics")
+    lines.append("")
+    lines.extend(_metric_table(report["metrics"]))
+    lines.append("")
+
+    lines.append("## Latency")
+    lines.append("")
+    lines.append("| Window | p50 ms | p95 ms | min ms | max ms | mean ms |")
+    lines.append("| --- | --- | --- | --- | --- | --- |")
+    for name, key in (("Model", "latency_ms"), ("Runner wall", "runner_latency_ms")):
+        summary = report[key]
+        lines.append(
+            f"| {name} | {summary['p50']} | {summary['p95']} | {summary['min']} | "
+            f"{summary['max']} | {summary['mean']} |"
+        )
+    lines.append("")
+
+    lines.append("## Usage")
+    lines.append("")
+    lines.append("| Input tokens | Cached input tokens | Output tokens | Total tokens |")
+    lines.append("| --- | --- | --- | --- |")
+    usage = report["usage"]
+    lines.append(
+        f"| {usage['input_tokens']} | {usage['cached_input_tokens']} | "
+        f"{usage['output_tokens']} | {usage['total_tokens']} |"
+    )
+    lines.append("")
+    lines.append("Cost is not reported: no price table exists until T2.06, so the value is null.")
+    lines.append("")
+
+    if "confusion_matrix" in report:
+        lines.append("## Plan confusion matrix")
+        lines.append("")
+        lines.extend(_confusion_table(report["confusion_matrix"]))
+        lines.append("")
+
+    lines.append(f"## Cases ({report['case_count']})")
+    lines.append("")
+    lines.extend(_case_table(report))
+    lines.append("")
+    lines.append(
+        f"Errors: {report['error_count']}"
+        + (" (" + ", ".join(report["error_case_ids"]) + ")" if report["error_case_ids"] else "")
+    )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_report(report: dict[str, Any], output_dir: Path) -> tuple[Path, Path]:
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    stem = f"{report['suite']}-{report['provider']}"
+    markdown_path = output / f"{stem}.md"
+    json_path = output / f"{stem}.json"
+    markdown_path.write_text(render_markdown(report), encoding="utf-8", newline="\n")
+    json_path.write_text(
+        json.dumps(report, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    return markdown_path, json_path
+
+
+__all__ = [
+    "ReportMeta",
+    "build_report",
+    "latency_summary",
+    "percentile",
+    "render_markdown",
+    "write_report",
+]

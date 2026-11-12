@@ -1,0 +1,71 @@
+{
+  "key": "bc9433e91c199794241d27945dca1c19e4c0625a18bad59009cf349f1410fdef",
+  "purpose": "supervisor.plan",
+  "model": "qwen3-8b",
+  "request": {
+    "purpose": "supervisor.plan",
+    "model": "qwen3-8b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are Switchboard's routing supervisor. Choose the smallest set of registered agents that can answer the user's question. direct handles small talk only. docs answers policy questions from the document index. data answers order and product questions from read-only tools. Return a JSON object with an agents array and a one-sentence reason. Do not invent agent names and do not add an agent that is not needed.",
+        "name": null,
+        "tool_call_id": null,
+        "tool_calls": []
+      },
+      {
+        "role": "user",
+        "content": "Available agents:\n- data: Order, delivery, product and seller questions answered from the Olist tools.\n- direct: Small talk and questions about the assistant; no lookups.\n- docs: Shop policies and other knowledge from the document index.\nChoose one or more agents that can answer the question. Return a JSON object with an agents array and a reason.\nQuestion: 你好，你能帮我做什么？",
+        "name": null,
+        "tool_call_id": null,
+        "tool_calls": []
+      }
+    ],
+    "tools": [],
+    "response_schema": {
+      "type": "object",
+      "properties": {
+        "agents": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "data",
+              "direct",
+              "docs"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "agents",
+        "reason"
+      ]
+    }
+  },
+  "response": {
+    "text": null,
+    "reasoning": null,
+    "tool_calls": [],
+    "parsed": {
+      "agents": [
+        "direct"
+      ],
+      "reason": "The question is a general inquiry about the assistant's capabilities, which falls under small talk."
+    },
+    "structured_output_strategy": "tool_call",
+    "usage": {
+      "input_tokens": 360,
+      "cached_input_tokens": 0,
+      "output_tokens": 45
+    },
+    "model": "qwen3-8b",
+    "provider": "lmstudio",
+    "latency_ms": 2389
+  }
+}

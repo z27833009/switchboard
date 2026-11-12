@@ -1012,7 +1012,9 @@ Feedback (v1): `POST /runs/{id}/feedback` stores a rating and a note. `switchboa
 
 ### 20.2 Runner
 
-`switchboard eval run --suite <name> --provider <name> [--orchestrator <name>] [--limit n] [--record]` executes cases concurrently (bounded), times each, collects usage including cached input tokens, scores, and writes a markdown and a JSON report. `--provider deepseek` prints the estimated cost from the price table and the case count and refuses to proceed without `--confirm-cost` or above the cap in `platform.yaml`.
+`switchboard eval run --suite <name> --provider <name> [--orchestrator <name>] [--limit n] [--record]` executes cases concurrently (bounded, default 4), applies a per-case timeout, times each case, collects usage including cached input tokens, scores, and writes `evals/reports/<suite>-<provider>.md` and `.json`. The JSON report carries the dataset version, split, orchestrator, provider, model, metrics, p50 and p95 latency, input, cached input and output tokens and one row per case. A run with `--limit` is marked as a smoke run in both files. `--provider mock --record` records missing fixtures through the real provider named by the default tenant; a plain mock run replays them with no network. `--provider deepseek` prints the estimated cost from the price table and the case count and refuses to proceed without `--confirm-cost` or above the cap in `platform.yaml`.
+
+Suites receive `EvalDeps(provider)`. The routing suite builds the production supervisor request from the shared `switchboard.routing` helpers and the toolcall suite sends the five manifest tool specs with the data agent prompt prefix; both make one completion per case and do not run the agents or execute tools. This keeps 60 routing and 40 toolcall cases within the local-model budget and lets the mock provider replay them in CI.
 
 ### 20.3 Comparison and regression
 

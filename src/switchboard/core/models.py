@@ -349,6 +349,8 @@ class EvalOutcome(BaseModel):
     answer: str | None = None
     plan: list[str] = Field(default_factory=list)
     tool_calls: list[str] = Field(default_factory=list)
+    tool_arguments: list[dict[str, Any]] = Field(default_factory=list)
+    details: dict[str, Any] = Field(default_factory=dict)
     usage: Usage | None = None
     latency_ms: int = Field(default=0, ge=0)
     error: str | None = None
