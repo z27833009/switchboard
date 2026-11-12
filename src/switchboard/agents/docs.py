@@ -32,7 +32,11 @@ def document_block(chunk: RetrievedChunk, ref: str) -> str:
 class DocsAgent(BaseAgent):
     spec = AgentSpec(
         name="docs",
-        description="Shop policies and other knowledge from the document index.",
+        description=(
+            "Policy text from the document index: returns, refunds, shipping, "
+            "payments and installments, late-delivery compensation, seller "
+            "onboarding."
+        ),
         cacheable=True,
         needs=["retriever"],
     )

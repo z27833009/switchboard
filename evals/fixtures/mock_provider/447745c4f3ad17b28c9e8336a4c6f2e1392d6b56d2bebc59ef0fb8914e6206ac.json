@@ -1,0 +1,71 @@
+{
+  "key": "447745c4f3ad17b28c9e8336a4c6f2e1392d6b56d2bebc59ef0fb8914e6206ac",
+  "purpose": "supervisor.plan",
+  "model": "qwen3-8b",
+  "request": {
+    "purpose": "supervisor.plan",
+    "model": "qwen3-8b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are Switchboard's routing supervisor. Choose every registered agent whose evidence the question needs, and only those; a question may need more than one agent. direct answers small talk and questions about the assistant only, and is never combined with another agent. docs answers policy rules from the document index: returns, refunds, shipping, payments and installments, late-delivery compensation, and seller onboarding. data answers record and aggregate questions from the read-only tools: specific orders, customers, products and sellers, counts, dates, rankings and totals. When a question asks for a record or a number and also for the policy that applies to it, choose both docs and data. Return a JSON object with an agents array and a one-sentence reason. Do not invent agent names.",
+        "name": null,
+        "tool_call_id": null,
+        "tool_calls": []
+      },
+      {
+        "role": "user",
+        "content": "Available agents:\n- data: Records and aggregates from the read-only tools: specific orders, customers, products and sellers, counts, dates, rankings and totals; no policy text.\n- direct: Small talk and questions about the assistant's capabilities; no lookups, never combined with another agent.\n- docs: Policy text from the document index: returns, refunds, shipping, payments and installments, late-delivery compensation, seller onboarding.\nChoose every agent whose evidence the question needs, and only those. Return a JSON object with an agents array and a reason.\nQuestion: Can a voucher be combined with a credit card payment?",
+        "name": null,
+        "tool_call_id": null,
+        "tool_calls": []
+      }
+    ],
+    "tools": [],
+    "response_schema": {
+      "type": "object",
+      "properties": {
+        "agents": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "data",
+              "direct",
+              "docs"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "agents",
+        "reason"
+      ]
+    }
+  },
+  "response": {
+    "text": null,
+    "reasoning": null,
+    "tool_calls": [],
+    "parsed": {
+      "agents": [
+        "docs"
+      ],
+      "reason": "The question involves payment methods and whether they can be combined, which requires policy text from the document index."
+    },
+    "structured_output_strategy": "tool_call",
+    "usage": {
+      "input_tokens": 482,
+      "cached_input_tokens": 0,
+      "output_tokens": 48
+    },
+    "model": "qwen3-8b",
+    "provider": "lmstudio",
+    "latency_ms": 4489
+  }
+}

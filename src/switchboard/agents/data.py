@@ -34,7 +34,11 @@ from switchboard.core.ports import AgentDeps, ToolSource
 class DataAgent(BaseAgent):
     spec = AgentSpec(
         name="data",
-        description="Order, delivery, product and seller questions answered from the Olist tools.",
+        description=(
+            "Records and aggregates from the read-only tools: specific orders, "
+            "customers, products and sellers, counts, dates, rankings and "
+            "totals; no policy text."
+        ),
         cacheable=False,
         needs=["tools"],
     )

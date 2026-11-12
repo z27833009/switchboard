@@ -8,10 +8,10 @@
   "model": "qwen3-8b",
   "source_report": "evals/reports/routing-mock.json",
   "metrics": {
-    "plan_accuracy": 0.5385,
-    "plan_jaccard": 0.6667,
-    "case_pass_rate": 0.5385,
-    "unambiguous_plan_accuracy": 0.5294,
+    "plan_accuracy": 0.9231,
+    "plan_jaccard": 0.9359,
+    "case_pass_rate": 0.9231,
+    "unambiguous_plan_accuracy": 0.9706,
     "ambiguous_plan_accuracy": 0.6
   }
 }

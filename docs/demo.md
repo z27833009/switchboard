@@ -83,7 +83,7 @@ Ask:
 
 Click **Send**. Expected plan: `data+docs`. Two `agent.started` steps appear close together. In the trace, `agent.data` and `agent.docs` overlap in time, as do their `chat qwen3-8b` spans. The merged answer has a `data:` section and a `docs:` section. The docs section carries a `[d1]` citation to `data/documents/late-delivery-compensation.md` (at least three calendar days late, order not canceled, account in good standing, request within 60 calendar days).
 
-Say what is measured: the routing report shows that all 10 `data+docs` test cases were predicted as `data` alone, so mixed plans are the weak part of the local router (plan accuracy 0.5385 overall). The wording above was chosen after that measurement and does produce `data+docs` on the current build, but the short wording from the roadmap, "Were late deliveries in March eligible for compensation?", returned plan `data` in a live run on 2026-11-12. If the short wording gives `data`, show it and use it as the honest example of the measured gap instead of pretending the merge happened.
+Say what is measured: the routing report shows 10 of 10 `data+docs` test cases predicted correctly after the T1.17a prompt change, so mixed plans are no longer the weak part of the local router (plan accuracy 0.9231 overall). The remaining errors are one `data` case predicted as `data+docs`, one `docs` case predicted as `data`, and one `direct` case whose plan failed validation because `direct` was combined with another agent. Run the wording above live and show what the trace reports.
 
 The data section may repeat numbers without its own `[t1]` marker. The tool span is still in the trace, and the docs citation is the one returned in the merged answer. Do not claim both kinds of citation if the merge only returned one.
 
@@ -91,17 +91,17 @@ The data section may repeat numbers without its own `[t1]` marker. The tool span
 
 Open `evals/reports/routing-lmstudio.md` and `evals/reports/toolcall-lmstudio.md`.
 
-Routing: 39 of 39 test cases, plan accuracy 0.5385, Jaccard 0.6667, unambiguous 0.5294, ambiguous 0.6000. The plan confusion matrix is the slide to show:
+Routing: 39 of 39 test cases, plan accuracy 0.9231, Jaccard 0.9359, unambiguous 0.9706, ambiguous 0.6000. The plan confusion matrix is the slide to show:
 
 ```text
-| Expected \ Actual | data | direct | docs | none |
-| data              |   12 |      0 |    0 |    0 |
-| data+docs         |   10 |      0 |    0 |    0 |
-| direct            |    1 |      4 |    0 |    0 |
-| docs              |    6 |      0 |    5 |    1 |
+| Expected \ Actual | data | data+docs | direct | docs | none |
+| data              |   11 |         1 |    0 |    0 |    0 |
+| data+docs         |    0 |        10 |    0 |    0 |    0 |
+| direct            |    0 |         0 |    4 |    0 |    1 |
+| docs              |    0 |         0 |    1 |   11 |    0 |
 ```
 
-Tool call: 40 of 40 cases, tool name, argument and both accuracy 0.9500, 0.95 calls per case, no redundant calls. Latency is one model call per case, p50 2353 ms and p95 2991 ms for routing, p50 3407.5 ms and p95 3747.8 ms for tool call.
+Tool call: 40 of 40 cases, tool name, argument and both accuracy 0.9500, 0.95 calls per case, no redundant calls. Latency is one model call per case, p50 4466.0 ms and p95 5551.7 ms for routing, p50 3407.5 ms and p95 3747.8 ms for tool call.
 
 Say which numbers are measured and which are targets: both reports were measured on LM Studio 1.2.0 with qwen3-8b, dataset v1, no limit, on 2026-11-12. The routing report scored the 39 test cases from its test split; the toolcall report scored all 40 cases. The 0.75 routing target and the 0.60 tool-call target are targets in the requirements. Cost is null in the reports because local models have no API cost and the price table arrives in v1.
 

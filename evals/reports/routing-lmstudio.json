@@ -10,57 +10,57 @@
   "orchestrator": "langgraph",
   "provider": "lmstudio",
   "model": "qwen3-8b",
-  "generated_at": "2026-11-12T19:58:17.037491+00:00",
-  "wall_time_s": 24.122,
+  "generated_at": "2026-11-12T20:47:26.540777+00:00",
+  "wall_time_s": 45.499,
   "recording": false,
   "recorded_with": null,
   "metrics": {
-    "plan_accuracy": 0.5385,
-    "plan_jaccard": 0.6667,
-    "case_pass_rate": 0.5385,
-    "unambiguous_plan_accuracy": 0.5294,
+    "plan_accuracy": 0.9231,
+    "plan_jaccard": 0.9359,
+    "case_pass_rate": 0.9231,
+    "unambiguous_plan_accuracy": 0.9706,
     "ambiguous_plan_accuracy": 0.6
   },
   "latency_ms": {
-    "p50": 2353.0,
-    "p95": 2991.0,
-    "min": 1804.0,
-    "max": 3409.0,
-    "mean": 2431.974
+    "p50": 4466.0,
+    "p95": 5551.7,
+    "min": 1695.0,
+    "max": 5725.0,
+    "mean": 4515.923
   },
   "runner_latency_ms": {
-    "p50": 2354.0,
-    "p95": 2991.0,
-    "min": 1804.0,
-    "max": 3409.0,
-    "mean": 2432.128
+    "p50": 4466.0,
+    "p95": 5551.8,
+    "min": 1695.0,
+    "max": 5725.0,
+    "mean": 4516.205
   },
   "usage": {
-    "input_tokens": 14626,
+    "input_tokens": 19228,
     "cached_input_tokens": 0,
-    "output_tokens": 1773,
-    "total_tokens": 16399
+    "output_tokens": 1893,
+    "total_tokens": 21121
   },
   "cost_usd": null,
   "error_count": 1,
   "error_case_ids": [
-    "r018"
+    "r010"
   ],
   "confusion_matrix": {
     "data": {
-      "data": 12
+      "data": 11,
+      "data+docs": 1
     },
     "data+docs": {
-      "data": 10
+      "data+docs": 10
     },
     "direct": {
-      "data": 1,
-      "direct": 4
+      "direct": 4,
+      "none": 1
     },
     "docs": {
-      "data": 6,
-      "docs": 5,
-      "none": 1
+      "direct": 1,
+      "docs": 11
     }
   },
   "cases": [
@@ -80,12 +80,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2811,
-      "runner_latency_ms": 2811,
-      "input_tokens": 370,
+      "latency_ms": 3993,
+      "runner_latency_ms": 3994,
+      "input_tokens": 488,
       "cached_input_tokens": 0,
-      "output_tokens": 43,
-      "reason": "The data agent can answer questions about orders, including summaries broken down by status.",
+      "output_tokens": 45,
+      "reason": "The question requires data about specific orders and their statuses for September 2017.",
       "error": null
     },
     {
@@ -101,18 +101,19 @@
       ],
       "expected_plan": "data",
       "actual_agents": [
+        "docs",
         "data"
       ],
-      "actual_plan": "data",
-      "exact_match": 1.0,
-      "jaccard": 1.0,
-      "passed": true,
-      "latency_ms": 2952,
-      "runner_latency_ms": 2952,
-      "input_tokens": 396,
+      "actual_plan": "data+docs",
+      "exact_match": 0.0,
+      "jaccard": 0.5,
+      "passed": false,
+      "latency_ms": 1695,
+      "runner_latency_ms": 1695,
+      "input_tokens": 514,
       "cached_input_tokens": 0,
-      "output_tokens": 46,
-      "reason": "The question is about a package delay and potential compensation, which falls under order and delivery inquiries.",
+      "output_tokens": 55,
+      "reason": "The question involves policy (late-delivery compensation) and requires data to determine if the package was late based on delivery dates.",
       "error": null
     },
     {
@@ -126,18 +127,19 @@
       ],
       "expected_plan": "data+docs",
       "actual_agents": [
+        "docs",
         "data"
       ],
-      "actual_plan": "data",
-      "exact_match": 0.0,
-      "jaccard": 0.5,
-      "passed": false,
-      "latency_ms": 2945,
-      "runner_latency_ms": 2945,
-      "input_tokens": 390,
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 5193,
+      "runner_latency_ms": 5193,
+      "input_tokens": 508,
       "cached_input_tokens": 0,
-      "output_tokens": 46,
-      "reason": "The question is about order delivery and potential compensation, which falls under the data agent's responsibility.",
+      "output_tokens": 55,
+      "reason": "The question requires policy text on late-delivery compensation (docs) and data to determine eligibility based on order details (data).",
       "error": null
     },
     {
@@ -151,20 +153,18 @@
         "direct"
       ],
       "expected_plan": "direct",
-      "actual_agents": [
-        "data"
-      ],
-      "actual_plan": "data",
+      "actual_agents": [],
+      "actual_plan": "none",
       "exact_match": 0.0,
       "jaccard": 0.0,
       "passed": false,
-      "latency_ms": 3342,
-      "runner_latency_ms": 3342,
-      "input_tokens": 369,
+      "latency_ms": 2932,
+      "runner_latency_ms": 2932,
+      "input_tokens": 487,
       "cached_input_tokens": 0,
-      "output_tokens": 52,
-      "reason": "The 'data' agent can handle order-related lookups, while the question also implies a need to clarify policy-related capabilities.",
-      "error": null
+      "output_tokens": 55,
+      "reason": null,
+      "error": "plan validation failed: exclusive agents must run alone: direct"
     },
     {
       "case_id": "r012",
@@ -185,12 +185,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2259,
-      "runner_latency_ms": 2259,
-      "input_tokens": 361,
+      "latency_ms": 4583,
+      "runner_latency_ms": 4583,
+      "input_tokens": 479,
       "cached_input_tokens": 0,
-      "output_tokens": 43,
-      "reason": "The question is about shop policies, which can be answered using the document index.",
+      "output_tokens": 47,
+      "reason": "The question asks about the policy related to returns and refunds, which is covered by the docs agent.",
       "error": null
     },
     {
@@ -206,18 +206,18 @@
       ],
       "expected_plan": "docs",
       "actual_agents": [
-        "data"
+        "docs"
       ],
-      "actual_plan": "data",
-      "exact_match": 0.0,
-      "jaccard": 0.0,
-      "passed": false,
-      "latency_ms": 2216,
-      "runner_latency_ms": 2217,
-      "input_tokens": 366,
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 4489,
+      "runner_latency_ms": 4489,
+      "input_tokens": 484,
       "cached_input_tokens": 0,
-      "output_tokens": 42,
-      "reason": "The data agent can answer questions about orders, delivery, and compensation policies.",
+      "output_tokens": 51,
+      "reason": "The question asks about compensation for late delivery, which is covered in the policy text provided by the 'docs' agent.",
       "error": null
     },
     {
@@ -231,18 +231,19 @@
       ],
       "expected_plan": "data+docs",
       "actual_agents": [
-        "data"
+        "data",
+        "docs"
       ],
-      "actual_plan": "data",
-      "exact_match": 0.0,
-      "jaccard": 0.5,
-      "passed": false,
-      "latency_ms": 2433,
-      "runner_latency_ms": 2433,
-      "input_tokens": 397,
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 4717,
+      "runner_latency_ms": 4718,
+      "input_tokens": 515,
       "cached_input_tokens": 0,
-      "output_tokens": 46,
-      "reason": "The question is about order details and payment methods, which can be answered using the data agent.",
+      "output_tokens": 56,
+      "reason": "The question requires checking the payment method of a specific order (data) and retrieving the relevant installment rules from policy documents (docs).",
       "error": null
     },
     {
@@ -263,12 +264,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2208,
-      "runner_latency_ms": 2208,
-      "input_tokens": 377,
+      "latency_ms": 4529,
+      "runner_latency_ms": 4529,
+      "input_tokens": 495,
       "cached_input_tokens": 0,
-      "output_tokens": 43,
-      "reason": "The data agent can answer questions about order and product performance, including revenue analysis.",
+      "output_tokens": 45,
+      "reason": "The question requires data on product revenue from specific orders in December 2017.",
       "error": null
     },
     {
@@ -282,18 +283,20 @@
         "docs"
       ],
       "expected_plan": "docs",
-      "actual_agents": [],
-      "actual_plan": "none",
+      "actual_agents": [
+        "direct"
+      ],
+      "actual_plan": "direct",
       "exact_match": 0.0,
       "jaccard": 0.0,
       "passed": false,
-      "latency_ms": 2844,
-      "runner_latency_ms": 2844,
-      "input_tokens": 363,
+      "latency_ms": 4428,
+      "runner_latency_ms": 4428,
+      "input_tokens": 481,
       "cached_input_tokens": 0,
-      "output_tokens": 56,
-      "reason": null,
-      "error": "plan validation failed: exclusive agents must run alone: direct"
+      "output_tokens": 44,
+      "reason": "The question is about the assistant's capabilities, which is handled by the direct agent.",
+      "error": null
     },
     {
       "case_id": "r019",
@@ -313,12 +316,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2283,
-      "runner_latency_ms": 2283,
-      "input_tokens": 363,
+      "latency_ms": 4337,
+      "runner_latency_ms": 4338,
+      "input_tokens": 481,
       "cached_input_tokens": 0,
-      "output_tokens": 45,
-      "reason": "The question about seller fees relates to shop policies, which are answered by the docs agent.",
+      "output_tokens": 47,
+      "reason": "The question asks about fees related to joining the platform, which is covered under seller onboarding policies.",
       "error": null
     },
     {
@@ -337,12 +340,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2623,
-      "runner_latency_ms": 2623,
-      "input_tokens": 379,
+      "latency_ms": 4135,
+      "runner_latency_ms": 4135,
+      "input_tokens": 497,
       "cached_input_tokens": 0,
-      "output_tokens": 52,
-      "reason": "The data agent can answer questions about order, delivery, product, and seller information, including revenue data for specific time periods.",
+      "output_tokens": 47,
+      "reason": "The question requires data on product revenue and rankings, which is provided by the 'data' agent.",
       "error": null
     },
     {
@@ -361,12 +364,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2199,
-      "runner_latency_ms": 2199,
-      "input_tokens": 369,
+      "latency_ms": 4402,
+      "runner_latency_ms": 4403,
+      "input_tokens": 487,
       "cached_input_tokens": 0,
-      "output_tokens": 44,
-      "reason": "The question is about product sales data, which can be answered using the data agent.",
+      "output_tokens": 57,
+      "reason": "The question asks for specific sales data on product units sold during a particular period, which requires the 'data' agent to retrieve and aggregate order records.",
       "error": null
     },
     {
@@ -385,12 +388,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2383,
-      "runner_latency_ms": 2383,
-      "input_tokens": 390,
+      "latency_ms": 4466,
+      "runner_latency_ms": 4466,
+      "input_tokens": 508,
       "cached_input_tokens": 0,
       "output_tokens": 47,
-      "reason": "The question is about the status of a specific order, which can be answered using the data agent.",
+      "reason": "The question asks for the status of a specific order, which requires data from the read-only tools.",
       "error": null
     },
     {
@@ -406,18 +409,19 @@
       ],
       "expected_plan": "data+docs",
       "actual_agents": [
-        "data"
+        "data",
+        "docs"
       ],
-      "actual_plan": "data",
-      "exact_match": 0.0,
-      "jaccard": 0.5,
-      "passed": false,
-      "latency_ms": 2324,
-      "runner_latency_ms": 2324,
-      "input_tokens": 373,
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 5585,
+      "runner_latency_ms": 5586,
+      "input_tokens": 491,
       "cached_input_tokens": 0,
-      "output_tokens": 46,
-      "reason": "The question is about order delivery and compensation conditions, which falls under the data agent's responsibility.",
+      "output_tokens": 54,
+      "reason": "The question requires data from specific orders (to count eligible orders) and policy text from docs (to determine compensation conditions).",
       "error": null
     },
     {
@@ -431,18 +435,19 @@
       ],
       "expected_plan": "data+docs",
       "actual_agents": [
-        "data"
+        "data",
+        "docs"
       ],
-      "actual_plan": "data",
-      "exact_match": 0.0,
-      "jaccard": 0.5,
-      "passed": false,
-      "latency_ms": 2217,
-      "runner_latency_ms": 2217,
-      "input_tokens": 395,
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 5725,
+      "runner_latency_ms": 5725,
+      "input_tokens": 513,
       "cached_input_tokens": 0,
-      "output_tokens": 44,
-      "reason": "The question involves order details and payment rules, which are handled by the data agent.",
+      "output_tokens": 51,
+      "reason": "The question requires accessing specific order data (data agent) and retrieving relevant payment policy text (docs agent).",
       "error": null
     },
     {
@@ -461,12 +466,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2108,
-      "runner_latency_ms": 2108,
-      "input_tokens": 364,
+      "latency_ms": 5458,
+      "runner_latency_ms": 5458,
+      "input_tokens": 482,
       "cached_input_tokens": 0,
-      "output_tokens": 42,
-      "reason": "The question about refund policies for damaged items requires information from the document index.",
+      "output_tokens": 43,
+      "reason": "The question requires policy text about refunds, which is provided by the docs agent.",
       "error": null
     },
     {
@@ -480,18 +485,19 @@
       ],
       "expected_plan": "data+docs",
       "actual_agents": [
-        "data"
+        "data",
+        "docs"
       ],
-      "actual_plan": "data",
-      "exact_match": 0.0,
-      "jaccard": 0.5,
-      "passed": false,
-      "latency_ms": 2693,
-      "runner_latency_ms": 2694,
-      "input_tokens": 374,
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 5548,
+      "runner_latency_ms": 5548,
+      "input_tokens": 492,
       "cached_input_tokens": 0,
-      "output_tokens": 49,
-      "reason": "The question involves analyzing delivery data and applying a policy, which falls under the 'data' agent's responsibility.",
+      "output_tokens": 45,
+      "reason": "The question requires data about specific deliveries and the applicable policy text for compensation.",
       "error": null
     },
     {
@@ -505,18 +511,19 @@
       ],
       "expected_plan": "data+docs",
       "actual_agents": [
-        "data"
+        "data",
+        "docs"
       ],
-      "actual_plan": "data",
-      "exact_match": 0.0,
-      "jaccard": 0.5,
-      "passed": false,
-      "latency_ms": 3409,
-      "runner_latency_ms": 3409,
-      "input_tokens": 376,
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 4444,
+      "runner_latency_ms": 4445,
+      "input_tokens": 494,
       "cached_input_tokens": 0,
-      "output_tokens": 58,
-      "reason": "The data agent can access order and product information to retrieve the top 5 products by units sold in November 2017 and their return windows.",
+      "output_tokens": 44,
+      "reason": "The question requires data on product sales and policy information on return windows.",
       "error": null
     },
     {
@@ -535,12 +542,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2404,
-      "runner_latency_ms": 2404,
-      "input_tokens": 373,
+      "latency_ms": 4238,
+      "runner_latency_ms": 4238,
+      "input_tokens": 491,
       "cached_input_tokens": 0,
-      "output_tokens": 44,
-      "reason": "The data agent can access order and delivery information to provide the count of late deliveries.",
+      "output_tokens": 43,
+      "reason": "The question asks for a count of late deliveries, which is a data record.",
       "error": null
     },
     {
@@ -561,12 +568,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2353,
-      "runner_latency_ms": 2354,
-      "input_tokens": 392,
+      "latency_ms": 4262,
+      "runner_latency_ms": 4262,
+      "input_tokens": 510,
       "cached_input_tokens": 0,
-      "output_tokens": 43,
-      "reason": "The data agent can answer questions about order delivery times using the Olist tools.",
+      "output_tokens": 47,
+      "reason": "The question asks for a specific order's delivery date, which requires data from the read-only tools.",
       "error": null
     },
     {
@@ -580,18 +587,19 @@
       ],
       "expected_plan": "data+docs",
       "actual_agents": [
-        "data"
+        "data",
+        "docs"
       ],
-      "actual_plan": "data",
-      "exact_match": 0.0,
-      "jaccard": 0.5,
-      "passed": false,
-      "latency_ms": 2471,
-      "runner_latency_ms": 2471,
-      "input_tokens": 382,
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 4344,
+      "runner_latency_ms": 4344,
+      "input_tokens": 500,
       "cached_input_tokens": 0,
-      "output_tokens": 44,
-      "reason": "The question involves order and delivery data, which can be answered using the data agent.",
+      "output_tokens": 49,
+      "reason": "The question requires data about the number of late deliveries and policy information on compensation for affected customers.",
       "error": null
     },
     {
@@ -610,12 +618,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2382,
-      "runner_latency_ms": 2382,
-      "input_tokens": 367,
+      "latency_ms": 4325,
+      "runner_latency_ms": 4325,
+      "input_tokens": 485,
       "cached_input_tokens": 0,
-      "output_tokens": 43,
-      "reason": "The question about starting to sell on the marketplace requires information from the document index.",
+      "output_tokens": 44,
+      "reason": "The question asks about seller onboarding requirements, which is covered by the docs agent.",
       "error": null
     },
     {
@@ -628,18 +636,18 @@
       ],
       "expected_plan": "docs",
       "actual_agents": [
-        "data"
+        "docs"
       ],
-      "actual_plan": "data",
-      "exact_match": 0.0,
-      "jaccard": 0.0,
-      "passed": false,
-      "latency_ms": 2639,
-      "runner_latency_ms": 2639,
-      "input_tokens": 369,
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 4337,
+      "runner_latency_ms": 4337,
+      "input_tokens": 487,
       "cached_input_tokens": 0,
-      "output_tokens": 46,
-      "reason": "The question relates to payment methods and installment options, which can be answered using the data agent.",
+      "output_tokens": 44,
+      "reason": "The question involves payment methods and installments, which are covered in the policy text.",
       "error": null
     },
     {
@@ -654,18 +662,18 @@
       ],
       "expected_plan": "docs",
       "actual_agents": [
-        "data"
+        "docs"
       ],
-      "actual_plan": "data",
-      "exact_match": 0.0,
-      "jaccard": 0.0,
-      "passed": false,
-      "latency_ms": 2275,
-      "runner_latency_ms": 2275,
-      "input_tokens": 369,
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 4209,
+      "runner_latency_ms": 4209,
+      "input_tokens": 487,
       "cached_input_tokens": 0,
-      "output_tokens": 43,
-      "reason": "The question is about delivery policies, which falls under the data agent's responsibility.",
+      "output_tokens": 38,
+      "reason": "The question requires policy text about late-delivery compensation.",
       "error": null
     },
     {
@@ -680,18 +688,18 @@
       ],
       "expected_plan": "docs",
       "actual_agents": [
-        "data"
+        "docs"
       ],
-      "actual_plan": "data",
-      "exact_match": 0.0,
-      "jaccard": 0.0,
-      "passed": false,
-      "latency_ms": 2605,
-      "runner_latency_ms": 2605,
-      "input_tokens": 361,
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 4203,
+      "runner_latency_ms": 4204,
+      "input_tokens": 479,
       "cached_input_tokens": 0,
-      "output_tokens": 49,
-      "reason": "The question about becoming a seller requires information on the required materials, which can be answered using the data agent.",
+      "output_tokens": 48,
+      "reason": "The question asks about the requirements to become a seller, which is covered by the 'docs' agent.",
       "error": null
     },
     {
@@ -712,12 +720,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2099,
-      "runner_latency_ms": 2100,
-      "input_tokens": 362,
+      "latency_ms": 4316,
+      "runner_latency_ms": 4316,
+      "input_tokens": 480,
       "cached_input_tokens": 0,
-      "output_tokens": 40,
-      "reason": "The user is ending the conversation, so direct handle is sufficient.",
+      "output_tokens": 46,
+      "reason": "The question is a closing statement, so the 'direct' agent is needed for small talk.",
       "error": null
     },
     {
@@ -733,18 +741,19 @@
       ],
       "expected_plan": "data+docs",
       "actual_agents": [
+        "docs",
         "data"
       ],
-      "actual_plan": "data",
-      "exact_match": 0.0,
-      "jaccard": 0.5,
-      "passed": false,
-      "latency_ms": 2296,
-      "runner_latency_ms": 2297,
-      "input_tokens": 395,
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 4583,
+      "runner_latency_ms": 4584,
+      "input_tokens": 513,
       "cached_input_tokens": 0,
-      "output_tokens": 45,
-      "reason": "The question is about an order and compensation, which falls under the data agent's responsibility.",
+      "output_tokens": 54,
+      "reason": "The question involves checking the policy for late delivery compensation (docs) and verifying the order details to determine eligibility (data).",
       "error": null
     },
     {
@@ -763,12 +772,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2446,
-      "runner_latency_ms": 2446,
-      "input_tokens": 373,
+      "latency_ms": 4848,
+      "runner_latency_ms": 4849,
+      "input_tokens": 491,
       "cached_input_tokens": 0,
-      "output_tokens": 45,
-      "reason": "The question is about small talk and language preference, which is handled by the direct agent.",
+      "output_tokens": 48,
+      "reason": "The question is about the assistant's capabilities and language preference, which falls under the 'direct' agent.",
       "error": null
     },
     {
@@ -787,12 +796,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2313,
-      "runner_latency_ms": 2313,
-      "input_tokens": 362,
+      "latency_ms": 4512,
+      "runner_latency_ms": 4512,
+      "input_tokens": 480,
       "cached_input_tokens": 0,
-      "output_tokens": 42,
-      "reason": "The question is about small talk and can be answered by the direct agent.",
+      "output_tokens": 39,
+      "reason": "The question is about small talk and the assistant's capabilities.",
       "error": null
     },
     {
@@ -813,12 +822,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2211,
-      "runner_latency_ms": 2211,
-      "input_tokens": 367,
+      "latency_ms": 4587,
+      "runner_latency_ms": 4587,
+      "input_tokens": 485,
       "cached_input_tokens": 0,
-      "output_tokens": 40,
-      "reason": "The data agent can answer questions about orders, including delivery statistics.",
+      "output_tokens": 53,
+      "reason": "The question asks for the number of orders delivered in October 2017, which requires data from the read-only tools.",
       "error": null
     },
     {
@@ -833,18 +842,18 @@
       ],
       "expected_plan": "docs",
       "actual_agents": [
-        "data"
+        "docs"
       ],
-      "actual_plan": "data",
-      "exact_match": 0.0,
-      "jaccard": 0.0,
-      "passed": false,
-      "latency_ms": 2638,
-      "runner_latency_ms": 2638,
-      "input_tokens": 360,
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 4432,
+      "runner_latency_ms": 4432,
+      "input_tokens": 478,
       "cached_input_tokens": 0,
-      "output_tokens": 49,
-      "reason": "The question about shipping costs is related to order and delivery information, which can be answered by the data agent.",
+      "output_tokens": 47,
+      "reason": "The question is about shipping policy, which requires the 'docs' agent to provide relevant policy text.",
       "error": null
     },
     {
@@ -863,12 +872,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2443,
-      "runner_latency_ms": 2443,
-      "input_tokens": 366,
+      "latency_ms": 4423,
+      "runner_latency_ms": 4423,
+      "input_tokens": 484,
       "cached_input_tokens": 0,
-      "output_tokens": 47,
-      "reason": "The data agent can answer questions about orders, including the number of orders placed in a specific month.",
+      "output_tokens": 53,
+      "reason": "The question asks for the number of orders placed in January 2017, which requires data from the read-only tools.",
       "error": null
     },
     {
@@ -882,18 +891,19 @@
       ],
       "expected_plan": "data+docs",
       "actual_agents": [
-        "data"
+        "data",
+        "docs"
       ],
-      "actual_plan": "data",
-      "exact_match": 0.0,
-      "jaccard": 0.5,
-      "passed": false,
-      "latency_ms": 2685,
-      "runner_latency_ms": 2685,
-      "input_tokens": 411,
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 4910,
+      "runner_latency_ms": 4910,
+      "input_tokens": 529,
       "cached_input_tokens": 0,
-      "output_tokens": 52,
-      "reason": "The question involves checking the return window for a specific order, which requires accessing order and product information from the Olist tools.",
+      "output_tokens": 57,
+      "reason": "The question requires checking the return policy (docs) and specific order details (data) to determine if the return is within the window.",
       "error": null
     },
     {
@@ -912,12 +922,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2227,
-      "runner_latency_ms": 2227,
-      "input_tokens": 383,
+      "latency_ms": 4811,
+      "runner_latency_ms": 4812,
+      "input_tokens": 501,
       "cached_input_tokens": 0,
-      "output_tokens": 43,
-      "reason": "The data agent can answer questions about orders, including canceled orders between specific dates.",
+      "output_tokens": 51,
+      "reason": "The question asks for a count of canceled orders within a specific date range, which requires data from the read-only tools.",
       "error": null
     },
     {
@@ -933,18 +943,19 @@
       ],
       "expected_plan": "data+docs",
       "actual_agents": [
-        "data"
+        "data",
+        "docs"
       ],
-      "actual_plan": "data",
-      "exact_match": 0.0,
-      "jaccard": 0.5,
-      "passed": false,
-      "latency_ms": 2107,
-      "runner_latency_ms": 2107,
-      "input_tokens": 388,
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 5423,
+      "runner_latency_ms": 5423,
+      "input_tokens": 506,
       "cached_input_tokens": 0,
-      "output_tokens": 41,
-      "reason": "The data agent can access order-specific information, including compensation policy details.",
+      "output_tokens": 76,
+      "reason": "The question requires checking the compensation policy (docs) and verifying details about order 6a7f35ca0fe2ac17fb1e6088070ab810 (data).",
       "error": null
     },
     {
@@ -965,12 +976,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2232,
-      "runner_latency_ms": 2233,
-      "input_tokens": 389,
+      "latency_ms": 5314,
+      "runner_latency_ms": 5314,
+      "input_tokens": 507,
       "cached_input_tokens": 0,
-      "output_tokens": 44,
-      "reason": "The question is about the status of a specific order, which requires accessing order data.",
+      "output_tokens": 47,
+      "reason": "The question asks for the status of a specific order, which requires data from the read-only tools.",
       "error": null
     },
     {
@@ -991,12 +1002,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 2033,
-      "runner_latency_ms": 2033,
-      "input_tokens": 361,
+      "latency_ms": 4929,
+      "runner_latency_ms": 4930,
+      "input_tokens": 479,
       "cached_input_tokens": 0,
-      "output_tokens": 45,
-      "reason": "The question is a closing message and should be handled by the direct agent for small talk.",
+      "output_tokens": 44,
+      "reason": "The question is a closing message and requires the 'direct' agent for small talk.",
       "error": null
     },
     {
@@ -1015,12 +1026,12 @@
       "exact_match": 1.0,
       "jaccard": 1.0,
       "passed": true,
-      "latency_ms": 1935,
-      "runner_latency_ms": 1935,
-      "input_tokens": 365,
+      "latency_ms": 4587,
+      "runner_latency_ms": 4587,
+      "input_tokens": 483,
       "cached_input_tokens": 0,
-      "output_tokens": 43,
-      "reason": "The question is about shop policies, which can be answered using the document index.",
+      "output_tokens": 35,
+      "reason": "The question requires policy text about returns.",
       "error": null
     },
     {
@@ -1033,18 +1044,18 @@
       ],
       "expected_plan": "docs",
       "actual_agents": [
-        "data"
+        "docs"
       ],
-      "actual_plan": "data",
-      "exact_match": 0.0,
-      "jaccard": 0.0,
-      "passed": false,
-      "latency_ms": 1804,
-      "runner_latency_ms": 1804,
-      "input_tokens": 359,
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 3869,
+      "runner_latency_ms": 3869,
+      "input_tokens": 477,
       "cached_input_tokens": 0,
-      "output_tokens": 41,
-      "reason": "The data agent can provide information about payment methods accepted by the platform.",
+      "output_tokens": 42,
+      "reason": "The question asks about payment methods, which is covered in the policy text.",
       "error": null
     }
   ]

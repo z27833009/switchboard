@@ -149,8 +149,8 @@ def test_cli_gate_uses_the_default_report_path(monkeypatch: pytest.MonkeyPatch) 
     )
 
     assert result.exit_code == 0, result.output + result.stderr
-    assert "baseline 0.5385" in result.output
-    assert "current 0.5385" in result.output
+    assert "baseline 0.9231" in result.output
+    assert "current 0.9231" in result.output
     assert "drop 0.0000, allowed 0.0500" in result.output
     assert "gate passed" in result.output
 
@@ -177,5 +177,5 @@ def test_cli_gate_fails_on_a_worse_report(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 1
-    assert "drop 0.0885, allowed 0.0500" in result.output
+    assert "drop 0.4731, allowed 0.0500" in result.output
     assert "gate failed" in result.stderr

@@ -11,7 +11,10 @@ from switchboard.core.ports import AgentDeps
 class DirectAgent(BaseAgent):
     spec = AgentSpec(
         name="direct",
-        description="Small talk and questions about the assistant; no lookups.",
+        description=(
+            "Small talk and questions about the assistant's capabilities; "
+            "no lookups, never combined with another agent."
+        ),
         cacheable=True,
         exclusive=True,
     )

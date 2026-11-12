@@ -1,0 +1,71 @@
+{
+  "key": "15bec85d92f4d9d9cb1f39390470f1336065c623c4fda47f66e31e213e685eb7",
+  "purpose": "supervisor.plan",
+  "model": "qwen3-8b",
+  "request": {
+    "purpose": "supervisor.plan",
+    "model": "qwen3-8b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are Switchboard's routing supervisor. Choose every registered agent whose evidence the question needs, and only those; a question may need more than one agent. direct answers small talk and questions about the assistant only, and is never combined with another agent. docs answers policy rules from the document index: returns, refunds, shipping, payments and installments, late-delivery compensation, and seller onboarding. data answers record and aggregate questions from the read-only tools: specific orders, customers, products and sellers, counts, dates, rankings and totals. When a question asks for a record or a number and also for the policy that applies to it, choose both docs and data. Return a JSON object with an agents array and a one-sentence reason. Do not invent agent names.",
+        "name": null,
+        "tool_call_id": null,
+        "tool_calls": []
+      },
+      {
+        "role": "user",
+        "content": "Available agents:\n- data: Records and aggregates from the read-only tools: specific orders, customers, products and sellers, counts, dates, rankings and totals; no policy text.\n- direct: Small talk and questions about the assistant's capabilities; no lookups, never combined with another agent.\n- docs: Policy text from the document index: returns, refunds, shipping, payments and installments, late-delivery compensation, seller onboarding.\nChoose every agent whose evidence the question needs, and only those. Return a JSON object with an agents array and a reason.\nQuestion: Which products sold the most units from October through December 2017?",
+        "name": null,
+        "tool_call_id": null,
+        "tool_calls": []
+      }
+    ],
+    "tools": [],
+    "response_schema": {
+      "type": "object",
+      "properties": {
+        "agents": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "data",
+              "direct",
+              "docs"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "agents",
+        "reason"
+      ]
+    }
+  },
+  "response": {
+    "text": null,
+    "reasoning": null,
+    "tool_calls": [],
+    "parsed": {
+      "agents": [
+        "data"
+      ],
+      "reason": "The question asks for specific sales data on product units sold during a particular period, which requires the 'data' agent to retrieve and aggregate order records."
+    },
+    "structured_output_strategy": "tool_call",
+    "usage": {
+      "input_tokens": 487,
+      "cached_input_tokens": 0,
+      "output_tokens": 57
+    },
+    "model": "qwen3-8b",
+    "provider": "lmstudio",
+    "latency_ms": 4454
+  }
+}
