@@ -6,7 +6,18 @@ Switchboard takes a user question, lets a supervisor decide whether to answer di
 
 [![CI](https://github.com/z27833009/switchboard/actions/workflows/ci.yml/badge.svg)](https://github.com/z27833009/switchboard/actions/workflows/ci.yml)
 
-> Status: **planning**. The specification is complete and under review. No application code exists yet. Every metric mentioned in the docs is a target until it is measured and the status column says so.
+> Status: **Phase 1 in progress**. The evaluation harness has measured reports on LM Studio. Every metric mentioned in the docs is a target until a report backs it, and the status column in the requirements links the measured ones.
+
+## Measured results
+
+Dataset v1, qwen3-8b on LM Studio, full default split with no limit, run on 2026-11-12. The routing suite scored 39 of 39 test cases and the toolcall suite 40 of 40 cases.
+
+| Suite | Result | Latency |
+| --- | --- | --- |
+| Routing (plan graph) | Plan accuracy 0.5385, below the 0.75 local target (Jaccard 0.6667, ambiguous cases 0.6000) | p50 2353 ms, p95 2991 ms |
+| Tool call | Tool name and argument accuracy both 0.9500, above the 0.60 local target; 0.95 calls per case, no redundant calls | p50 3407.5 ms, p95 3747.8 ms |
+
+Reports: [routing](evals/reports/routing-lmstudio.md), [tool call](evals/reports/toolcall-lmstudio.md). Latency is one model call per case, not an end-to-end run. Cost is not in USD: local models have no API cost, and no price table exists until v1. The mock reports under [evals/reports/](evals/reports/) replay recorded model output, so the CI gate measures the pipeline, not the model.
 
 ## Why this exists
 

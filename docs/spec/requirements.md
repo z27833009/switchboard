@@ -207,17 +207,17 @@ All values in the Target column are targets. The Status column says `target` unt
 
 | Metric | Definition | Measured by | Target | Status |
 | --- | --- | --- | --- | --- |
-| Plan accuracy | Share of cases where the chosen set of agents equals the labeled set | `routing` suite, dataset v1 | >= 0.90 with a cloud model, >= 0.75 with a 7B local model | target |
-| Tool-call accuracy | Share of cases where the tool name and all required arguments match the label (AST match, BFCL style) | `toolcall` suite | >= 0.85 cloud, >= 0.60 local | target |
-| Tool calls per data case | Mean tool calls and share of redundant calls | `toolcall` suite | reported, no target | target |
+| Plan accuracy | Share of cases where the chosen set of agents equals the labeled set | `routing` suite, dataset v1 | >= 0.90 with a cloud model, >= 0.75 with a 7B local model | measured 0.5385 on qwen3-8b via LM Studio, dataset v1 test split, 39 of 39 cases (Jaccard 0.6667, unambiguous 0.5294, ambiguous 0.6000), below the 0.75 local target: [routing report](../../evals/reports/routing-lmstudio.md) |
+| Tool-call accuracy | Share of cases where the tool name and all required arguments match the label (AST match, BFCL style) | `toolcall` suite | >= 0.85 cloud, >= 0.60 local | measured 0.9500 on qwen3-8b via LM Studio, dataset v1, 40 of 40 cases (tool name 0.9500, arguments 0.9500), above the 0.60 local target: [toolcall report](../../evals/reports/toolcall-lmstudio.md) |
+| Tool calls per data case | Mean tool calls and share of redundant calls | `toolcall` suite | reported, no target | measured 0.95 calls per case and redundant call rate 0.0000 on qwen3-8b via LM Studio, dataset v1, 40 cases: [toolcall report](../../evals/reports/toolcall-lmstudio.md) |
 | Architecture comparison | Plan accuracy, tool-call accuracy, latency and cost of plan graph versus agent loop | US-13 report (v1) | reported, no target (the point is to find out) | target |
 | RAG recall@5 | Share of cases where a labeled relevant chunk is in the top 5 | `rag` suite (v1) | >= 0.85 for the best strategy, reported for all four | target |
 | Gate precision and recall | Weak answers correctly rejected, good answers not rejected, per check | `gate` suite (v1) | precision >= 0.80, recall >= 0.70 | target |
 | Cache hit rate | Hits divided by lookups on the cache suite | `cache` suite (v1) | reported, no target (depends on query mix) | target |
 | Cache false-hit rate | Hits where the labeled answer differs | `cache` suite (v1) | <= 0.02 | target |
-| Cached input share | Cached input tokens divided by input tokens | every suite, per provider | reported, no target | target |
-| Latency p50 and p95 per plan | Wall time from request to answer | every suite | reported per provider; p50 under 8 s for `data+docs` with a cloud model | target |
-| Cost per 100 queries | Sum of model cost from the price table | every suite | reported per provider | target |
+| Cached input share | Cached input tokens divided by input tokens | every suite, per provider | reported, no target | measured 0.0000 on qwen3-8b via LM Studio: 0 cached input tokens of 14,626 routing and 32,945 toolcall input tokens: [routing report](../../evals/reports/routing-lmstudio.md), [toolcall report](../../evals/reports/toolcall-lmstudio.md) |
+| Latency p50 and p95 per plan | Wall time from request to answer | every suite | reported per provider; p50 under 8 s for `data+docs` with a cloud model | measured model-call latency, not end-to-end run: routing p50 2353 ms, p95 2991 ms; toolcall p50 3407.5 ms, p95 3747.8 ms on qwen3-8b via LM Studio, dataset v1: [routing report](../../evals/reports/routing-lmstudio.md), [toolcall report](../../evals/reports/toolcall-lmstudio.md). The data+docs cloud target was not tested |
+| Cost per 100 queries | Sum of model cost from the price table | every suite | reported per provider | measured no API cost for the local LM Studio runs. The JSON `cost_usd` is null until the T2.06 price table, and no USD value is claimed for a paid provider: [routing report](../../evals/reports/routing-lmstudio.md), [toolcall report](../../evals/reports/toolcall-lmstudio.md) |
 | Injection detection rate | Malicious samples flagged | `injection` suite (v1) | >= 0.90 detection, <= 0.05 false positives | target |
 | Local startup time | Fresh clone to first answer | manual, documented | < 15 min | target |
 

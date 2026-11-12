@@ -1,0 +1,1051 @@
+{
+  "suite": "routing",
+  "dataset_version": "v1",
+  "dataset_path": "evals/datasets/v1/routing.jsonl",
+  "split": "test",
+  "case_count": 39,
+  "dataset_case_count": 60,
+  "split_case_count": 39,
+  "smoke": false,
+  "orchestrator": "langgraph",
+  "provider": "lmstudio",
+  "model": "qwen3-8b",
+  "generated_at": "2026-11-12T19:58:17.037491+00:00",
+  "wall_time_s": 24.122,
+  "recording": false,
+  "recorded_with": null,
+  "metrics": {
+    "plan_accuracy": 0.5385,
+    "plan_jaccard": 0.6667,
+    "case_pass_rate": 0.5385,
+    "unambiguous_plan_accuracy": 0.5294,
+    "ambiguous_plan_accuracy": 0.6
+  },
+  "latency_ms": {
+    "p50": 2353.0,
+    "p95": 2991.0,
+    "min": 1804.0,
+    "max": 3409.0,
+    "mean": 2431.974
+  },
+  "runner_latency_ms": {
+    "p50": 2354.0,
+    "p95": 2991.0,
+    "min": 1804.0,
+    "max": 3409.0,
+    "mean": 2432.128
+  },
+  "usage": {
+    "input_tokens": 14626,
+    "cached_input_tokens": 0,
+    "output_tokens": 1773,
+    "total_tokens": 16399
+  },
+  "cost_usd": null,
+  "error_count": 1,
+  "error_case_ids": [
+    "r018"
+  ],
+  "confusion_matrix": {
+    "data": {
+      "data": 12
+    },
+    "data+docs": {
+      "data": 10
+    },
+    "direct": {
+      "data": 1,
+      "direct": 4
+    },
+    "docs": {
+      "data": 6,
+      "docs": 5,
+      "none": 1
+    }
+  },
+  "cases": [
+    {
+      "case_id": "r003",
+      "query": "Give me an order summary for September 2017 broken down by status.",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2811,
+      "runner_latency_ms": 2811,
+      "input_tokens": 370,
+      "cached_input_tokens": 0,
+      "output_tokens": 43,
+      "reason": "The data agent can answer questions about orders, including summaries broken down by status.",
+      "error": null
+    },
+    {
+      "case_id": "r008",
+      "query": "my packge d24b9ff725ca614bc99aa08a07f8a06c came super late, do i get anything back for that?",
+      "tags": [
+        "typo",
+        "ambiguous"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2952,
+      "runner_latency_ms": 2952,
+      "input_tokens": 396,
+      "cached_input_tokens": 0,
+      "output_tokens": 46,
+      "reason": "The question is about a package delay and potential compensation, which falls under order and delivery inquiries.",
+      "error": null
+    },
+    {
+      "case_id": "r009",
+      "query": "Order dfe367de1f1445f0ea5f00e2f3e04abb arrived late. Am I eligible for compensation?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.5,
+      "passed": false,
+      "latency_ms": 2945,
+      "runner_latency_ms": 2945,
+      "input_tokens": 390,
+      "cached_input_tokens": 0,
+      "output_tokens": 46,
+      "reason": "The question is about order delivery and potential compensation, which falls under the data agent's responsibility.",
+      "error": null
+    },
+    {
+      "case_id": "r010",
+      "query": "Can you look up orders for me, or do you only answer policy questions?",
+      "tags": [
+        "trap"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "direct"
+      ],
+      "expected_plan": "direct",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.0,
+      "passed": false,
+      "latency_ms": 3342,
+      "runner_latency_ms": 3342,
+      "input_tokens": 369,
+      "cached_input_tokens": 0,
+      "output_tokens": 52,
+      "reason": "The 'data' agent can handle order-related lookups, while the question also implies a need to clarify policy-related capabilities.",
+      "error": null
+    },
+    {
+      "case_id": "r012",
+      "query": "退货后多久能收到退款？",
+      "tags": [
+        "zh",
+        "ambiguous"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "docs"
+      ],
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2259,
+      "runner_latency_ms": 2259,
+      "input_tokens": 361,
+      "cached_input_tokens": 0,
+      "output_tokens": 43,
+      "reason": "The question is about shop policies, which can be answered using the document index.",
+      "error": null
+    },
+    {
+      "case_id": "r015",
+      "query": "If my order arrives late, what compensation am I entitled to?",
+      "tags": [
+        "trap",
+        "ambiguous"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.0,
+      "passed": false,
+      "latency_ms": 2216,
+      "runner_latency_ms": 2217,
+      "input_tokens": 366,
+      "cached_input_tokens": 0,
+      "output_tokens": 42,
+      "reason": "The data agent can answer questions about orders, delivery, and compensation policies.",
+      "error": null
+    },
+    {
+      "case_id": "r016",
+      "query": "Was order 07460fefc54c9c13abb2bc6ca25e0d17 paid in installments, and if so, what are the installment rules?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.5,
+      "passed": false,
+      "latency_ms": 2433,
+      "runner_latency_ms": 2433,
+      "input_tokens": 397,
+      "cached_input_tokens": 0,
+      "output_tokens": 46,
+      "reason": "The question is about order details and payment methods, which can be answered using the data agent.",
+      "error": null
+    },
+    {
+      "case_id": "r017",
+      "query": "As a seller, I'd like to know which products brought in the most revenue in December 2017.",
+      "tags": [
+        "trap"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2208,
+      "runner_latency_ms": 2208,
+      "input_tokens": 377,
+      "cached_input_tokens": 0,
+      "output_tokens": 43,
+      "reason": "The data agent can answer questions about order and product performance, including revenue analysis.",
+      "error": null
+    },
+    {
+      "case_id": "r018",
+      "query": "What kinds of questions can you help me with?",
+      "tags": [
+        "ambiguous"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [],
+      "actual_plan": "none",
+      "exact_match": 0.0,
+      "jaccard": 0.0,
+      "passed": false,
+      "latency_ms": 2844,
+      "runner_latency_ms": 2844,
+      "input_tokens": 363,
+      "cached_input_tokens": 0,
+      "output_tokens": 56,
+      "reason": null,
+      "error": "plan validation failed: exclusive agents must run alone: direct"
+    },
+    {
+      "case_id": "r019",
+      "query": "What fees do sellers pay to join the platform?",
+      "tags": [
+        "ambiguous"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "docs"
+      ],
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2283,
+      "runner_latency_ms": 2283,
+      "input_tokens": 363,
+      "cached_input_tokens": 0,
+      "output_tokens": 45,
+      "reason": "The question about seller fees relates to shop policies, which are answered by the docs agent.",
+      "error": null
+    },
+    {
+      "case_id": "r020",
+      "query": "Show me the top 10 products by revenue between June 1 and June 30, 2018.",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2623,
+      "runner_latency_ms": 2623,
+      "input_tokens": 379,
+      "cached_input_tokens": 0,
+      "output_tokens": 52,
+      "reason": "The data agent can answer questions about order, delivery, product, and seller information, including revenue data for specific time periods.",
+      "error": null
+    },
+    {
+      "case_id": "r023",
+      "query": "Which products sold the most units from October through December 2017?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2199,
+      "runner_latency_ms": 2199,
+      "input_tokens": 369,
+      "cached_input_tokens": 0,
+      "output_tokens": 44,
+      "reason": "The question is about product sales data, which can be answered using the data agent.",
+      "error": null
+    },
+    {
+      "case_id": "r024",
+      "query": "What is the status of order 66c737db5f67fdd09273a03a6dc911d8?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2383,
+      "runner_latency_ms": 2383,
+      "input_tokens": 390,
+      "cached_input_tokens": 0,
+      "output_tokens": 47,
+      "reason": "The question is about the status of a specific order, which can be answered using the data agent.",
+      "error": null
+    },
+    {
+      "case_id": "r025",
+      "query": "2017年12月延迟交付的订单中，有多少符合补偿条件？",
+      "tags": [
+        "zh"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.5,
+      "passed": false,
+      "latency_ms": 2324,
+      "runner_latency_ms": 2324,
+      "input_tokens": 373,
+      "cached_input_tokens": 0,
+      "output_tokens": 46,
+      "reason": "The question is about order delivery and compensation conditions, which falls under the data agent's responsibility.",
+      "error": null
+    },
+    {
+      "case_id": "r026",
+      "query": "Please pull order c975ae74962ebff9c04ea5ab827c90c5 and explain which payment rules apply to the method it used.",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.5,
+      "passed": false,
+      "latency_ms": 2217,
+      "runner_latency_ms": 2217,
+      "input_tokens": 395,
+      "cached_input_tokens": 0,
+      "output_tokens": 44,
+      "reason": "The question involves order details and payment rules, which are handled by the data agent.",
+      "error": null
+    },
+    {
+      "case_id": "r027",
+      "query": "Please explain how refunds work when an item arrives damaged.",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "docs"
+      ],
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2108,
+      "runner_latency_ms": 2108,
+      "input_tokens": 364,
+      "cached_input_tokens": 0,
+      "output_tokens": 42,
+      "reason": "The question about refund policies for damaged items requires information from the document index.",
+      "error": null
+    },
+    {
+      "case_id": "r028",
+      "query": "How many deliveries in July 2018 were late enough to qualify for compensation under the policy?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.5,
+      "passed": false,
+      "latency_ms": 2693,
+      "runner_latency_ms": 2694,
+      "input_tokens": 374,
+      "cached_input_tokens": 0,
+      "output_tokens": 49,
+      "reason": "The question involves analyzing delivery data and applying a policy, which falls under the 'data' agent's responsibility.",
+      "error": null
+    },
+    {
+      "case_id": "r030",
+      "query": "For the top 5 products by units sold in November 2017, what are their return windows?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.5,
+      "passed": false,
+      "latency_ms": 3409,
+      "runner_latency_ms": 3409,
+      "input_tokens": 376,
+      "cached_input_tokens": 0,
+      "output_tokens": 58,
+      "reason": "The data agent can access order and product information to retrieve the top 5 products by units sold in November 2017 and their return windows.",
+      "error": null
+    },
+    {
+      "case_id": "r031",
+      "query": "Give me a count of late deliveries from 1 to 7 August 2018.",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2404,
+      "runner_latency_ms": 2404,
+      "input_tokens": 373,
+      "cached_input_tokens": 0,
+      "output_tokens": 44,
+      "reason": "The data agent can access order and delivery information to provide the count of late deliveries.",
+      "error": null
+    },
+    {
+      "case_id": "r032",
+      "query": "Delivery time question: when was order 32407a9eb4d1f77142ade9ae12f4068f actually delivered?",
+      "tags": [
+        "trap"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2353,
+      "runner_latency_ms": 2354,
+      "input_tokens": 392,
+      "cached_input_tokens": 0,
+      "output_tokens": 43,
+      "reason": "The data agent can answer questions about order delivery times using the Olist tools.",
+      "error": null
+    },
+    {
+      "case_id": "r033",
+      "query": "In February 2018, how many deliveries were at least 3 days late, and how much compensation does each affected customer get?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.5,
+      "passed": false,
+      "latency_ms": 2471,
+      "runner_latency_ms": 2471,
+      "input_tokens": 382,
+      "cached_input_tokens": 0,
+      "output_tokens": 44,
+      "reason": "The question involves order and delivery data, which can be answered using the data agent.",
+      "error": null
+    },
+    {
+      "case_id": "r034",
+      "query": "I want to start selling on the marketplace. What are the requirements?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "docs"
+      ],
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2382,
+      "runner_latency_ms": 2382,
+      "input_tokens": 367,
+      "cached_input_tokens": 0,
+      "output_tokens": 43,
+      "reason": "The question about starting to sell on the marketplace requires information from the document index.",
+      "error": null
+    },
+    {
+      "case_id": "r037",
+      "query": "Can I pay with boleto and still split the amount into installments?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.0,
+      "passed": false,
+      "latency_ms": 2639,
+      "runner_latency_ms": 2639,
+      "input_tokens": 369,
+      "cached_input_tokens": 0,
+      "output_tokens": 46,
+      "reason": "The question relates to payment methods and installment options, which can be answered using the data agent.",
+      "error": null
+    },
+    {
+      "case_id": "r040",
+      "query": "How many days late does a delivery have to be before the customer gets compensated?",
+      "tags": [
+        "trap"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.0,
+      "passed": false,
+      "latency_ms": 2275,
+      "runner_latency_ms": 2275,
+      "input_tokens": 369,
+      "cached_input_tokens": 0,
+      "output_tokens": 43,
+      "reason": "The question is about delivery policies, which falls under the data agent's responsibility.",
+      "error": null
+    },
+    {
+      "case_id": "r041",
+      "query": "成为卖家需要提供哪些材料？",
+      "tags": [
+        "zh"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.0,
+      "passed": false,
+      "latency_ms": 2605,
+      "runner_latency_ms": 2605,
+      "input_tokens": 361,
+      "cached_input_tokens": 0,
+      "output_tokens": 49,
+      "reason": "The question about becoming a seller requires information on the required materials, which can be answered using the data agent.",
+      "error": null
+    },
+    {
+      "case_id": "r042",
+      "query": "谢谢你的帮助，再见！",
+      "tags": [
+        "zh"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "direct"
+      ],
+      "expected_plan": "direct",
+      "actual_agents": [
+        "direct"
+      ],
+      "actual_plan": "direct",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2099,
+      "runner_latency_ms": 2100,
+      "input_tokens": 362,
+      "cached_input_tokens": 0,
+      "output_tokens": 40,
+      "reason": "The user is ending the conversation, so direct handle is sufficient.",
+      "error": null
+    },
+    {
+      "case_id": "r043",
+      "query": "订单 8109a41bee614af16733370276b23727 晚到了，我能拿到补偿吗？",
+      "tags": [
+        "zh"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.5,
+      "passed": false,
+      "latency_ms": 2296,
+      "runner_latency_ms": 2297,
+      "input_tokens": 395,
+      "cached_input_tokens": 0,
+      "output_tokens": 45,
+      "reason": "The question is about an order and compensation, which falls under the data agent's responsibility.",
+      "error": null
+    },
+    {
+      "case_id": "r044",
+      "query": "Sorry, I'm new here. Is it okay to write to you in English instead of Portuguese?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "direct"
+      ],
+      "expected_plan": "direct",
+      "actual_agents": [
+        "direct"
+      ],
+      "actual_plan": "direct",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2446,
+      "runner_latency_ms": 2446,
+      "input_tokens": 373,
+      "cached_input_tokens": 0,
+      "output_tokens": 45,
+      "reason": "The question is about small talk and language preference, which is handled by the direct agent.",
+      "error": null
+    },
+    {
+      "case_id": "r045",
+      "query": "Good morning, how are you doing today?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "direct"
+      ],
+      "expected_plan": "direct",
+      "actual_agents": [
+        "direct"
+      ],
+      "actual_plan": "direct",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2313,
+      "runner_latency_ms": 2313,
+      "input_tokens": 362,
+      "cached_input_tokens": 0,
+      "output_tokens": 42,
+      "reason": "The question is about small talk and can be answered by the direct agent.",
+      "error": null
+    },
+    {
+      "case_id": "r046",
+      "query": "how many ordres got delivered in oct 2017?",
+      "tags": [
+        "typo"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2211,
+      "runner_latency_ms": 2211,
+      "input_tokens": 367,
+      "cached_input_tokens": 0,
+      "output_tokens": 40,
+      "reason": "The data agent can answer questions about orders, including delivery statistics.",
+      "error": null
+    },
+    {
+      "case_id": "r047",
+      "query": "运费是怎么计算的？",
+      "tags": [
+        "zh"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.0,
+      "passed": false,
+      "latency_ms": 2638,
+      "runner_latency_ms": 2638,
+      "input_tokens": 360,
+      "cached_input_tokens": 0,
+      "output_tokens": 49,
+      "reason": "The question about shipping costs is related to order and delivery information, which can be answered by the data agent.",
+      "error": null
+    },
+    {
+      "case_id": "r049",
+      "query": "How many orders were placed in January 2017?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2443,
+      "runner_latency_ms": 2443,
+      "input_tokens": 366,
+      "cached_input_tokens": 0,
+      "output_tokens": 47,
+      "reason": "The data agent can answer questions about orders, including the number of orders placed in a specific month.",
+      "error": null
+    },
+    {
+      "case_id": "r050",
+      "query": "I want to return order 7057341a79b7adc56f566fbd7c81211c on 20 August 2018. Is that still within the return window for that product category?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.5,
+      "passed": false,
+      "latency_ms": 2685,
+      "runner_latency_ms": 2685,
+      "input_tokens": 411,
+      "cached_input_tokens": 0,
+      "output_tokens": 52,
+      "reason": "The question involves checking the return window for a specific order, which requires accessing order and product information from the Olist tools.",
+      "error": null
+    },
+    {
+      "case_id": "r051",
+      "query": "How many orders were canceled between 2017-11-01 and 2017-11-30?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2227,
+      "runner_latency_ms": 2227,
+      "input_tokens": 383,
+      "cached_input_tokens": 0,
+      "output_tokens": 43,
+      "reason": "The data agent can answer questions about orders, including canceled orders between specific dates.",
+      "error": null
+    },
+    {
+      "case_id": "r052",
+      "query": "Does the compensation policy cover order 6a7f35ca0fe2ac17fb1e6088070ab810?",
+      "tags": [
+        "trap"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.5,
+      "passed": false,
+      "latency_ms": 2107,
+      "runner_latency_ms": 2107,
+      "input_tokens": 388,
+      "cached_input_tokens": 0,
+      "output_tokens": 41,
+      "reason": "The data agent can access order-specific information, including compensation policy details.",
+      "error": null
+    },
+    {
+      "case_id": "r053",
+      "query": "订单 9bba41f9513fb6efddaa9b8a851ab873 现在是什么状态？",
+      "tags": [
+        "zh"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2232,
+      "runner_latency_ms": 2233,
+      "input_tokens": 389,
+      "cached_input_tokens": 0,
+      "output_tokens": 44,
+      "reason": "The question is about the status of a specific order, which requires accessing order data.",
+      "error": null
+    },
+    {
+      "case_id": "r054",
+      "query": "ok bye, have a gud one",
+      "tags": [
+        "typo"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "direct"
+      ],
+      "expected_plan": "direct",
+      "actual_agents": [
+        "direct"
+      ],
+      "actual_plan": "direct",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 2033,
+      "runner_latency_ms": 2033,
+      "input_tokens": 361,
+      "cached_input_tokens": 0,
+      "output_tokens": 45,
+      "reason": "The question is a closing message and should be handled by the direct agent for small talk.",
+      "error": null
+    },
+    {
+      "case_id": "r055",
+      "query": "How long do I have to return a piece of furniture?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "docs"
+      ],
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1935,
+      "runner_latency_ms": 1935,
+      "input_tokens": 365,
+      "cached_input_tokens": 0,
+      "output_tokens": 43,
+      "reason": "The question is about shop policies, which can be answered using the document index.",
+      "error": null
+    },
+    {
+      "case_id": "r057",
+      "query": "What payment methods are accepted?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 0.0,
+      "jaccard": 0.0,
+      "passed": false,
+      "latency_ms": 1804,
+      "runner_latency_ms": 1804,
+      "input_tokens": 359,
+      "cached_input_tokens": 0,
+      "output_tokens": 41,
+      "reason": "The data agent can provide information about payment methods accepted by the platform.",
+      "error": null
+    }
+  ]
+}

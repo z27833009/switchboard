@@ -369,7 +369,10 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"{usage['output_tokens']} | {usage['total_tokens']} |"
     )
     lines.append("")
-    lines.append("Cost is not reported: no price table exists until T2.06, so the value is null.")
+    lines.append(
+        "Cost is not reported as USD: no price table exists until T2.06, so the JSON value is "
+        "null. A local model such as LM Studio has no API cost."
+    )
     lines.append("")
 
     if "confusion_matrix" in report:

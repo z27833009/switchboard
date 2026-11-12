@@ -193,6 +193,7 @@ def test_markdown_states_metadata_smoke_and_missing_cost() -> None:
     assert "Orchestrator: `langgraph`" in markdown
     assert "**Smoke run:**" in markdown
     assert "Cost is not reported" in markdown
+    assert "no API cost" in markdown
     assert "| plan_accuracy | 1.0000 |" in markdown
     assert "| r001 | query r001 | data | data | yes |" in markdown
 
