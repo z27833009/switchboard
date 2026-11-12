@@ -17,6 +17,7 @@ tool_sources:
   - name: olist
     adapter: mcp
     url: ${BASE_URL}
+    manifest: ${MANIFEST}
 retriever: pgvector
 cache: none
 embedder: lmstudio
@@ -52,10 +53,13 @@ tenants:
     seller_ids: ["seller-1"]
 """
 
+MANIFEST = REPO / "mcp_servers" / "olist" / "manifest.yaml"
+
 ENV = {
     "BASE_URL": "http://localhost:1234/v1",
     "MODEL": "qwen3-8b",
     "EMBED_MODEL": "bge-m3",
+    "MANIFEST": str(MANIFEST),
 }
 
 
@@ -120,6 +124,55 @@ def test_unknown_keys_are_rejected(tmp_path: Path) -> None:
     platform = PLATFORM + "  typo_field: 1\n"
     with pytest.raises(ConfigError, match="typo_field"):
         load_settings(write_config(tmp_path, platform=platform), ENV)
+
+
+def test_unknown_agent_name_is_named(tmp_path: Path) -> None:
+    tenants = TENANTS.replace('allow: ["direct", "docs"]', 'allow: ["direct", "ghost_agent"]')
+    with pytest.raises(ConfigError, match=r"unknown agents.*ghost_agent"):
+        load_settings(write_config(tmp_path, tenants=tenants), ENV)
+
+
+def test_unknown_tool_wire_name_is_named(tmp_path: Path) -> None:
+    tenants = TENANTS.replace('allow: ["orders_late@1"]', 'allow: ["ghost_tool@1"]')
+    with pytest.raises(ConfigError, match=r"unknown tools.*ghost_tool@1"):
+        load_settings(write_config(tmp_path, tenants=tenants), ENV)
+
+
+def test_tool_without_a_version_is_rejected(tmp_path: Path) -> None:
+    tenants = TENANTS.replace('allow: ["orders_late@1"]', 'allow: ["orders_late"]')
+    with pytest.raises(ConfigError, match="name@1"):
+        load_settings(write_config(tmp_path, tenants=tenants), ENV)
+
+
+def test_duplicate_tool_and_allow_ask_overlap_are_rejected(tmp_path: Path) -> None:
+    duplicate = TENANTS.replace(
+        'allow: ["orders_late@1"]', 'allow: ["orders_late@1", "orders_late@1"]'
+    )
+    with pytest.raises(ConfigError, match="duplicates"):
+        load_settings(write_config(tmp_path, tenants=duplicate), ENV)
+
+    overlap = TENANTS.replace(
+        'allow: ["orders_late@1"]\n      ask: []',
+        'allow: ["orders_late@1"]\n      ask: ["orders_late@1"]',
+    )
+    with pytest.raises(ConfigError, match="allowed automatically"):
+        load_settings(write_config(tmp_path, tenants=overlap), ENV)
+
+
+def test_seller_ids_must_be_null_or_a_non_empty_unique_list(tmp_path: Path) -> None:
+    empty = TENANTS.replace('seller_ids: ["seller-1"]', "seller_ids: []")
+    with pytest.raises(ConfigError, match="non-empty list"):
+        load_settings(write_config(tmp_path, tenants=empty), ENV)
+
+    duplicate = TENANTS.replace('seller_ids: ["seller-1"]', 'seller_ids: ["seller-1", "seller-1"]')
+    with pytest.raises(ConfigError, match="duplicates"):
+        load_settings(write_config(tmp_path, tenants=duplicate), ENV)
+
+
+def test_unknown_tenant_keys_are_rejected(tmp_path: Path) -> None:
+    tenants = TENANTS.replace("seller_ids:", "seller_id:")
+    with pytest.raises(ConfigError, match="seller_id"):
+        load_settings(write_config(tmp_path, tenants=tenants), ENV)
 
 
 def test_committed_config_files_load() -> None:

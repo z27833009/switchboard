@@ -2,16 +2,26 @@
 
 The server is a separate process and deliberately does not import
 ``switchboard.core`` (design.md section 3); it owns just the small data it
-needs to enforce permissions and version tools.
+needs to enforce permissions and version tools. The tenant file is therefore
+validated twice: the API checks the full schema and the registered agent names,
+and this module checks the parts the trust boundary depends on (the tool wire
+names against the manifest, the ask list, and the seller ids).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+TENANT_KEYS = frozenset({"provider", "agents", "tools", "seller_ids", "retrieval", "cache"})
+AGENT_KEYS = frozenset({"allow"})
+TOOL_KEYS = frozenset({"allow", "ask"})
+RETRIEVAL_KEYS = frozenset({"k", "min_score", "rewrite"})
+CACHE_KEYS = frozenset({"enabled", "threshold", "ttl_days"})
 
 
 class ServerConfigError(Exception):
@@ -37,6 +47,9 @@ class ToolDefinition:
 class TenantSettings:
     allowed_tools: frozenset[str]
     seller_ids: tuple[str, ...] | None
+    # ask is the v2 human-approval list. The approval hook does not exist yet,
+    # so an ask tool is not in allowed_tools and a call is denied and audited.
+    ask_tools: frozenset[str] = field(default_factory=frozenset)
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -76,26 +89,103 @@ def load_manifest(path: Path) -> dict[str, ToolDefinition]:
     return tools
 
 
-def load_tenants(path: Path) -> dict[str, TenantSettings]:
+def _mapping(value: Any, field: str) -> Mapping[str, Any]:
+    if not isinstance(value, dict):
+        raise ServerConfigError(f"{field} must be a mapping")
+    return value
+
+
+def _known_keys(value: Mapping[str, Any], allowed: frozenset[str], field: str) -> None:
+    unknown = sorted(set(value) - allowed)
+    if unknown:
+        raise ServerConfigError(f"{field} has unknown keys {unknown}; allowed: {sorted(allowed)}")
+
+
+def _names(value: Any, field: str) -> list[str]:
+    if not isinstance(value, list):
+        raise ServerConfigError(f"{field} must be a list")
+    if any(not isinstance(item, str) for item in value):
+        raise ServerConfigError(f"{field} entries must be strings")
+    cleaned = [item.strip() for item in value]
+    if any(not name for name in cleaned):
+        raise ServerConfigError(f"{field} must not contain empty names")
+    duplicates = sorted({name for name in cleaned if cleaned.count(name) > 1})
+    if duplicates:
+        raise ServerConfigError(f"{field} contains duplicates: {', '.join(duplicates)}")
+    return cleaned
+
+
+def load_tenants(path: Path, manifest: Mapping[str, ToolDefinition]) -> dict[str, TenantSettings]:
+    """Load the tenant allowlists and seller scope, checked against the manifest.
+
+    An unknown tool wire name is a startup error rather than a run-time denial:
+    it means the file and the server disagree about what exists, and a typo in
+    an allowlist would otherwise silently narrow or widen access.
+    """
     payload = _read_yaml(path)
     entries = payload.get("tenants")
     if not isinstance(entries, dict) or not entries:
         raise ServerConfigError(f"{path} has no tenants mapping")
+    known_tools = sorted(manifest)
     tenants: dict[str, TenantSettings] = {}
-    for tenant_id, entry in entries.items():
+    for raw_id, entry in entries.items():
+        tenant_id = str(raw_id).strip()
+        if not tenant_id:
+            raise ServerConfigError(f"{path} has an empty tenant id")
         if not isinstance(entry, dict):
             raise ServerConfigError(f"tenant {tenant_id!r} is not a mapping")
-        tools = entry.get("tools") or {}
-        allow = tools.get("allow") or []
-        if not isinstance(allow, list):
-            raise ServerConfigError(f"tenant {tenant_id!r} tools.allow must be a list")
+        _known_keys(entry, TENANT_KEYS, f"tenant {tenant_id!r}")
+        provider = entry.get("provider")
+        if provider is not None and (not isinstance(provider, str) or not provider.strip()):
+            raise ServerConfigError(f"tenant {tenant_id!r} provider must be a non-empty string")
+
+        agents = _mapping(entry.get("agents", {}), f"tenant {tenant_id!r} agents")
+        _known_keys(agents, AGENT_KEYS, f"tenant {tenant_id!r} agents")
+        # Agent names are registered in the API process; the server cannot
+        # resolve them and only validates the shape here.
+        _names(agents.get("allow", []), f"tenant {tenant_id!r} agents.allow")
+
+        tools = _mapping(entry.get("tools", {}), f"tenant {tenant_id!r} tools")
+        _known_keys(tools, TOOL_KEYS, f"tenant {tenant_id!r} tools")
+        allow = _names(tools.get("allow", []), f"tenant {tenant_id!r} tools.allow")
+        ask = _names(tools.get("ask", []), f"tenant {tenant_id!r} tools.ask")
+        for field_name, values in (("tools.allow", allow), ("tools.ask", ask)):
+            unknown = sorted(set(values) - set(known_tools))
+            if unknown:
+                raise ServerConfigError(
+                    f"tenant {tenant_id!r} {field_name} names unknown tools "
+                    f"{unknown}; manifest tools: {known_tools}"
+                )
+        overlap = sorted(set(allow) & set(ask))
+        if overlap:
+            raise ServerConfigError(
+                f"tenant {tenant_id!r} tools.allow and tools.ask share "
+                f"{', '.join(overlap)}; a tool is either allowed automatically "
+                "or requires approval"
+            )
+
         seller_ids = entry.get("seller_ids")
-        if seller_ids is not None and not isinstance(seller_ids, list):
-            raise ServerConfigError(f"tenant {tenant_id!r} seller_ids must be a list or null")
-        tenants[str(tenant_id)] = TenantSettings(
-            allowed_tools=frozenset(str(name) for name in allow),
-            seller_ids=tuple(str(seller) for seller in seller_ids)
-            if seller_ids is not None
-            else None,
+        if seller_ids is not None:
+            sellers = _names(seller_ids, f"tenant {tenant_id!r} seller_ids")
+            if not sellers:
+                raise ServerConfigError(
+                    f"tenant {tenant_id!r} seller_ids must be null (all sellers) "
+                    "or a non-empty list"
+                )
+        else:
+            sellers = []
+
+        for field_name, allowed_keys in (
+            ("retrieval", RETRIEVAL_KEYS),
+            ("cache", CACHE_KEYS),
+        ):
+            if field_name in entry:
+                settings = _mapping(entry[field_name], f"tenant {tenant_id!r} {field_name}")
+                _known_keys(settings, allowed_keys, f"tenant {tenant_id!r} {field_name}")
+
+        tenants[tenant_id] = TenantSettings(
+            allowed_tools=frozenset(allow),
+            seller_ids=tuple(sellers) if seller_ids is not None else None,
+            ask_tools=frozenset(ask),
         )
     return tenants

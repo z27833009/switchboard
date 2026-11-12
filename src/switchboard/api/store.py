@@ -50,12 +50,14 @@ WHERE id = $1
 LIST_RUNS_SQL = f"""
 SELECT {RUN_COLUMNS}
 FROM public.runs
-WHERE ($1::text IS NULL OR tenant_id = $1)
+WHERE tenant_id = $1
 ORDER BY started_at DESC
 LIMIT $2
 """
 
-GET_RUN_SQL = f"SELECT {RUN_COLUMNS} FROM public.runs WHERE id = $1"
+# Tenant scoping of a single read is part of the query, not a check in the
+# route, so every caller of the store gets it (design.md section 11).
+GET_RUN_SQL = f"SELECT {RUN_COLUMNS} FROM public.runs WHERE id = $1 AND tenant_id = $2"
 
 FETCH_SPANS_SQL = f"""
 SELECT {SPAN_COLUMNS}
@@ -112,11 +114,9 @@ class RunStore(Protocol):
 
     async def finish_run(self, result: RunResult, *, trace_complete: bool) -> None: ...
 
-    async def list_runs(
-        self, *, tenant_id: str | None = None, limit: int = 50
-    ) -> list[dict[str, Any]]: ...
+    async def list_runs(self, *, tenant_id: str, limit: int = 50) -> list[dict[str, Any]]: ...
 
-    async def get_run(self, run_id: str) -> dict[str, Any] | None: ...
+    async def get_run(self, run_id: str, *, tenant_id: str) -> dict[str, Any] | None: ...
 
     async def fetch_spans(self, run_id: str) -> list[dict[str, Any]]: ...
 
@@ -169,14 +169,12 @@ class PgRunStore:
             trace_complete,
         )
 
-    async def list_runs(
-        self, *, tenant_id: str | None = None, limit: int = 50
-    ) -> list[dict[str, Any]]:
+    async def list_runs(self, *, tenant_id: str, limit: int = 50) -> list[dict[str, Any]]:
         rows = await self._pool.fetch(LIST_RUNS_SQL, tenant_id, limit)
         return [run_row(row) for row in rows]
 
-    async def get_run(self, run_id: str) -> dict[str, Any] | None:
-        row = await self._pool.fetchrow(GET_RUN_SQL, uuid.UUID(run_id))
+    async def get_run(self, run_id: str, *, tenant_id: str) -> dict[str, Any] | None:
+        row = await self._pool.fetchrow(GET_RUN_SQL, uuid.UUID(run_id), tenant_id)
         return None if row is None else run_row(row)
 
     async def fetch_spans(self, run_id: str) -> list[dict[str, Any]]:

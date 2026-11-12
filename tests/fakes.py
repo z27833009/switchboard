@@ -106,20 +106,16 @@ class MemoryRunStore:
             }
         )
 
-    async def list_runs(
-        self, *, tenant_id: str | None = None, limit: int = 50
-    ) -> list[dict[str, Any]]:
-        rows = [
-            dict(row)
-            for row in self.runs.values()
-            if tenant_id is None or row["tenant_id"] == tenant_id
-        ]
+    async def list_runs(self, *, tenant_id: str, limit: int = 50) -> list[dict[str, Any]]:
+        rows = [dict(row) for row in self.runs.values() if row["tenant_id"] == tenant_id]
         rows.sort(key=lambda row: row["started_at"], reverse=True)
         return rows[:limit]
 
-    async def get_run(self, run_id: str) -> dict[str, Any] | None:
+    async def get_run(self, run_id: str, *, tenant_id: str) -> dict[str, Any] | None:
         row = self.runs.get(run_id)
-        return None if row is None else dict(row)
+        if row is None or row["tenant_id"] != tenant_id:
+            return None
+        return dict(row)
 
     async def fetch_spans(self, run_id: str) -> list[dict[str, Any]]:
         return [dict(span) for span in self.spans if span.get("run_id") == run_id]

@@ -48,7 +48,15 @@ export function ErrorList({ errors }: { errors: ErrorRecord[] }) {
   );
 }
 
-export function CitationChips({ runId, citations }: { runId: string; citations: Citation[] }) {
+export function CitationChips({
+  runId,
+  tenantId,
+  citations,
+}: {
+  runId: string;
+  tenantId: string;
+  citations: Citation[];
+}) {
   if (citations.length === 0) {
     return <p className="muted">No citations were returned for this answer.</p>;
   }
@@ -60,7 +68,7 @@ export function CitationChips({ runId, citations }: { runId: string; citations: 
           <a
             key={`${citation.kind}-${citation.ref}-${index}`}
             className={`chip chip-${citation.kind}`}
-            href={citationHref(runId, citation)}
+            href={citationHref(runId, tenantId, citation)}
             title={`${citation.source_id}\n${citation.snippet}`}
           >
             {label}

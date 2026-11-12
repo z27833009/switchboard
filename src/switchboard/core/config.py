@@ -12,7 +12,7 @@ import re
 from collections.abc import Mapping
 from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from switchboard.core.errors import ConfigError
 from switchboard.core.models import (
@@ -23,6 +23,10 @@ from switchboard.core.models import (
 )
 
 ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+# A tool wire name is ``name@major`` (design.md section 7.2), so a missing or
+# misspelled version is caught at startup instead of turning into a denied call
+# at run time.
+WIRE_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*@[1-9][0-9]*$")
 
 
 def substitute_env(value: Any, env: Mapping[str, str]) -> Any:
@@ -54,6 +58,11 @@ class ToolSourceConfig(BaseModel):
     name: str
     adapter: str
     url: str | None = None
+    # Optional path to the source's tool manifest. When present, the API checks
+    # every tenant tool allowlist against the wire names the source serves
+    # (design.md sections 7.2 and 11). The path is relative to the process
+    # working directory, like the other file paths in the project.
+    manifest: str | None = None
 
 
 class TracingSettings(BaseModel):
@@ -119,10 +128,38 @@ class ProvidersConfig(BaseModel):
     embedders: dict[str, EmbedderConfig] = Field(min_length=1)
 
 
+def unique_names(values: list[str], field: str) -> list[str]:
+    """Trim names, reject empties and duplicates with the field in the message."""
+    cleaned = [value.strip() for value in values]
+    if any(not value for value in cleaned):
+        raise ValueError(f"{field} must not contain empty names")
+    duplicates = sorted({value for value in cleaned if cleaned.count(value) > 1})
+    if duplicates:
+        raise ValueError(f"{field} contains duplicates: {', '.join(duplicates)}")
+    return cleaned
+
+
+def wire_names(values: list[str], field: str) -> list[str]:
+    """Every entry must be a versioned tool wire name such as ``orders_late@1``."""
+    cleaned = unique_names(values, field)
+    invalid = [value for value in cleaned if not WIRE_NAME_PATTERN.match(value)]
+    if invalid:
+        raise ValueError(f"{field} entries must look like name@1: {', '.join(invalid)}")
+    return cleaned
+
+
 class TenantAgentSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     allow: list[str] = Field(default_factory=list)
+
+    @field_validator("allow")
+    @classmethod
+    def _check_allow(cls, values: list[str]) -> list[str]:
+        cleaned = unique_names(values, "agents.allow")
+        if not cleaned:
+            raise ValueError("agents.allow must list at least one agent")
+        return cleaned
 
 
 class TenantToolSettings(BaseModel):
@@ -130,6 +167,26 @@ class TenantToolSettings(BaseModel):
 
     allow: list[str] = Field(default_factory=list)
     ask: list[str] = Field(default_factory=list)
+
+    @field_validator("allow")
+    @classmethod
+    def _check_allow(cls, values: list[str]) -> list[str]:
+        return wire_names(values, "tools.allow")
+
+    @field_validator("ask")
+    @classmethod
+    def _check_ask(cls, values: list[str]) -> list[str]:
+        return wire_names(values, "tools.ask")
+
+    @model_validator(mode="after")
+    def _allow_and_ask_are_disjoint(self) -> Self:
+        overlap = sorted(set(self.allow) & set(self.ask))
+        if overlap:
+            raise ValueError(
+                f"tools.allow and tools.ask share {', '.join(overlap)}; a tool is either "
+                "allowed automatically or requires approval"
+            )
+        return self
 
 
 class TenantConfig(BaseModel):
@@ -142,11 +199,29 @@ class TenantConfig(BaseModel):
     retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)
     cache: CacheSettings = Field(default_factory=CacheSettings)
 
+    @field_validator("seller_ids")
+    @classmethod
+    def _check_seller_ids(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        cleaned = unique_names(value, "seller_ids")
+        if not cleaned:
+            raise ValueError("seller_ids must be null (all sellers) or a non-empty list")
+        return cleaned
+
 
 class TenantsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     tenants: dict[str, TenantConfig] = Field(min_length=1)
+
+    @field_validator("tenants")
+    @classmethod
+    def _check_tenant_ids(cls, values: dict[str, TenantConfig]) -> dict[str, TenantConfig]:
+        empty = [key for key in values if not key.strip()]
+        if empty:
+            raise ValueError("tenant ids must not be empty")
+        return values
 
 
 class Settings(BaseModel):

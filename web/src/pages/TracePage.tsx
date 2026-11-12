@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { errorMessage, getJson, isAbortError } from "../api";
 import type { SpanEvent, TraceResponse, TraceSpan } from "../api";
+import { TENANTS } from "../config";
 import { formatDuration, formatValue } from "../format";
 
 interface SpanNodeProps {
@@ -243,11 +244,13 @@ function ancestorsOf(flat: TraceSpan[], spanId: string): string[] {
 
 export interface TracePageProps {
   runId: string;
+  tenant: string | null;
   spanId: string | null;
   auditId: string | null;
 }
 
-export function TracePage({ runId, spanId, auditId }: TracePageProps) {
+export function TracePage({ runId, tenant, spanId, auditId }: TracePageProps) {
+  const tenantId = tenant ?? TENANTS[0];
   const [trace, setTrace] = useState<TraceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -259,7 +262,10 @@ export function TracePage({ runId, spanId, auditId }: TracePageProps) {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    getJson<TraceResponse>(`/runs/${encodeURIComponent(runId)}/trace`, controller.signal)
+    getJson<TraceResponse>(
+      `/runs/${encodeURIComponent(runId)}/trace?tenant_id=${encodeURIComponent(tenantId)}`,
+      controller.signal,
+    )
       .then((data) => {
         setTrace(data);
         setExpanded(
@@ -283,7 +289,7 @@ export function TracePage({ runId, spanId, auditId }: TracePageProps) {
     return () => {
       controller.abort();
     };
-  }, [runId]);
+  }, [runId, tenantId]);
 
   useEffect(() => {
     if (trace === null) {
@@ -396,7 +402,9 @@ export function TracePage({ runId, spanId, auditId }: TracePageProps) {
           </div>
         ) : null}
         <p className="links">
-          <a href={`#/runs/${encodeURIComponent(runId)}`}>Open run</a>
+          <a href={`#/runs/${encodeURIComponent(runId)}?tenant=${encodeURIComponent(tenantId)}`}>
+            Open run
+          </a>
           <a href="#/runs">Back to runs</a>
         </p>
       </section>

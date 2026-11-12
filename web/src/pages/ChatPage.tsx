@@ -93,7 +93,11 @@ function AnswerPanel({ result }: { result: ChatResponse }) {
       ) : (
         <p className="muted">The API returned no answer for this status.</p>
       )}
-      <CitationChips runId={result.run_id} citations={result.citations} />
+      <CitationChips
+        runId={result.run_id}
+        tenantId={result.tenant_id}
+        citations={result.citations}
+      />
       <ErrorList errors={result.errors} />
       <dl className="facts">
         <div>

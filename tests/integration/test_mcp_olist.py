@@ -256,3 +256,151 @@ async def test_seller_scope_is_applied_to_the_seller_tenant() -> None:
         seller = payload(await session.call_tool("orders_summary@1", arguments))
     assert 0 < seller["summary"]["orders"] < default["summary"]["orders"]
     assert seller["summary"]["revenue"] < default["summary"]["revenue"]
+
+
+# Both ids are looked up in the loaded Olist tables, so the test works against
+# the 1000-order sample in CI and the full download locally.
+SELLER_ID = "955fee9216a65b617aa5c0531780ce60"
+SELLER_RANGE_SQL = """
+    o.order_purchase_timestamp >= '2017-01-01'::date
+    AND o.order_purchase_timestamp < '2018-09-01'::date
+"""
+
+
+async def seller_fixtures() -> dict[str, Any]:
+    """One order the seller owns, one they do not, and the expected aggregates."""
+    connection = await asyncpg.connect(ADMIN_URL)
+    try:
+        seller_order = await connection.fetchval(
+            "SELECT i.order_id FROM olist.order_items i WHERE i.seller_id = $1 "
+            "ORDER BY i.order_id LIMIT 1",
+            SELLER_ID,
+        )
+        other_order = await connection.fetchval(
+            "SELECT o.order_id FROM olist.orders o WHERE NOT EXISTS ("
+            "  SELECT 1 FROM olist.order_items i WHERE i.order_id = o.order_id "
+            "  AND i.seller_id = $1) ORDER BY o.order_id LIMIT 1",
+            SELLER_ID,
+        )
+        aggregates = await connection.fetchrow(
+            f"""
+            SELECT count(DISTINCT o.order_id)::int AS orders,
+                   count(*)::int AS items,
+                   coalesce(sum(i.price), 0)::float AS revenue
+            FROM olist.orders o
+            JOIN olist.order_items i ON i.order_id = o.order_id
+            WHERE i.seller_id = $1 AND {SELLER_RANGE_SQL}
+            """,
+            SELLER_ID,
+        )
+        products = await connection.fetchval(
+            f"""
+            SELECT count(DISTINCT i.product_id)::int
+            FROM olist.orders o
+            JOIN olist.order_items i ON i.order_id = o.order_id
+            WHERE i.seller_id = $1 AND {SELLER_RANGE_SQL}
+            """,
+            SELLER_ID,
+        )
+        top_product = await connection.fetchrow(
+            f"""
+            SELECT i.product_id, count(*)::int AS value
+            FROM olist.orders o
+            JOIN olist.order_items i ON i.order_id = o.order_id
+            WHERE i.seller_id = $1 AND {SELLER_RANGE_SQL}
+            GROUP BY i.product_id
+            ORDER BY value DESC, i.product_id
+            LIMIT 1
+            """,
+            SELLER_ID,
+        )
+    finally:
+        await connection.close()
+    assert seller_order and other_order and aggregates and top_product
+    return {
+        "seller_order": seller_order,
+        "other_order": other_order,
+        "orders": int(aggregates["orders"]),
+        "items": int(aggregates["items"]),
+        "revenue": float(aggregates["revenue"]),
+        "products": int(products or 0),
+        "top_product": top_product["product_id"],
+        "top_value": int(top_product["value"]),
+    }
+
+
+async def test_seller_tenant_cannot_see_another_sellers_orders() -> None:
+    fixtures = await seller_fixtures()
+    arguments = {"date_from": "2017-01-01", "date_to": "2018-08-31"}
+    seller_token, seller_run = mint("seller_a")
+    default_token, _ = mint("default")
+    async with mcp_session(seller_token) as session:
+        summary = payload(await session.call_tool("orders_summary@1", arguments))
+        own = payload(
+            await session.call_tool("order_lookup@1", {"order_id": fixtures["seller_order"]})
+        )
+        other = payload(
+            await session.call_tool("order_lookup@1", {"order_id": fixtures["other_order"]})
+        )
+        top = payload(
+            await session.call_tool("top_products@1", {**arguments, "metric": "count", "limit": 5})
+        )
+    async with mcp_session(default_token) as session:
+        default_summary = payload(await session.call_tool("orders_summary@1", arguments))
+        default_other = payload(
+            await session.call_tool("order_lookup@1", {"order_id": fixtures["other_order"]})
+        )
+        default_top = payload(
+            await session.call_tool("top_products@1", {**arguments, "metric": "count", "limit": 5})
+        )
+
+    # orders_summary counts and revenue are the seller's slice, not the market.
+    assert summary["summary"]["orders"] == fixtures["orders"]
+    assert summary["summary"]["items"] == fixtures["items"]
+    assert summary["summary"]["revenue"] == pytest.approx(fixtures["revenue"], abs=0.01)
+    assert summary["summary"]["orders"] < default_summary["summary"]["orders"]
+    assert summary["summary"]["revenue"] < default_summary["summary"]["revenue"]
+
+    # order_lookup returns nothing for an order the seller is not part of,
+    # while the unrestricted tenant still sees that same order.
+    assert other["summary"] == {"found": False}
+    assert other["rows"] == []
+    assert other["total_rows"] == 0
+    assert default_other["summary"]["found"] is True
+
+    # An owned order never exposes another seller's items.
+    assert own["summary"]["found"] is True
+    assert own["rows"]
+    assert all(row["seller_id"] == SELLER_ID for row in own["rows"])
+
+    # top_products ranks only the seller's catalogue.
+    assert top["summary"]["products"] == fixtures["products"]
+    assert top["summary"]["products"] < default_top["summary"]["products"]
+    assert top["rows"][0]["product_id"] == fixtures["top_product"]
+    assert top["rows"][0]["value"] == fixtures["top_value"]
+
+    rows = await audit_rows(seller_run)
+    assert [row["tenant_id"] for row in rows] == ["seller_a"] * len(rows)
+
+
+async def test_seller_fields_in_arguments_are_ignored() -> None:
+    token, run_id = mint("seller_a")
+    arguments = {"date_from": "2017-01-01", "date_to": "2018-08-31"}
+    async with mcp_session(token) as session:
+        baseline = payload(await session.call_tool("orders_summary@1", arguments))
+        spoofed = payload(
+            await session.call_tool(
+                "orders_summary@1",
+                {
+                    **arguments,
+                    "tenant_id": "default",
+                    "seller_id": "some-other-seller",
+                    "seller_ids": ["some-other-seller"],
+                },
+            )
+        )
+    assert spoofed["summary"] == baseline["summary"]
+    assert spoofed["total_rows"] == baseline["total_rows"]
+    rows = await audit_rows(run_id)
+    assert len(rows) == 2
+    assert all(row["tenant_id"] == "seller_a" for row in rows)

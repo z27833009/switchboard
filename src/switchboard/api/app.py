@@ -257,12 +257,20 @@ async def chat_stream(request: Request, payload: ChatRequest) -> StreamingRespon
     )
 
 
-async def _load_run(deps: AppDeps, run_id: str) -> dict[str, Any]:
+async def _load_run(deps: AppDeps, run_id: str, tenant_id: str) -> dict[str, Any]:
+    """Load one run for a tenant; another tenant's run is a 404, not a leak.
+
+    The demo has no caller authentication (requirements, non-goals), so the
+    tenant id is a required query parameter and the store filters on it. Runs
+    and traces therefore never appear to a tenant that did not own them
+    (AC-11c, design.md section 11).
+    """
+    tenant = _tenant(deps, tenant_id)
     try:
         normalized = parse_run_id(run_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="run not found") from exc
-    row = await deps.store.get_run(normalized)
+    row = await deps.store.get_run(normalized, tenant_id=tenant.tenant_id)
     if row is None:
         raise HTTPException(status_code=404, detail="run not found")
     return row
@@ -271,27 +279,36 @@ async def _load_run(deps: AppDeps, run_id: str) -> dict[str, Any]:
 @router.get("/runs", response_model=RunsResponse)
 async def list_runs(
     request: Request,
-    tenant_id: str | None = None,
+    tenant_id: str = Query(min_length=1, description="Tenant whose runs to list."),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> RunsResponse:
-    """The run list for the UI, newest first."""
+    """The run list of one tenant, newest first."""
     deps = _deps(request.app)
-    rows = await deps.store.list_runs(tenant_id=tenant_id, limit=limit)
+    tenant = _tenant(deps, tenant_id)
+    rows = await deps.store.list_runs(tenant_id=tenant.tenant_id, limit=limit)
     return RunsResponse(runs=[RunSummary.from_row(row) for row in rows], count=len(rows))
 
 
 @router.get("/runs/{run_id}", response_model=RunSummary)
-async def get_run(request: Request, run_id: str) -> RunSummary:
-    """One run with its final answer and citations."""
+async def get_run(
+    request: Request,
+    run_id: str,
+    tenant_id: str = Query(min_length=1, description="Tenant that owns the run."),
+) -> RunSummary:
+    """One run with its final answer and citations, for its tenant only."""
     deps = _deps(request.app)
-    return RunSummary.from_row(await _load_run(deps, run_id))
+    return RunSummary.from_row(await _load_run(deps, run_id, tenant_id))
 
 
 @router.get("/runs/{run_id}/trace", response_model=TraceResponse)
-async def get_run_trace(request: Request, run_id: str) -> TraceResponse:
+async def get_run_trace(
+    request: Request,
+    run_id: str,
+    tenant_id: str = Query(min_length=1, description="Tenant that owns the run."),
+) -> TraceResponse:
     """The span tree of one run (AC-05a), marked incomplete after a lost flush."""
     deps = _deps(request.app)
-    row = await _load_run(deps, run_id)
+    row = await _load_run(deps, run_id, tenant_id)
     rows = await deps.store.fetch_spans(str(row["id"]))
     incomplete = not bool(row.get("trace_complete", True)) or not rows_are_complete(rows)
     return assemble_trace(run_id=str(row["id"]), rows=rows, incomplete=incomplete)

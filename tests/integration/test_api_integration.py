@@ -200,7 +200,7 @@ async def test_chat_stream_persists_the_run_and_its_trace() -> None:
         assert finished["citations"][0]["audit_id"] == audit_id
 
         # Read-after-run: no sleep, no retry (AC-05d).
-        trace_response = await client.get(f"/runs/{run_id}/trace")
+        trace_response = await client.get(f"/runs/{run_id}/trace", params={"tenant_id": "default"})
         assert trace_response.status_code == 200
         trace = trace_response.json()
         assert trace["incomplete"] is False
@@ -233,7 +233,7 @@ async def test_chat_stream_persists_the_run_and_its_trace() -> None:
         tool_events = [event for event in server_span["events"] if event["name"] == "tool.result"]
         assert len(tool_events) == 1
 
-        detail = await client.get(f"/runs/{run_id}")
+        detail = await client.get(f"/runs/{run_id}", params={"tenant_id": "default"})
         assert detail.status_code == 200
         assert detail.json()["status"] == "ok"
         assert str(tool_event["total_rows"]) in (detail.json()["answer"] or "")
@@ -289,7 +289,7 @@ async def test_failed_run_persists_its_errors_and_is_marked_incomplete() -> None
         assert body["status"] == "provider_error"
         assert body["errors"][0]["kind"] == "RuntimeError"
 
-        trace = await client.get(f"/runs/{body['run_id']}/trace")
+        trace = await client.get(f"/runs/{body['run_id']}/trace", params={"tenant_id": "default"})
         assert trace.status_code == 200
         # No run span exists, so the tree is empty and honestly marked incomplete.
         assert trace.json()["incomplete"] is True

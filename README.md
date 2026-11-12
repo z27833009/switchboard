@@ -117,6 +117,8 @@ uv run --env-file .env switchboard ingest data/documents --tenant default
 
 On a fresh database this reports `documents added 5, updated 0, unchanged 0` and `chunks written 29`. The command is idempotent: a second run reports zero changes.
 
+The cross-tenant demo uses a second tenant, `seller_a`, restricted to one seller. Give it the same documents with `uv run --env-file .env switchboard ingest data/documents --tenant seller_a`; retrieval, the run list and traces are then tenant isolated in the UI and the API.
+
 ### 7. Open it
 
 | What | URL |

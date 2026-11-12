@@ -3,6 +3,9 @@ tool_sources:
   - name: olist
     adapter: mcp
     url: ${MCP_OLIST_URL}/mcp
+    # Lets the API check tenant tool allowlists against the wire names the
+    # server actually serves (design.md sections 7.2 and 11).
+    manifest: mcp_servers/olist/manifest.yaml
 retriever: pgvector
 cache: none
 embedder: lmstudio

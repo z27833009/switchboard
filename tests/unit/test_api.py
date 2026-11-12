@@ -108,7 +108,7 @@ async def test_runs_list_and_one_run(harness: AppHarness) -> None:
         )
     ).json()
 
-    listed = await harness.client.get("/runs")
+    listed = await harness.client.get("/runs", params={"tenant_id": "default"})
     assert listed.status_code == 200
     body = listed.json()
     assert body["count"] == 2
@@ -118,23 +118,56 @@ async def test_runs_list_and_one_run(harness: AppHarness) -> None:
     filtered = await harness.client.get("/runs", params={"tenant_id": "seller_a"})
     assert filtered.json()["count"] == 0
 
-    limited = await harness.client.get("/runs", params={"limit": 1})
+    limited = await harness.client.get("/runs", params={"tenant_id": "default", "limit": 1})
     assert limited.json()["count"] == 1
 
-    invalid_limit = await harness.client.get("/runs", params={"limit": 0})
+    invalid_limit = await harness.client.get("/runs", params={"tenant_id": "default", "limit": 0})
     assert invalid_limit.status_code == 422
 
-    detail = await harness.client.get(f"/runs/{first['run_id']}")
+    detail = await harness.client.get(f"/runs/{first['run_id']}", params={"tenant_id": "default"})
     assert detail.status_code == 200
     assert detail.json()["query"] == "first question"
     assert detail.json()["answer"] == first["answer"]
     assert detail.json()["citations"] == first["citations"]
     assert detail.json()["errors"] == []
 
-    missing = await harness.client.get(f"/runs/{uuid.uuid4()}")
+    missing = await harness.client.get(f"/runs/{uuid.uuid4()}", params={"tenant_id": "default"})
     assert missing.status_code == 404
-    malformed = await harness.client.get("/runs/not-a-uuid")
+    malformed = await harness.client.get("/runs/not-a-uuid", params={"tenant_id": "default"})
     assert malformed.status_code == 404
+
+
+async def test_run_reads_require_and_honour_the_tenant(harness: AppHarness) -> None:
+    """A run and its trace belong to one tenant only (AC-11c, design 11)."""
+    run_id = (
+        await harness.client.post(
+            "/chat", json={"query": "tenant scoped read", "tenant_id": "default"}
+        )
+    ).json()["run_id"]
+
+    no_tenant = await harness.client.get("/runs")
+    assert no_tenant.status_code == 422
+    unknown_tenant = await harness.client.get("/runs", params={"tenant_id": "acme"})
+    assert unknown_tenant.status_code == 404
+
+    other = await harness.client.get(f"/runs/{run_id}", params={"tenant_id": "seller_a"})
+    assert other.status_code == 404
+    other_trace = await harness.client.get(
+        f"/runs/{run_id}/trace", params={"tenant_id": "seller_a"}
+    )
+    assert other_trace.status_code == 404
+    no_tenant_detail = await harness.client.get(f"/runs/{run_id}")
+    assert no_tenant_detail.status_code == 422
+    no_tenant_trace = await harness.client.get(f"/runs/{run_id}/trace")
+    assert no_tenant_trace.status_code == 422
+
+    own = await harness.client.get(f"/runs/{run_id}", params={"tenant_id": "default"})
+    assert own.status_code == 200
+    own_trace = await harness.client.get(f"/runs/{run_id}/trace", params={"tenant_id": "default"})
+    assert own_trace.status_code == 200
+
+    seller_runs = await harness.client.get("/runs", params={"tenant_id": "seller_a"})
+    assert run_id not in {run["run_id"] for run in seller_runs.json()["runs"]}
 
 
 async def test_trace_tree_has_every_node_and_attribute(harness: AppHarness) -> None:
@@ -144,7 +177,7 @@ async def test_trace_tree_has_every_node_and_attribute(harness: AppHarness) -> N
         )
     ).json()["run_id"]
 
-    response = await harness.client.get(f"/runs/{run_id}/trace")
+    response = await harness.client.get(f"/runs/{run_id}/trace", params={"tenant_id": "default"})
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["run_id"] == run_id
@@ -178,7 +211,9 @@ async def test_trace_tree_has_every_node_and_attribute(harness: AppHarness) -> N
         assert node["duration_ms"] >= 0
         assert node["status"] in {"ok", "unset", "error"}
 
-    unknown = await harness.client.get(f"/runs/{uuid.uuid4()}/trace")
+    unknown = await harness.client.get(
+        f"/runs/{uuid.uuid4()}/trace", params={"tenant_id": "default"}
+    )
     assert unknown.status_code == 404
 
 
@@ -204,7 +239,9 @@ async def test_trace_is_marked_incomplete_after_a_lost_flush(
             )
             assert chat.status_code == 200
             assert chat.json()["trace_incomplete"] is True
-            trace = await other.client.get(f"/runs/{chat.json()['run_id']}/trace")
+            trace = await other.client.get(
+                f"/runs/{chat.json()['run_id']}/trace", params={"tenant_id": "default"}
+            )
             assert trace.status_code == 200
             assert trace.json()["incomplete"] is True
             assert trace.json()["span_count"] == 7
@@ -254,7 +291,7 @@ async def test_stream_emits_the_ordered_step_sequence(harness: AppHarness) -> No
     assert finished["usage"]["input_tokens"] == 150
     assert finished["trace_incomplete"] is False
 
-    stored = await harness.client.get(f"/runs/{run_id}")
+    stored = await harness.client.get(f"/runs/{run_id}", params={"tenant_id": "default"})
     assert stored.status_code == 200
     assert stored.json()["status"] == "ok"
     assert stored.json()["answer"] == finished["answer"]
@@ -284,7 +321,7 @@ async def test_stream_marks_a_failed_orchestrator(
     assert payload["status"] == "provider_error"
     assert payload["errors"][0]["kind"] == "RuntimeError"
 
-    stored = await harness.client.get(f"/runs/{payload['run_id']}")
+    stored = await harness.client.get(f"/runs/{payload['run_id']}", params={"tenant_id": "default"})
     assert stored.status_code == 200
     assert stored.json()["status"] == "provider_error"
     assert harness.store.runs[payload["run_id"]]["errors"][0]["kind"] == "RuntimeError"

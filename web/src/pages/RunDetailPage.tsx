@@ -3,9 +3,17 @@ import { useEffect, useState } from "react";
 import { errorMessage, getJson, isAbortError } from "../api";
 import type { RunSummary } from "../api";
 import { CitationChips, ErrorList, StatusBadge } from "../components/Badges";
+import { TENANTS } from "../config";
 import { formatDateTime, formatLatency, formatTokens } from "../format";
 
-export function RunDetailPage({ runId }: { runId: string }) {
+export function RunDetailPage({
+  runId,
+  tenant,
+}: {
+  runId: string;
+  tenant: string | null;
+}) {
+  const tenantId = tenant ?? TENANTS[0];
   const [run, setRun] = useState<RunSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -14,7 +22,10 @@ export function RunDetailPage({ runId }: { runId: string }) {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    getJson<RunSummary>(`/runs/${encodeURIComponent(runId)}`, controller.signal)
+    getJson<RunSummary>(
+      `/runs/${encodeURIComponent(runId)}?tenant_id=${encodeURIComponent(tenantId)}`,
+      controller.signal,
+    )
       .then((data) => {
         setRun(data);
       })
@@ -31,7 +42,7 @@ export function RunDetailPage({ runId }: { runId: string }) {
     return () => {
       controller.abort();
     };
-  }, [runId]);
+  }, [runId, tenantId]);
 
   return (
     <div className="page">
@@ -77,11 +88,19 @@ export function RunDetailPage({ runId }: { runId: string }) {
             ) : (
               <p className="muted">The run has no stored answer.</p>
             )}
-            <CitationChips runId={run.run_id} citations={run.citations} />
+            <CitationChips
+              runId={run.run_id}
+              tenantId={run.tenant_id}
+              citations={run.citations}
+            />
             <ErrorList errors={run.errors} />
 
             <p className="links">
-              <a href={`#/runs/${encodeURIComponent(run.run_id)}/trace`}>Open trace</a>
+              <a
+                href={`#/runs/${encodeURIComponent(run.run_id)}/trace?tenant=${encodeURIComponent(run.tenant_id)}`}
+              >
+                Open trace
+              </a>
               <a href="#/runs">Back to runs</a>
             </p>
           </>

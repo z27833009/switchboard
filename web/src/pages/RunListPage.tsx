@@ -6,10 +6,9 @@ import { StatusBadge } from "../components/Badges";
 import { TENANTS } from "../config";
 import { formatDateTime, formatLatency, formatTokens } from "../format";
 
-const ALL_TENANTS = "all";
-
 export function RunListPage() {
-  const [tenant, setTenant] = useState(ALL_TENANTS);
+  // Run reads require a tenant, so the list always has one selected.
+  const [tenant, setTenant] = useState(TENANTS[0]);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,9 +18,10 @@ export function RunListPage() {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    const tenantQuery =
-      tenant === ALL_TENANTS ? "" : `&tenant_id=${encodeURIComponent(tenant)}`;
-    getJson<RunsResponse>(`/runs?limit=50${tenantQuery}`, controller.signal)
+    getJson<RunsResponse>(
+      `/runs?limit=50&tenant_id=${encodeURIComponent(tenant)}`,
+      controller.signal,
+    )
       .then((data) => {
         setRuns(data.runs);
       })
@@ -53,7 +53,6 @@ export function RunListPage() {
           <label className="field">
             <span>Tenant</span>
             <select value={tenant} onChange={(event) => setTenant(event.target.value)}>
-              <option value={ALL_TENANTS}>all tenants</option>
               {TENANTS.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -91,7 +90,11 @@ export function RunListPage() {
                   <tr key={run.run_id}>
                     <td className="nowrap">{formatDateTime(run.started_at)}</td>
                     <td>
-                      <a href={`#/runs/${encodeURIComponent(run.run_id)}`}>{run.query}</a>
+                      <a
+                        href={`#/runs/${encodeURIComponent(run.run_id)}?tenant=${encodeURIComponent(run.tenant_id)}`}
+                      >
+                        {run.query}
+                      </a>
                       <span className="run-id">{run.run_id}</span>
                     </td>
                     <td>{run.plan ?? "-"}</td>
@@ -103,7 +106,11 @@ export function RunListPage() {
                     </td>
                     <td className="nowrap">{formatLatency(run.started_at, run.ended_at)}</td>
                     <td className="nowrap">
-                      <a href={`#/runs/${encodeURIComponent(run.run_id)}/trace`}>trace</a>
+                      <a
+                        href={`#/runs/${encodeURIComponent(run.run_id)}/trace?tenant=${encodeURIComponent(run.tenant_id)}`}
+                      >
+                        trace
+                      </a>
                       {!run.trace_complete ? <span className="badge badge-warning">incomplete</span> : null}
                     </td>
                   </tr>

@@ -46,11 +46,14 @@ export default function App() {
       <main>
         {route.name === "chat" ? <ChatPage /> : null}
         {route.name === "runs" ? <RunListPage /> : null}
-        {route.name === "run" ? <RunDetailPage key={routeKey(route)} runId={route.runId} /> : null}
+        {route.name === "run" ? (
+          <RunDetailPage key={routeKey(route)} runId={route.runId} tenant={route.tenant} />
+        ) : null}
         {route.name === "trace" ? (
           <TracePage
             key={routeKey(route)}
             runId={route.runId}
+            tenant={route.tenant}
             spanId={route.spanId}
             auditId={route.auditId}
           />

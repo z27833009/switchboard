@@ -1,3 +1,22 @@
+# Tenant configuration (design.md sections 7.3 and 11).
+#
+# `provider` and a non-empty `agents.allow` are required; the other keys have
+# defaults. Unknown keys are rejected at startup, as are unknown agent names
+# (the API) and unknown tool wire names (both the API and the MCP server,
+# checked against mcp_servers/olist/manifest.yaml).
+#
+#   provider:  name of a provider in providers.yaml
+#   agents.allow: registered agent names the supervisor may plan with
+#   tools.allow:  tool wire names the tenant may call without approval
+#   tools.ask:    tool wire names that would need human approval (v2); this
+#                 phase denies them, same as tools missing from both lists
+#   seller_ids:   null means every seller (unrestricted demo tenant); a list
+#                 scopes every tool to those sellers, server-side
+#   retrieval:    k, min_score, rewrite (defaults: 5, 0.35, false)
+#   cache:        enabled, threshold, ttl_days (defaults: false, 0.92, 7)
+#
+# Tools not listed under allow or ask are denied. The tool server takes the
+# tenant from the signed run token and never from request arguments.
 tenants:
   default:
     provider: lmstudio
@@ -12,11 +31,16 @@ tenants:
         - describe_schema@1
       ask: []
     seller_ids: null
+  # A real cross-tenant demo: only seller 955fee... orders are visible, and a
+  # request for any other order or for a tool outside the allowlist is denied.
   seller_a:
     provider: lmstudio
     agents:
       allow: ["docs", "data"]
     tools:
-      allow: ["orders_summary@1", "order_lookup@1"]
+      allow:
+        - orders_summary@1
+        - order_lookup@1
+        - top_products@1
       ask: []
     seller_ids: ["955fee9216a65b617aa5c0531780ce60"]

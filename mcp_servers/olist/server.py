@@ -90,7 +90,7 @@ class ServerState:
         if not dsn:
             raise RuntimeError("SWITCHBOARD_TOOLS_DATABASE_URL is not set")
         tenants_path = Path(os.environ.get("SWITCHBOARD_TENANTS_FILE", "config/tenants.yaml"))
-        tenants = load_tenants(tenants_path)
+        tenants = load_tenants(tenants_path, MANIFEST)
         pool = await asyncpg.create_pool(dsn=dsn, min_size=1, max_size=5, timeout=5.0)
         try:
             for table, migration in (
@@ -266,7 +266,7 @@ async def _dispatch(
                     },
                 )
                 record_error(span, exc)
-                await insert_audit(
+                denied_audit_id = await insert_audit(
                     state().pool,
                     run_id=run_id,
                     tenant_id=tenant_id,
@@ -277,6 +277,10 @@ async def _dispatch(
                     status=status,
                     duration_ms=duration_ms,
                 )
+                # The client cannot read the audit id from an MCP error, so the
+                # server span is what lets a denied call be joined to its audit
+                # row in the trace (AC-11b, design.md section 12.1).
+                set_attributes(span, {"switchboard.tool.audit_id": str(denied_audit_id)})
                 raise
     finally:
         span.end()

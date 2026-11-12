@@ -463,11 +463,13 @@ tenants:
     agents:
       allow: ["docs", "data"]
     tools:
-      allow: ["orders_summary@1", "order_lookup@1"]
+      allow: ["orders_summary@1", "order_lookup@1", "top_products@1"]
     seller_ids: ["955fee9216a65b617aa5c0531780ce60"]
 ```
 
-Tools not listed under `allow` or `ask` are denied.
+Tools not listed under `allow` or `ask` are denied. `ask` is the v2 human-approval list: this phase has no approval hook, so an ask tool is denied and audited like an unlisted one.
+
+`config/tenants.yaml` documents the schema and both processes validate it at startup. The API rejects unknown tenant keys, malformed or duplicate wire names, a tool in both `allow` and `ask`, empty or duplicate `seller_ids`, unknown agent names (resolved through the entry point registry) and unknown tool wire names (resolved through the manifest each tool source declares in `platform.yaml`). The MCP server reads the same file but stays independent of `switchboard.core`: it validates the fields its trust boundary depends on (tool wire names against its own manifest, the ask list and the seller ids) and rejects unknown keys. A typo therefore fails the start of either process instead of surfacing as a silently missing agent or a denied call during a run.
 
 **The tool server must not trust the caller's claim about who it is.** In 0.1 the tenant id travelled in request metadata, so the server-side check compared a claim against a list without knowing whether the claim was true. In 0.2 the API mints a **run token** at the start of every run (ADR 0014):
 
@@ -679,8 +681,28 @@ Logical isolation, enforced at every layer:
 | Tools | Allowlist on client and server; server takes the tenant from the signed run token; seller filter injected server-side |
 | Retrieval | `WHERE tenant_id = $1` on every chunk query; tests assert no cross-tenant chunk ever appears |
 | Cache | tenant id in the key |
-| Traces and runs | tenant id attribute on every span; run queries filter by tenant |
+| Traces and runs | tenant id attribute on every span; `GET /runs`, `GET /runs/{id}` and `GET /runs/{id}/trace` require `tenant_id` and filter on it, and another tenant's run answers 404 like a missing one |
 | Audit | tenant id column, taken from the token |
+
+The tenant schema (AC-11a):
+
+| Key | Meaning |
+| --- | --- |
+| `provider` | A provider name from `providers.yaml`; fails at startup when unknown |
+| `agents.allow` | Registered agent names the supervisor may plan with; at least one |
+| `tools.allow` | Tool wire names callable without approval |
+| `tools.ask` | Tool wire names that would need human approval in v2; denied in this phase |
+| `seller_ids` | `null` for every seller (the unrestricted demo tenant) or a non-empty list injected server-side into every tenant-scoped query |
+| `retrieval` | `k` (5), `min_score` (0.35), `rewrite` (false) |
+| `cache` | `enabled` (false), `threshold` (0.92), `ttl_days` (7); the semantic cache itself is v1 |
+
+Unknown keys, malformed or versionless wire names, duplicates, a tool in both `allow` and `ask`, and an empty `seller_ids` list all fail at startup rather than during a run. Agent names are checked against the entry point registry and tool wire names against each tool source's manifest (`platform.yaml`), which the MCP server also reads to validate its own copy of the tenant file.
+
+The demo gives `seller_a` the same five synthetic policy documents as `default` (29 chunks) so retrieval isolation is tested against two real indexes:
+
+```bash
+uv run --env-file .env switchboard ingest data/documents --tenant seller_a
+```
 
 Physical isolation (schema per tenant, separate databases) is explicitly out of scope and noted as a v2+ option in the review.
 
@@ -914,6 +936,7 @@ tool_sources:
   - name: olist
     adapter: mcp
     url: ${MCP_OLIST_URL}
+    manifest: mcp_servers/olist/manifest.yaml   # optional; enables tenant validation
 retriever: pgvector
 cache: none                      # v1: pg_semantic
 embedder: lmstudio

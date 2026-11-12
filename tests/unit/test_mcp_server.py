@@ -2,9 +2,10 @@
 
 from pathlib import Path
 
+import pytest
 from mcp_servers.olist.db import hash_args, redact_args
 from mcp_servers.olist.server import MANIFEST, mcp, sanitise_arguments
-from mcp_servers.olist.settings import load_manifest, load_tenants
+from mcp_servers.olist.settings import ServerConfigError, load_manifest, load_tenants
 
 REPO = Path(__file__).resolve().parents[2]
 MANIFEST_FILE = REPO / "mcp_servers" / "olist" / "manifest.yaml"
@@ -24,14 +25,115 @@ def test_manifest_has_five_versioned_read_only_tools() -> None:
 
 
 def test_tenants_carry_allowlists_and_seller_scope() -> None:
-    tenants = load_tenants(TENANTS_FILE)
+    tenants = load_tenants(TENANTS_FILE, MANIFEST)
     assert tenants["default"].seller_ids is None
     assert len(tenants["default"].allowed_tools) == 5
     assert tenants["seller_a"].allowed_tools == {
         "orders_summary@1",
         "order_lookup@1",
+        "top_products@1",
     }
+    assert tenants["seller_a"].ask_tools == frozenset()
     assert tenants["seller_a"].seller_ids == ("955fee9216a65b617aa5c0531780ce60",)
+
+
+def write_tenants(tmp_path: Path, body: str) -> Path:
+    path = tmp_path / "tenants.yaml"
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+def test_unknown_tool_wire_name_fails_at_startup(tmp_path: Path) -> None:
+    path = write_tenants(
+        tmp_path,
+        """
+tenants:
+  default:
+    provider: lmstudio
+    agents:
+      allow: ["data"]
+    tools:
+      allow: ["ghost_tool@1"]
+""",
+    )
+    with pytest.raises(ServerConfigError, match=r"unknown tools.*ghost_tool@1"):
+        load_tenants(path, MANIFEST)
+
+
+def test_unknown_keys_duplicates_and_ask_overlap_fail(tmp_path: Path) -> None:
+    typo = write_tenants(
+        tmp_path,
+        """
+tenants:
+  default:
+    provider: lmstudio
+    toolz:
+      allow: []
+""",
+    )
+    with pytest.raises(ServerConfigError, match=r"unknown keys.*toolz"):
+        load_tenants(typo, MANIFEST)
+
+    duplicate = write_tenants(
+        tmp_path,
+        """
+tenants:
+  default:
+    tools:
+      allow: ["orders_late@1", "orders_late@1"]
+""",
+    )
+    with pytest.raises(ServerConfigError, match="duplicates"):
+        load_tenants(duplicate, MANIFEST)
+
+    overlap = write_tenants(
+        tmp_path,
+        """
+tenants:
+  default:
+    tools:
+      allow: ["orders_late@1"]
+      ask: ["orders_late@1"]
+""",
+    )
+    with pytest.raises(ServerConfigError, match="allowed automatically"):
+        load_tenants(overlap, MANIFEST)
+
+
+def test_seller_ids_and_retrieval_keys_are_validated(tmp_path: Path) -> None:
+    empty = write_tenants(
+        tmp_path,
+        """
+tenants:
+  default:
+    seller_ids: []
+""",
+    )
+    with pytest.raises(ServerConfigError, match="non-empty list"):
+        load_tenants(empty, MANIFEST)
+
+    non_string = write_tenants(
+        tmp_path,
+        """
+tenants:
+  default:
+    seller_ids: [123]
+""",
+    )
+    with pytest.raises(ServerConfigError, match="entries must be strings"):
+        load_tenants(non_string, MANIFEST)
+
+    retrieval = write_tenants(
+        tmp_path,
+        """
+tenants:
+  default:
+    retrieval:
+      kk: 5
+""",
+    )
+    with pytest.raises(ServerConfigError, match="retrieval has unknown keys"):
+        load_tenants(retrieval, MANIFEST)
 
 
 def test_manifest_file_reloads_identically() -> None:
