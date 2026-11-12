@@ -15,7 +15,7 @@ One line per task. Status is `todo`, `doing`, `blocked` (say on what), or `done`
 | T1.07 | todo | | |
 | T1.08 | todo | | |
 | T1.09 | todo | | |
-| T1.09a | doing | | Routing done 2026-11-12: 60 questions from a separate session, blind labels by the author, agreement 50/60, 10 ambiguous, 5 adjudicated; splits dev 21, test 39. Toolcall: 40 cases generated, order ids sampled from the download. Remaining: author skims toolcall wording, then sign-off and status done |
+| T1.09a | done | d581a3a and next | Routing: 60 questions from a separate session, blind labels by the author, agreement 50/60, 10 ambiguous, 5 adjudicated; splits dev 21, test 39. Toolcall: 40 cases generated, order ids sampled from the download; wording reviewed by the assistant at the author's request (labels are computed, so no independence is needed there). Date ranges filter on purchase date (design 7.1) |
 | T1.10 | todo | | |
 | T1.11 | todo | | |
 | T1.12 | todo | | |
