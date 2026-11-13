@@ -12,18 +12,22 @@ import {
   formatTokens,
   formatWhen,
 } from "../format";
+import { tabHref, traceHref } from "../routes";
 
 export function RunDetailPage({
   runId,
   tenant,
+  sessionId,
 }: {
   runId: string;
   tenant: string | null;
+  sessionId: string | null;
 }) {
   const tenantId = tenant ?? TENANTS[0];
   const [run, setRun] = useState<RunSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const activeSession = sessionId ?? run?.session_id ?? null;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -56,7 +60,7 @@ export function RunDetailPage({
   return (
     <div className="page">
       <p className="back-link">
-        <a href={`#/runs?tenant=${encodeURIComponent(tenantId)}`}>Back to runs</a>
+        <a href={tabHref("runs", tenantId, activeSession)}>Back to runs</a>
       </p>
 
       {loading ? <p className="muted">Loading run...</p> : null}
@@ -93,7 +97,12 @@ export function RunDetailPage({
             ) : (
               <p className="muted">The run has no stored answer.</p>
             )}
-            <CitationChips runId={run.run_id} tenantId={run.tenant_id} citations={run.citations} />
+            <CitationChips
+              runId={run.run_id}
+              tenantId={run.tenant_id}
+              sessionId={activeSession}
+              citations={run.citations}
+            />
             <ErrorList errors={run.errors} />
             {!run.trace_complete ? (
               <div className="warning-box">
@@ -101,11 +110,7 @@ export function RunDetailPage({
               </div>
             ) : null}
             <p className="links">
-              <a
-                href={`#/runs/${encodeURIComponent(run.run_id)}/trace?tenant=${encodeURIComponent(
-                  run.tenant_id,
-                )}`}
-              >
+              <a href={traceHref(run.run_id, run.tenant_id, activeSession)}>
                 Open trace
               </a>
               {run.session_id !== null && run.session_id !== "" ? (

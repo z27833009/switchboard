@@ -9,7 +9,7 @@ The shell, tokens and components live in `web/src/styles.css` and `web/src/App.t
 1. One surface, one accent. The main area is white, the sidebar is `#F5F5F7`, and `#0071E3` is the only accent. Status colours are reserved for status.
 2. Light only. No dark theme, no gradients, no glass or blur, no decorative shadows. A shadow is used only for the settings dialog and the composer.
 3. Type is small and quiet. 14 px body, 12 px metadata, 20 to 24 px page titles. No display sizes inside cards.
-4. The tab bar is the only global navigation. The sidebar navigates conversations and the workspace; it never duplicates Chat / Runs / Traces.
+4. The tab bar switches the current conversation's Chat / Runs / Traces views. The sidebar navigates conversations and the workspace; it never duplicates the three tabs, and switching tabs keeps the same session id.
 5. No invented state. The status dot reads `GET /health`, the settings dialog reads `GET /settings`, the recent list reads `GET /runs`, and a resumed conversation is rebuilt from stored run rows. A failed read shows an error and no values, never a placeholder that looks like data.
 
 ## 2. Design tokens
@@ -45,10 +45,10 @@ The shell is a two-column grid at `100dvh`: `<aside class="sidebar">` and a scro
 - **Icon rail (72 px).** Brand mark, new chat, up to eight recent conversations as initial-letter buttons with accessible names, a tenant switch button that shows the tenant's initial, settings and the status dot.
 - **Drawer (under 1024 px).** A native `<dialog>` holding the full sidebar; opened from the menu button in the title row. The browser provides focus containment, Escape and focus return; a light backdrop click closes it, with a pointer-position fallback where `closedby` is missing.
 - **Chat.** The transcript scrolls; the composer is pinned to the bottom of the view. Above the composer sits one compact run summary bar for the latest turn (plan, status, latency, tokens, cost, gate, cache). The bar's `Steps (n)` disclosure expands the live step list inline. There is no right inspector column; a citation chip opens the trace page at the cited span.
-- **Runs.** Filter bar (tenant, status, plan, refresh), then a semantic table with a row header, sticky column headers and row links.
-- **Traces.** A list of recent traces (one per run) with plan, status, latency, cache and trace completeness; opening one keeps the existing trace page with Timeline, Tree, Expand all, Collapse all and the plan graph.
+- **Runs.** The runs of the current conversation, with status and plan filters and a refresh button, then a semantic table with a row header, sticky column headers and row links. The tenant is fixed for the session; switching tenant starts a new conversation.
+- **Traces.** The traces of the current conversation, one per run, with plan, status, latency, cache and trace completeness; opening one keeps the existing trace page with Timeline, Tree, Expand all, Collapse all and the plan graph.
 - **Run detail and trace detail.** Their own header information plus a back link; the global tabs above stay in place and no page repeats them.
-- **Settings.** A native modal `<dialog>` opened from the profile menu: a read-only notice, a vertical section sub-nav (Account, General, Model, Tools & MCP, Agents, Retrieval, Cache) and read-only cards on the right. Closing is by the close button, Escape or a backdrop click, and focus returns to the menu item that opened it.
+- **Settings.** A native modal `<dialog>` opened from the profile menu: a read-only notice, a vertical section sub-nav (Account, General, Model, Tools & MCP, Agents, Retrieval, Cache) and read-only cards on the right. The dialog keeps a fixed 1000 by 760 desktop size (and a fixed viewport-filling size on a phone) so changing sections does not resize the window; the content column scrolls inside it. Closing is by the close button, Escape or a backdrop click, and focus returns to the menu item that opened it.
 
 Seven sections come from the agreed sub-nav list with `Retrieval & Cache` split into its two independent settings groups, so the dialog matches the seven-section requirement without merging two different configuration blocks.
 
@@ -65,7 +65,7 @@ Chat and composer content is capped at 860 px and centred. The runs table switch
 
 ## 5. Component rules
 
-- **Tabs.** `role="tablist"` with three `role="tab"` buttons, one tab stop, roving `tabindex`, ArrowLeft/ArrowRight/Home/End with selection following focus, `aria-selected`, and an underline drawn with a border on a pseudo-element. The selected tab is not distinguished by colour alone and selection does not change the tab's padding or font size.
+- **Tabs.** `role="tablist"` with three `role="tab"` buttons for the current conversation, one tab stop, roving `tabindex`, ArrowLeft/ArrowRight/Home/End with selection following focus, `aria-selected`, and an underline drawn with a border on a pseudo-element. Every tab href carries the same `session` query parameter, so Chat, Runs and Traces describe one conversation. The selected tab is not distinguished by colour alone and selection does not change the tab's padding or font size.
 - **Table.** A real `<table>` with a visually hidden `<caption>`, `<thead>` with `scope="col"`, a `<th scope="row">` for the query, and `data-label` on each cell for the stacked layout. The scroll container is `role="region"` with `tabindex="0"` and an accessible name, so keyboard users can scroll it.
 - **Dialog.** Native `<dialog>` opened with `showModal()` only. It has `aria-labelledby`, a visible close button, `closedby="any"` as progressive enhancement, and the pointer-position fallback where closedby is unsupported. No `role="dialog"`, no manual focus trap, no `inert` toggling, no scroll lock on `html`/`body`. `dialog:modal` and `::backdrop` use `overscroll-behavior: contain`.
 - **Menu.** A disclosure button with `aria-haspopup="menu"` and `aria-expanded`, a `role="menu"` of `menuitem` / `menuitemradio` items, arrow-key movement, Escape to close and return focus, and a pointerdown listener that closes on an outside click.
@@ -108,9 +108,9 @@ docker compose up -d --build
 
 Manual checks, at 1440x1200, 768x1200 and 375x900 (Chrome device emulation or a resized window):
 
-1. **375 wide, Chat.** No horizontal scrollbar on the page (`document.documentElement.scrollWidth <= window.innerWidth`); the composer stays above the bottom edge; Enter sends after typing, Shift+Enter adds a line, and an IME composition does not send.
+1. **375 wide, Chat.** No horizontal scrollbar on the page (`document.documentElement.scrollWidth <= window.innerWidth`); the composer stays above the bottom edge; Enter sends after typing, Shift+Enter adds a line, and an IME composition does not send. Switch to Runs or Traces and back to Chat: the URL keeps the same `session` and the transcript is unchanged.
 2. **375 wide, Runs.** The table is one card per run, each cell shows its label, the row header stays visible while the card scrolls, and the page does not scroll sideways.
-3. **375 wide, Settings.** Open from the profile menu (drawer). The section row wraps into two or more rows so every section stays visible; the content column scrolls vertically; Escape closes; focus returns to the menu item.
+3. **375 wide, Settings.** Open from the profile menu (drawer). The dialog fills the viewport height, the section row wraps into two or more rows so every section stays visible, and the content column scrolls vertically without resizing the dialog when the section changes; Escape closes; focus returns to the menu item.
 4. **768 wide, shell.** No static sidebar, the menu button opens the drawer, the drawer closes on Escape and on a backdrop click, and the chat column is centred below 860 px.
 5. **1024 to 1279 wide.** The 72 px rail shows the brand, new chat, recent initials, tenant switch, settings and the status dot; every icon-only control has an accessible name.
 6. **1440 wide, shell.** The 260 px sidebar, independent recent-list scroll, title row and tabs are all visible, and the transcript is capped at 860 px.
@@ -123,6 +123,7 @@ Screenshots of these checks are committed under `docs/` with the run and viewpor
 ## 8. Known limits
 
 - There is no authentication, so the sidebar has no sign-in, sign-out or account avatar that would pretend to be one. "Local workspace" names the workspace, and Switch tenant changes the tenant id used by every request.
-- The tab bar is presented with the ARIA tab pattern because the author specified tabs with arrow keys as the only global navigation. For in-page view switching the pattern matches its documented use; if the views ever stop sharing one document (for example independent URLs with server-side history), they should become links instead.
+- The tab bar is presented with the ARIA tab pattern because the author specified tabs with arrow keys. It switches the current conversation's Chat, Runs and Traces views, which share one session. If the views ever stop sharing one document (for example independent URLs with server-side history), they should become links instead.
 - The run row stores neither the gate verdict nor the plan reason, so a resumed conversation shows `gate: not recorded` and a plan label without its reason. Live runs show both from the step events.
 - The Recent list is the tenant's latest runs, not a server-side conversation index. A row without a session id opens the run detail and says `run` in its metadata rather than pretending to resume a conversation.
+- Runs and Traces are conversation-scoped. There is no all-tenant run or trace explorer in this build; switching tenant starts a new conversation, and the sidebar recent list is the way to move between stored conversations.

@@ -3,32 +3,40 @@ import { useEffect, useState } from "react";
 import { errorMessage, getJson, isAbortError } from "../api";
 import type { RunSummary, RunsResponse } from "../api";
 import { StatusBadge, Tag } from "../components/Badges";
-import { TENANTS } from "../config";
 import { formatLatency, formatWhen } from "../format";
+import { runHref, traceHref } from "../routes";
 
 // One trace per run (design.md section 12.2), so the trace list is the run list
 // with the trajectory fields in front. Opening a row keeps the existing trace
 // page, which owns the Timeline and Tree views and the plan graph.
 export function TracesPage({
   tenant,
-  onTenantChange,
+  sessionId,
 }: {
   tenant: string;
-  onTenantChange: (tenant: string) => void;
+  sessionId: string | null;
 }) {
   const [runs, setRuns] = useState<RunSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(sessionId !== null);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    if (sessionId === null) {
+      setRuns([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    getJson<RunsResponse>(
-      `/runs?limit=50&tenant_id=${encodeURIComponent(tenant)}`,
-      controller.signal,
-    )
+    const params = new URLSearchParams({
+      tenant_id: tenant,
+      session_id: sessionId,
+      limit: "50",
+    });
+    getJson<RunsResponse>(`/runs?${params.toString()}`, controller.signal)
       .then((data) => {
         if (!controller.signal.aborted) {
           setRuns(data.runs);
@@ -45,7 +53,7 @@ export function TracesPage({
         }
       });
     return () => controller.abort();
-  }, [tenant, reloadKey]);
+  }, [tenant, sessionId, reloadKey]);
 
   return (
     <div className="page">
@@ -55,20 +63,14 @@ export function TracesPage({
       </p>
 
       <div className="filter-bar">
-        <label className="field field-inline">
-          <span className="field-label">Tenant</span>
-          <select value={tenant} onChange={(event) => onTenantChange(event.target.value)}>
-            {TENANTS.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className="filter-spacer" />
         <span className="muted small" role="status">
-          {loading ? "Loading..." : `${runs.length} most recent trace(s) for ${tenant}`}
+          {sessionId === null
+            ? "No conversation selected"
+            : loading
+              ? "Loading..."
+              : `${runs.length} trace(s) in this conversation`}
         </span>
+        <span className="filter-spacer" />
         <button
           type="button"
           className="button button-quiet"
@@ -88,9 +90,11 @@ export function TracesPage({
 
       {!loading && error === null && runs.length === 0 ? (
         <div className="empty-state">
-          <h2>No traces yet</h2>
+          <h2>{sessionId === null ? "No conversation selected" : "No traces in this conversation"}</h2>
           <p className="muted">
-            A trace exists once a run has happened. Send a question in Chat, then open it here.
+            {sessionId === null
+              ? "Choose a conversation from the sidebar or start a new chat."
+              : "A trace appears once a run in this conversation has happened."}
           </p>
         </div>
       ) : null}
@@ -102,9 +106,7 @@ export function TracesPage({
               <div className="trace-list-main">
                 <a
                   className="trace-list-title row-link"
-                  href={`#/runs/${encodeURIComponent(run.run_id)}/trace?tenant=${encodeURIComponent(
-                    run.tenant_id,
-                  )}`}
+                  href={traceHref(run.run_id, run.tenant_id, sessionId)}
                 >
                   {run.query}
                 </a>
@@ -118,20 +120,8 @@ export function TracesPage({
                 </p>
               </div>
               <div className="trace-list-actions">
-                <a
-                  href={`#/runs/${encodeURIComponent(run.run_id)}/trace?tenant=${encodeURIComponent(
-                    run.tenant_id,
-                  )}`}
-                >
-                  Open trace
-                </a>
-                <a
-                  href={`#/runs/${encodeURIComponent(run.run_id)}?tenant=${encodeURIComponent(
-                    run.tenant_id,
-                  )}`}
-                >
-                  Run detail
-                </a>
+                <a href={traceHref(run.run_id, run.tenant_id, sessionId)}>Open trace</a>
+                <a href={runHref(run.run_id, run.tenant_id, sessionId)}>Run detail</a>
               </div>
             </li>
           ))}

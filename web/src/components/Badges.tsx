@@ -100,10 +100,12 @@ export function ErrorList({ errors }: { errors: ErrorRecord[] }) {
 export function CitationChips({
   runId,
   tenantId,
+  sessionId = null,
   citations,
 }: {
   runId: string;
   tenantId: string;
+  sessionId?: string | null;
   citations: Citation[];
 }) {
   if (citations.length === 0) {
@@ -117,7 +119,7 @@ export function CitationChips({
           <a
             key={`${citation.kind}-${citation.ref}-${index}`}
             className={`chip chip-${citation.kind}`}
-            href={citationHref(runId, tenantId, citation)}
+            href={citationHref(runId, tenantId, citation, sessionId)}
             title={`${citation.source_id}\n${citation.snippet}`}
           >
             {label}

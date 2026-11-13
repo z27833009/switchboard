@@ -12,8 +12,9 @@ import { RunDetailPage } from "./pages/RunDetailPage";
 import { RunListPage } from "./pages/RunListPage";
 import { TracePage } from "./pages/TracePage";
 import { TracesPage } from "./pages/TracesPage";
-import { parseRoute, routeKey, tabForRoute, tabHref } from "./routes";
+import { chatHref, parseRoute, routeKey, tabForRoute, tabHref } from "./routes";
 import type { Route, TabKey } from "./routes";
+import { newSessionId } from "./session";
 
 // How many recent runs the sidebar shows. The API caps the list at 200; eight
 // keeps the sidebar short and every row one click from the stored run.
@@ -29,6 +30,10 @@ export default function App() {
   const [tenant, setTenant] = useState<string>(() => {
     const initial = currentRoute();
     return initial.tenant ?? TENANTS[0];
+  });
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
+    const initial = currentRoute();
+    return "sessionId" in initial ? initial.sessionId : null;
   });
   const [health, setHealth] = useState<HealthState>("unknown");
   const [recent, setRecent] = useState<RunSummary[]>([]);
@@ -48,6 +53,9 @@ export default function App() {
       if (next.tenant !== null) {
         setTenant(next.tenant);
       }
+      if ("sessionId" in next) {
+        setActiveSessionId(next.sessionId);
+      }
     };
     window.addEventListener("hashchange", onHashChange);
     if (window.location.hash === "") {
@@ -57,6 +65,19 @@ export default function App() {
       window.removeEventListener("hashchange", onHashChange);
     };
   }, []);
+
+  // A chat URL without a session would make the three tabs ambiguous. Give it
+  // one immediately, so Chat/Runs/Traces always describe the same conversation
+  // and a reload keeps it.
+  useEffect(() => {
+    if (route.name !== "chat" || route.sessionId !== null) {
+      return;
+    }
+    const id = newSessionId();
+    window.history.replaceState(null, "", chatHref(tenant, id));
+    setRoute({ name: "chat", tenant, sessionId: id });
+    setActiveSessionId(id);
+  }, [route, tenant]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -169,24 +190,35 @@ export default function App() {
     setRecentKey((value) => value + 1);
   }, []);
 
-  const switchTenant = useCallback(
-    (next: string) => {
-      setTenant(next);
-      setChatTitle(null);
-      window.location.hash = tabHref(tabForRoute(route), next);
-    },
-    [route],
-  );
+  const handleSessionChange = useCallback((sessionId: string) => {
+    setActiveSessionId(sessionId);
+  }, []);
+
+  const switchTenant = useCallback((next: string) => {
+    const id = newSessionId();
+    setTenant(next);
+    setActiveSessionId(id);
+    setChatTitle(null);
+    setDrawerOpen(false);
+    window.location.hash = chatHref(next, id);
+  }, []);
 
   function startNewChat() {
+    const id = newSessionId();
+    setActiveSessionId(id);
     setChatNonce((value) => value + 1);
     setChatTitle(null);
     setDrawerOpen(false);
-    window.location.hash = tabHref("chat", tenant);
+    window.location.hash = chatHref(tenant, id);
   }
 
   function changeTab(tab: TabKey) {
-    window.location.hash = tabHref(tab, tenant);
+    let sessionId = activeSessionId;
+    if (sessionId === null) {
+      sessionId = newSessionId();
+      setActiveSessionId(sessionId);
+    }
+    window.location.hash = tabHref(tab, tenant, sessionId);
   }
 
   function closeSettings() {
@@ -215,10 +247,10 @@ export default function App() {
     title = chatTitle ?? "New conversation";
   } else if (route.name === "runs") {
     title = "Runs";
-    subtitle = `tenant ${tenant}`;
+    subtitle = `session ${activeSessionId?.slice(0, 8) ?? "not selected"} · tenant ${tenant}`;
   } else if (route.name === "traces") {
     title = "Traces";
-    subtitle = `tenant ${tenant}`;
+    subtitle = `session ${activeSessionId?.slice(0, 8) ?? "not selected"} · tenant ${tenant}`;
   } else if (route.name === "run") {
     title = "Run detail";
     subtitle = `run ${route.runId.slice(0, 8)} · tenant ${route.tenant ?? tenant}`;
@@ -301,19 +333,29 @@ export default function App() {
                 sessionId={route.sessionId}
                 onTitleChange={handleChatTitle}
                 onRunFinished={handleRunFinished}
+                onSessionChange={handleSessionChange}
               />
             ) : null}
             {route.name === "runs" ? (
-              <RunListPage key={tenant} tenant={tenant} onTenantChange={switchTenant} />
+              <RunListPage
+                key={`${tenant}:${activeSessionId ?? ""}`}
+                tenant={tenant}
+                sessionId={activeSessionId}
+              />
             ) : null}
             {route.name === "traces" ? (
-              <TracesPage key={tenant} tenant={tenant} onTenantChange={switchTenant} />
+              <TracesPage
+                key={`${tenant}:${activeSessionId ?? ""}`}
+                tenant={tenant}
+                sessionId={activeSessionId}
+              />
             ) : null}
             {route.name === "run" ? (
               <RunDetailPage
                 key={routeKey(route)}
                 runId={route.runId}
                 tenant={route.tenant ?? tenant}
+                sessionId={activeSessionId}
               />
             ) : null}
             {route.name === "trace" ? (
@@ -321,6 +363,7 @@ export default function App() {
                 key={routeKey(route)}
                 runId={route.runId}
                 tenant={route.tenant ?? tenant}
+                sessionId={activeSessionId}
                 spanId={route.spanId}
                 auditId={route.auditId}
                 view={route.view}

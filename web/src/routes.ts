@@ -16,13 +16,14 @@ export type TraceView = "tree" | "timeline";
 
 export type Route =
   | { name: "chat"; tenant: string | null; sessionId: string | null }
-  | { name: "runs"; tenant: string | null }
-  | { name: "traces"; tenant: string | null }
-  | { name: "run"; runId: string; tenant: string | null }
+  | { name: "runs"; tenant: string | null; sessionId: string | null }
+  | { name: "traces"; tenant: string | null; sessionId: string | null }
+  | { name: "run"; runId: string; tenant: string | null; sessionId: string | null }
   | {
       name: "trace";
       runId: string;
       tenant: string | null;
+      sessionId: string | null;
       spanId: string | null;
       auditId: string | null;
       view: TraceView | null;
@@ -40,16 +41,25 @@ export function parseRoute(hash: string): Route {
     return { name: "chat", tenant: params.get("tenant"), sessionId: params.get("session") };
   }
   if (segments.length === 1 && segments[0] === "runs") {
-    return { name: "runs", tenant: params.get("tenant") };
+    return {
+      name: "runs",
+      tenant: params.get("tenant"),
+      sessionId: params.get("session"),
+    };
   }
   if (segments.length === 1 && segments[0] === "traces") {
-    return { name: "traces", tenant: params.get("tenant") };
+    return {
+      name: "traces",
+      tenant: params.get("tenant"),
+      sessionId: params.get("session"),
+    };
   }
   if (segments.length === 2 && segments[0] === "runs") {
     return {
       name: "run",
       runId: decodeURIComponent(segments[1]),
       tenant: params.get("tenant"),
+      sessionId: params.get("session"),
     };
   }
   if (segments.length === 3 && segments[0] === "runs" && segments[2] === "trace") {
@@ -58,6 +68,7 @@ export function parseRoute(hash: string): Route {
       name: "trace",
       runId: decodeURIComponent(segments[1]),
       tenant: params.get("tenant"),
+      sessionId: params.get("session"),
       spanId: params.get("span"),
       auditId: params.get("audit"),
       view: viewParam === "timeline" ? "timeline" : viewParam === "tree" ? "tree" : null,
@@ -68,17 +79,20 @@ export function parseRoute(hash: string): Route {
 
 export function routeKey(route: Route): string {
   if (route.name === "trace") {
-    return `trace:${route.runId}:${route.tenant ?? ""}:${route.spanId ?? ""}:${
-      route.auditId ?? ""
-    }:${route.view ?? ""}`;
+    return `trace:${route.runId}:${route.tenant ?? ""}:${route.sessionId ?? ""}:${
+      route.spanId ?? ""
+    }:${route.auditId ?? ""}:${route.view ?? ""}`;
   }
   if (route.name === "run") {
-    return `run:${route.runId}:${route.tenant ?? ""}`;
+    return `run:${route.runId}:${route.tenant ?? ""}:${route.sessionId ?? ""}`;
   }
   if (route.name === "chat") {
     return `chat:${route.tenant ?? ""}:${route.sessionId ?? ""}`;
   }
-  return route.name;
+  if (route.name === "runs" || route.name === "traces") {
+    return `${route.name}:${route.tenant ?? ""}:${route.sessionId ?? ""}`;
+  }
+  return "unknown";
 }
 
 // Which top-level tab a route belongs to. A run or a trace detail keeps the
@@ -105,15 +119,44 @@ export function chatHref(tenant: string, sessionId: string | null): string {
   return `#/chat?${params.toString()}`;
 }
 
-export function tabHref(tab: TabKey, tenant: string): string {
+export function tabHref(tab: TabKey, tenant: string, sessionId: string | null): string {
   const params = new URLSearchParams();
   params.set("tenant", tenant);
+  if (sessionId !== null && sessionId !== "") {
+    params.set("session", sessionId);
+  }
   return `#/${tab}?${params.toString()}`;
 }
 
-export function citationHref(runId: string, tenantId: string, citation: Citation): string {
+export function runHref(runId: string, tenantId: string, sessionId: string | null): string {
   const params = new URLSearchParams();
   params.set("tenant", tenantId);
+  if (sessionId !== null && sessionId !== "") {
+    params.set("session", sessionId);
+  }
+  return `#/runs/${encodeURIComponent(runId)}?${params.toString()}`;
+}
+
+export function traceHref(runId: string, tenantId: string, sessionId: string | null): string {
+  const params = new URLSearchParams();
+  params.set("tenant", tenantId);
+  if (sessionId !== null && sessionId !== "") {
+    params.set("session", sessionId);
+  }
+  return `#/runs/${encodeURIComponent(runId)}/trace?${params.toString()}`;
+}
+
+export function citationHref(
+  runId: string,
+  tenantId: string,
+  citation: Citation,
+  sessionId: string | null = null,
+): string {
+  const params = new URLSearchParams();
+  params.set("tenant", tenantId);
+  if (sessionId !== null && sessionId !== "") {
+    params.set("session", sessionId);
+  }
   if (citation.span_id !== null && citation.span_id !== "") {
     params.set("span", citation.span_id);
   } else if (citation.kind === "tool" && citation.audit_id !== null && citation.audit_id !== "") {

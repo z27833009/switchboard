@@ -5,6 +5,7 @@ import type { RunSummary, SpanEvent, TraceResponse, TraceSpan } from "../api";
 import { StatusBadge } from "../components/Badges";
 import { TENANTS } from "../config";
 import { formatDateTime, formatDuration, formatTokens, formatValue } from "../format";
+import { runHref, tabHref } from "../routes";
 import type { TraceView } from "../routes";
 import {
   ancestorsOf,
@@ -448,15 +449,24 @@ function PlanGraphView({
 export interface TracePageProps {
   runId: string;
   tenant: string | null;
+  sessionId: string | null;
   spanId: string | null;
   auditId: string | null;
   view: TraceView | null;
 }
 
-export function TracePage({ runId, tenant, spanId, auditId, view }: TracePageProps) {
+export function TracePage({
+  runId,
+  tenant,
+  sessionId,
+  spanId,
+  auditId,
+  view,
+}: TracePageProps) {
   const tenantId = tenant ?? TENANTS[0];
   const [trace, setTrace] = useState<TraceResponse | null>(null);
   const [run, setRun] = useState<RunSummary | null>(null);
+  const activeSession = sessionId ?? run?.session_id ?? null;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -581,13 +591,11 @@ export function TracePage({ runId, tenant, spanId, auditId, view }: TracePagePro
   return (
     <div className="page page-trace">
       <p className="back-link">
-        <a href={`#/traces?tenant=${encodeURIComponent(tenantId)}`}>Back to traces</a>
+        <a href={tabHref("traces", tenantId, activeSession)}>Back to traces</a>
         <span className="dot-separator" aria-hidden="true">
           ·
         </span>
-        <a href={`#/runs/${encodeURIComponent(runId)}?tenant=${encodeURIComponent(tenantId)}`}>
-          Run detail
-        </a>
+        <a href={runHref(runId, tenantId, activeSession)}>Run detail</a>
       </p>
       <p className="turn-meta">
         run <code>{runId}</code> · tenant <code>{tenantId}</code>

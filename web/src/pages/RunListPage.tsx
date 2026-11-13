@@ -3,8 +3,8 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { errorMessage, getJson, isAbortError } from "../api";
 import type { RunSummary, RunsResponse } from "../api";
 import { StatusBadge, Tag } from "../components/Badges";
-import { TENANTS } from "../config";
 import { formatCost, formatLatency, formatTokens, formatWhen } from "../format";
+import { runHref, traceHref } from "../routes";
 
 const STATUSES = [
   "ok",
@@ -18,13 +18,13 @@ const STATUSES = [
 
 export function RunListPage({
   tenant,
-  onTenantChange,
+  sessionId,
 }: {
   tenant: string;
-  onTenantChange: (tenant: string) => void;
+  sessionId: string | null;
 }) {
   const [runs, setRuns] = useState<RunSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(sessionId !== null);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [status, setStatus] = useState("all");
@@ -32,13 +32,21 @@ export function RunListPage({
   const captionId = useId();
 
   useEffect(() => {
+    if (sessionId === null) {
+      setRuns([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    getJson<RunsResponse>(
-      `/runs?limit=50&tenant_id=${encodeURIComponent(tenant)}`,
-      controller.signal,
-    )
+    const params = new URLSearchParams({
+      tenant_id: tenant,
+      session_id: sessionId,
+      limit: "50",
+    });
+    getJson<RunsResponse>(`/runs?${params.toString()}`, controller.signal)
       .then((data) => {
         if (!controller.signal.aborted) {
           setRuns(data.runs);
@@ -57,7 +65,7 @@ export function RunListPage({
     return () => {
       controller.abort();
     };
-  }, [tenant, reloadKey]);
+  }, [tenant, sessionId, reloadKey]);
 
   // Plans come from the loaded rows, so the filter never offers a plan label
   // that no run actually has.
@@ -73,16 +81,6 @@ export function RunListPage({
   return (
     <div className="page">
       <div className="filter-bar">
-        <label className="field field-inline">
-          <span className="field-label">Tenant</span>
-          <select value={tenant} onChange={(event) => onTenantChange(event.target.value)}>
-            {TENANTS.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </label>
         <label className="field field-inline">
           <span className="field-label">Status</span>
           <select value={status} onChange={(event) => setStatus(event.target.value)}>
@@ -107,9 +105,11 @@ export function RunListPage({
         </label>
         <span className="filter-spacer" />
         <span className="muted small" role="status">
-          {loading
-            ? "Loading..."
-            : `${visible.length} of the latest ${runs.length} run(s) for ${tenant}`}
+          {sessionId === null
+            ? "No conversation selected"
+            : loading
+              ? "Loading..."
+              : `${visible.length} of the latest ${runs.length} run(s) in this conversation`}
         </span>
         <button
           type="button"
@@ -129,9 +129,11 @@ export function RunListPage({
       ) : null}
       {!loading && error === null && runs.length === 0 ? (
         <div className="empty-state">
-          <h2>No runs yet</h2>
+          <h2>{sessionId === null ? "No conversation selected" : "No runs in this conversation"}</h2>
           <p className="muted">
-            The API returned no runs for this tenant. Send a question in Chat and it appears here.
+            {sessionId === null
+              ? "Choose a conversation from the sidebar or start a new chat."
+              : "Send a question in Chat and its run appears here."}
           </p>
         </div>
       ) : null}
@@ -143,7 +145,7 @@ export function RunListPage({
         <div className="table-wrap" tabIndex={0} role="region" aria-labelledby={captionId}>
           <table className="table">
             <caption id={captionId} className="visually-hidden">
-              Runs of tenant {tenant}, newest first
+              Runs of this conversation, newest first
             </caption>
             <thead>
               <tr>
@@ -163,9 +165,7 @@ export function RunListPage({
                   <th scope="row" data-label="Query">
                     <a
                       className="row-link"
-                      href={`#/runs/${encodeURIComponent(run.run_id)}?tenant=${encodeURIComponent(
-                        run.tenant_id,
-                      )}`}
+                      href={runHref(run.run_id, run.tenant_id, sessionId)}
                     >
                       {run.query}
                     </a>
@@ -188,11 +188,7 @@ export function RunListPage({
                     {formatWhen(run.started_at)}
                   </td>
                   <td data-label="Trace" className="nowrap">
-                    <a
-                      href={`#/runs/${encodeURIComponent(run.run_id)}/trace?tenant=${encodeURIComponent(
-                        run.tenant_id,
-                      )}`}
-                    >
+                    <a href={traceHref(run.run_id, run.tenant_id, sessionId)}>
                       trace
                     </a>
                     {run.cache_hit ? <Tag tone="accent">cache</Tag> : null}
