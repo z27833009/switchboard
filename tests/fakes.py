@@ -35,6 +35,7 @@ from switchboard.api.step_events import (
 from switchboard.api.store import session_turns
 from switchboard.config import load_model
 from switchboard.core.config import TenantsConfig
+from switchboard.core.errors import ToolPermissionError
 from switchboard.core.models import (
     AgentResult,
     ChatRequest,
@@ -44,6 +45,8 @@ from switchboard.core.models import (
     RunContext,
     RunResult,
     RunStatus,
+    ToolResult,
+    ToolSpec,
     Turn,
     Usage,
 )
@@ -91,6 +94,7 @@ class MemoryRunStore:
             "output_tokens": 0,
             "cost_usd": None,
             "trace_complete": True,
+            "pending_approval": None,
             "started_at": datetime.now(UTC),
             "ended_at": None,
         }
@@ -115,10 +119,28 @@ class MemoryRunStore:
                 "cached_input_tokens": result.usage.cached_input_tokens,
                 "output_tokens": result.usage.output_tokens,
                 "cost_usd": result.cost_usd,
-                "ended_at": result.ended_at or datetime.now(UTC),
+                "pending_approval": (
+                    result.pending_approval.model_dump(mode="json")
+                    if result.pending_approval is not None
+                    else None
+                ),
+                "ended_at": (
+                    None
+                    if result.status == "waiting_approval"
+                    else result.ended_at or datetime.now(UTC)
+                ),
                 "trace_complete": trace_complete,
             }
         )
+
+    async def claim_approval(self, *, run_id: str, tenant_id: str) -> bool:
+        row = self.runs.get(run_id)
+        if row is None or row["tenant_id"] != tenant_id:
+            return False
+        if row["status"] != "waiting_approval":
+            return False
+        row["status"] = "running"
+        return True
 
     async def list_runs(
         self, *, tenant_id: str, limit: int = 50, session_id: str | None = None
@@ -471,6 +493,18 @@ class FailingOrchestrator:
 
     async def run(self, request: ChatRequest, ctx: RunContext) -> RunResult:
         raise RuntimeError("the model endpoint is unreachable")
+
+
+class UnusedToolSource:
+    """A ``ToolSource`` that serves nothing, for tests that only need one."""
+
+    name = "unused"
+
+    async def list_tools(self, ctx: RunContext) -> list[ToolSpec]:
+        return []
+
+    async def call(self, name: str, args: dict[str, Any], ctx: RunContext) -> ToolResult:
+        raise ToolPermissionError(f"{name} is not served by this source")
 
 
 def tenants_config() -> TenantsConfig:

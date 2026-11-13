@@ -123,6 +123,24 @@ The roadmap's demo script names `mcp_servers/olist/tools/orders_late.py`. The im
 
 Adding an agent is also one class plus one entry point, but do not demo it in the five minutes. Point at `src/switchboard/agents/` and the `switchboard.agents` entry points in `pyproject.toml`.
 
+## Optional: human approval (T3.01, 60 s)
+
+Only `seller_a` can ask for the one write tool. In the tenant selector choose `seller_a`, then ask:
+
+> Add a note to order `cb9628da43a976b479b45230984a05b8`: the customer called about a late delivery.
+
+The run pauses with status `waiting_approval` and no answer. The run page and the trace page show the approval card with the tool name `add_order_note@1` and the arguments, and nothing has been written yet. Show the trace: two `run` spans, one for the paused attempt and one for the run after the decision, because the paused graph is resumed rather than re-planned.
+
+Click **Approve and run** (or `POST /runs/<id>/approve?tenant_id=seller_a`). The run finishes `ok` with a `tool t1` citation; the note row and its audit row can be shown with:
+
+```bash
+docker compose exec -T postgres psql -U switchboard -d switchboard \
+  -c "SELECT order_id, tenant_id, note FROM olist.order_notes ORDER BY created_at DESC LIMIT 3;" \
+  -c "SELECT tool_name, status FROM public.tool_audit WHERE tool_name = 'add_order_note' ORDER BY created_at DESC LIMIT 3;"
+```
+
+Say what a second click does: the API claims the waiting row with one atomic update, so a repeat is a 409 and the tool never runs twice. **Reject** on a second run ends it with status `rejected`, an answer that says nothing was written, and no note or audit row. Note the limitation: the paused state lives in the API process, so an API restart loses a pending approval (the decision endpoint then answers 409 and marks the run `provider_error`).
+
 ## Appendix: add a tool in three steps
 
 This walkthrough adds `orders_by_state@1`, a read-only tool that counts orders by customer state for a purchase-date range. Do it on a scratch branch and revert it afterwards; nothing is committed. It follows the existing code and does not touch core or the orchestrator.
@@ -234,7 +252,7 @@ Without this line the server lists the tool but the tenant allowlist hides it fr
 
 ### Verify it
 
-The unit test currently asserts exactly six tools. While the experiment is in the tree, add the new name to the expected set:
+The unit test currently asserts exactly seven tools. While the experiment is in the tree, add the new name to the expected set:
 
 ```python
     assert set(MANIFEST) == {
@@ -248,7 +266,7 @@ The unit test currently asserts exactly six tools. While the experiment is in th
     }
 ```
 
-and change two assertions in `tests/unit/test_mcp_server.py`: `len(tools) == 6` becomes `len(tools) == 7` in `test_server_registers_exactly_the_manifest_tools`, and `len(tenants["default"].allowed_tools) == 5` becomes `== 6` in `test_tenants_carry_allowlists_and_seller_scope`, because the tenant config gained a tool. Rename the first test if you keep the tool for real.
+and change two assertions in `tests/unit/test_mcp_server.py`: `len(tools) == 7` becomes `len(tools) == 8` in `test_server_registers_exactly_the_manifest_tools`, and `len(tenants["default"].allowed_tools) == 5` becomes `== 6` in `test_tenants_carry_allowlists_and_seller_scope`, because the tenant config gained a tool. Rename the first test if you keep the tool for real.
 
 Then rebuild the two services that share the app image and check the manifest count:
 
@@ -258,9 +276,9 @@ docker compose up -d --build mcp-olist api
 curl -s http://localhost:8001/health
 ```
 
-Expected: the tests pass and `/health` reports `"tools":7`.
+Expected: the tests pass and `/health` reports `"tools":8`.
 
-For an end-to-end call with a real run token and an audit row, update the integration test in two places. Add the new name to the expected set in `test_lists_the_six_manifest_tools`, and add one line to the `calls` dictionary in `test_calls_every_allowed_tool_and_writes_audit_rows`:
+For an end-to-end call with a real run token and an audit row, update the integration test in two places. Add the new name to the expected set in `test_lists_the_seven_manifest_tools`, and add one line to the `calls` dictionary in `test_calls_every_allowed_tool_and_writes_audit_rows`:
 
 ```python
             "orders_by_state@1": {"date_from": "2018-03-01", "date_to": "2018-03-31"},
@@ -285,4 +303,4 @@ git checkout -- mcp_servers/olist/manifest.yaml mcp_servers/olist/db.py \
 docker compose up -d --build mcp-olist api
 ```
 
-`/health` should report `"tools":6` again. This revert step is why the walkthrough can be run during a demo without committing a real new tool.
+`/health` should report `"tools":7` again. This revert step is why the walkthrough can be run during a demo without committing a real new tool.

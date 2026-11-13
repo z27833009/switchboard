@@ -122,6 +122,7 @@ function runToChatResponse(run: RunSummary): ChatResponse {
     cache_hit: run.cache_hit,
     attempts: run.attempts,
     errors: run.errors,
+    pending_approval: run.pending_approval,
     started_at: run.started_at,
     ended_at: run.ended_at,
     trace_incomplete: !run.trace_complete,

@@ -310,6 +310,7 @@ async def test_known_tenant_returns_the_expected_shape(
 
     tools = {tool["wire_name"]: tool for tool in body["tools"]}
     assert set(tools) == {
+        "add_order_note@1",
         "describe_schema@1",
         "order_lookup@1",
         "orders_late@1",
@@ -319,6 +320,11 @@ async def test_known_tenant_returns_the_expected_shape(
     }
     assert tools["orders_summary@1"]["allowed"] is True
     assert tools["order_lookup@1"]["allowed"] is False
+    # The write tool is listed, is a write, and the default tenant does not
+    # allow it: approval is the only way in (T3.01).
+    assert tools["add_order_note@1"]["risk"] == "write"
+    assert tools["add_order_note@1"]["allowed"] is False
+    assert tools["add_order_note@1"]["tenant_scoped"] is True
     # The free-form SQL tool ships disabled: it is listed but never allowed.
     assert tools["query_readonly_sql@1"]["allowed"] is False
     assert tools["query_readonly_sql@1"]["risk"] == "read"

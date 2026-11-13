@@ -20,6 +20,7 @@ from switchboard.core.models import (
     CacheSettings,
     Citation,
     ErrorRecord,
+    PendingApproval,
     ProviderCapabilities,
     RetrievalSettings,
     RoutingDecision,
@@ -105,6 +106,9 @@ class ChatResponse(BaseModel):
     cache_hit: bool = False
     attempts: int = 0
     errors: list[ErrorRecord] = Field(default_factory=list)
+    # Set only while the run is waiting_approval: the tool call the graph paused
+    # on, so a client can show it without knowing anything else (T3.01).
+    pending_approval: PendingApproval | None = None
     started_at: datetime | None = None
     ended_at: datetime | None = None
     trace_incomplete: bool = False
@@ -131,6 +135,7 @@ class ChatResponse(BaseModel):
             cache_hit=result.cache_hit,
             attempts=result.attempts,
             errors=result.errors,
+            pending_approval=result.pending_approval,
             started_at=result.started_at,
             ended_at=result.ended_at,
             trace_incomplete=trace_incomplete,
@@ -160,6 +165,9 @@ class RunSummary(BaseModel):
     answer: str | None = None
     citations: list[Citation] = Field(default_factory=list)
     errors: list[ErrorRecord] = Field(default_factory=list)
+    # Only a waiting run has one; it comes from the row the orchestrator wrote,
+    # never from a request body (T3.01).
+    pending_approval: PendingApproval | None = None
     # Newest feedback row for this run; only ``GET /runs/{id}`` loads it, so
     # the run list stays one query (design.md section 14).
     latest_feedback: FeedbackSummary | None = None
@@ -200,6 +208,11 @@ class RunSummary(BaseModel):
             answer=cast(str | None, row.get("answer")),
             citations=citations,
             errors=errors,
+            pending_approval=(
+                PendingApproval.model_validate(row["pending_approval"])
+                if row.get("pending_approval")
+                else None
+            ),
             latest_feedback=(
                 None if latest_feedback is None else FeedbackSummary.from_row(latest_feedback)
             ),

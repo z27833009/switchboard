@@ -1050,6 +1050,57 @@ textarea {
   background: var(--bg);
 }
 
+/* The one primary action on the approval card (T3.01). */
+.button-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.button-primary:hover:not(:disabled) {
+  background: var(--accent);
+  filter: brightness(1.06);
+}
+
+.approval-card {
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+  background: color-mix(in srgb, var(--warning) 6%, var(--bg));
+}
+
+.approval-lead {
+  margin: 0 0 12px;
+  color: var(--text);
+}
+
+.approval-subtitle {
+  margin: 14px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.approval-args {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 .table-wrap {
   container-type: inline-size;
   overflow: auto;

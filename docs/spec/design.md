@@ -108,6 +108,11 @@ class Orchestrator(Protocol):
     name: str
     async def run(self, request: ChatRequest, ctx: RunContext) -> RunResult: ...
 
+class ResumableOrchestrator(Protocol):    # v2, only the LangGraph path (6.7)
+    name: str
+    async def resume(self, run_id: str, decision: ApprovalDecision, *,
+                     ctx: RunContext | None = None) -> RunResult: ...
+
 class ContextPolicy(Protocol):
     def fit(self, messages: list[Message], budget: ContextBudget) -> FitResult: ...
 
@@ -258,6 +263,22 @@ class TenantContext(BaseModel):
 There is no `Route` enum. The routing decision carries no self-reported confidence: a model's self-assessed confidence is not calibrated and nothing in the design consumed it, so it was removed rather than logged as if it meant something.
 
 `RunResult` carries the final `plan`, the `previous_plan` set on a re-plan, the final `gate` verdict, `attempts` and `errors`, so a caller can see what the gate rejected and which corrective action ran (6.8). It also carries `cost_usd`: the run's USD cost computed from the summed `usage` and the price row for its provider (12.4), or `None` when that provider has no row.
+
+Approval (v2 T3.01). `RunStatus` gains `rejected`, and `RunResult.pending_approval: PendingApproval | None` is set only while the status is `waiting_approval`:
+
+```python
+class PendingApproval(BaseModel):
+    request_id: str            # derived from the run, the wire name and an args hash
+    tool: str                  # wire name, for example add_order_note@1
+    arguments: dict[str, Any]  # exactly what the model asked to run
+    reason: str                # why the stop happened
+
+class ApprovalDecision(BaseModel):
+    request_id: str
+    approved: bool
+```
+
+The API persists `pending_approval` on the run row, so approve and reject never take the tool call from a request body (6.7).
 
 Dependencies are injected through `AgentDeps` and `RunContext` (provider, embedder, tool sources, retriever, cache, context policy, tracer, and in v1 the answer delta sink), never imported globally. `AgentDeps.answer_delta` is `None` unless the caller wants live answer tokens; an agent that has one attaches it to a streamed answer call and the provider calls it with each text fragment (8.1).
 
@@ -425,9 +446,21 @@ If a branch raises, its `AgentResult` is replaced by a partial result carrying t
 | Run token rejected by the tool server | No retry; run fails with status `auth_error` (indicates a bug or a clock problem, not a model problem) |
 | Whole run | Hard timeout from config (default 60 s); the run ends with status `timeout` and whatever partial answer exists |
 
-### 6.7 Human-in-the-loop (v2)
+### 6.7 Human-in-the-loop (v2, built in T3.01)
 
-LangGraph interrupts are placed before any tool call whose `ToolSpec.risk == "write"` or whose name is in the tenant's `tools.ask` list. Permission vocabulary follows the allow, ask, deny convention used by agent products such as Claude Code: `allow` runs, `ask` waits for approval, anything not listed is denied. The run is persisted with status `waiting_approval` and resumed through `POST /runs/{id}/approve` or `/reject`. In Phase 1 and v1 no tool has risk `write` and `ask` is empty, so the hook exists but never fires.
+Permission vocabulary follows the allow, ask, deny convention used by agent products such as Claude Code: `allow` runs, `ask` waits for approval, anything not listed is denied. Approval is enforced in the LangGraph path, which is the platform orchestrator; ADR 0015 records the decision.
+
+- **Where the interrupt lives.** Every tool source the LangGraph adapter hands to an agent is wrapped in an approval gate (`adapters/orchestrator/langgraph_impl/approval.py`). Before a call, the gate asks two independent questions: does the manifest say `risk: write`, and is the wire name in the tenant's `tools.ask`? Either one and it calls LangGraph `interrupt` with a `PendingApproval` payload built from the call the model actually made. The tool runs only after the graph resumes with an approved decision whose `request_id` matches the call being made; a mismatched or unusable resume value asks again instead of approving something else.
+- **Why the graph is checkpointed.** `interrupt` requires a checkpointer. The graph is compiled with LangGraph's in-process `InMemorySaver`, and the thread id is the run id, so `POST /runs/{id}/approve` and `/reject` resume that same task with `Command(resume=...)` instead of re-planning. Pending approvals therefore do **not** survive an API restart: the run row still says `waiting_approval`, and the decision endpoint answers 409 with a clear message and marks the run `provider_error`. A database-backed checkpointer is the upgrade path if approvals must outlive the process.
+- **What the model sees.** The LangGraph path lists `allow ∪ ask` tools, so the model can choose an ask tool; only allow tools execute without an interrupt. The agent loop keeps withholding every write spec and every ask spec (6.9), so the read-only path cannot reach the gate and cannot bypass approval. That is also why the eval suites offer `risk: read` tools only.
+- **Status and persistence.** The paused run is stored with status `waiting_approval`, its `pending_approval` jsonb (tool, arguments, reason, request id) and no `ended_at`. The API answers `POST /runs/{id}/approve` or `/reject` with the run row as the only source of truth for tenant, status and pending call, claims the row with one atomic `UPDATE ... WHERE status = 'waiting_approval'`, and then resumes. A second click, a run that is not waiting and a claim that lost the race are 409; another tenant's run is 404.
+- **Approve** runs the tool exactly once and finishes the run normally. The resumed graph re-executes the paused node from its start (documented LangGraph behavior), so the model call and any read calls of that attempt are repeated before the gated call; the gated call itself runs once because the interrupt always precedes it and the API already claimed the decision.
+- **Reject** raises `ToolApprovalRejected`, which the agent does not treat as a failure: nothing is executed, the run ends with status `rejected`, an answer that says the call was not executed, and an `errors` entry of kind `ToolApprovalRejected`. The gate, the judge and the cache are skipped because there is no answer quality to check.
+- **Tracing.** The gate sets `switchboard.approval.tool`, `.reason`, `.request_id` and `.decision` on the active span, the paused attempt's agent span is marked `switchboard.approval.paused` instead of an error, and the resumed attempt creates its own `run` span with `switchboard.approval.resumed`, so the trace shows both halves of the run.
+- **The demo write tool.** `add_order_note@1` appends a note to `olist.order_notes` and changes nothing else; it is `risk: write`, tenant scoped and listed only in `seller_a`'s `tools.ask` (7.1).
+
+In Phase 1 and v1 no tool had risk `write` and every `ask` list was empty, so the hook existed but never fired; T3.01 is the first task that can show it.
+
 
 ### 6.8 Quality gate and corrective actions (v1)
 
@@ -466,7 +499,7 @@ The `gate` eval suite (dataset `v2`, 30 cases) labels answers as acceptable or w
 
 `AgentLoopOrchestrator` is the second `Orchestrator` adapter and the control group for the routing design (ADR 0002). It has no supervisor and no fan-out: one model gets every tool the tenant may use plus the platform tools `search_docs@1` (wraps the `Retriever`) and `result_page@1`, and loops up to `limits.max_loop_steps` (default 8). It uses the same providers, tool sources, context policy, gate, cache and tracing.
 
-One loop step is one model call. A response with tool calls runs them and continues; a response without one is the answer. Only tools with `risk: read` are exposed, a tool in the tenant's `ask` list is withheld because approval does not exist before v2, and a call the model names that the loop did not expose is answered with a tool error and never executed, so no write tool can run. The loop numbers tool results in call order and uses the same bounded `ToolResultView`, `result_page@1` paging, guardrail wrapping and citation markers as the data agent. The result store is per attempt, so a `result_id` from a rejected attempt cannot leak into the next one. Every step carries tools, so the loop never streams answer deltas (8.1); the step stream still carries `tool.called`, `agent.started` and `agent.finished` events because each executed call runs inside an `agent.data` or `agent.docs` span. The plan is recorded on a `supervisor.plan` span once it is known, after the loop and before the gate, so the trace and the step stream keep the same `plan.decided` event as the LangGraph path. The semantic cache is the same `Cache` port call before the loop and a store after a passing gate (10.1), and a rejected run token ends the run with status `auth_error` (6.6).
+One loop step is one model call. A response with tool calls runs them and continues; a response without one is the answer. Only tools with `risk: read` are exposed, and a tool in the tenant's `ask` list is withheld too, because the approval gate lives in the LangGraph path and the loop has no checkpointed task to resume (6.7). A call the model names that the loop did not expose is answered with a tool error and never executed, so the loop can never run a write tool or skip an approval. The loop numbers tool results in call order and uses the same bounded `ToolResultView`, `result_page@1` paging, guardrail wrapping and citation markers as the data agent. The result store is per attempt, so a `result_id` from a rejected attempt cannot leak into the next one. Every step carries tools, so the loop never streams answer deltas (8.1); the step stream still carries `tool.called`, `agent.started` and `agent.finished` events because each executed call runs inside an `agent.data` or `agent.docs` span. The plan is recorded on a `supervisor.plan` span once it is known, after the loop and before the gate, so the trace and the step stream keep the same `plan.decided` event as the LangGraph path. The semantic cache is the same `Cache` port call before the loop and a store after a passing gate (10.1), and a rejected run token ends the run with status `auth_error` (6.6).
 
 The plan does not exist before the run, so it is derived from what the loop actually did: any data tool call adds `data` (including `result_page@1`, which can only page a data result), any `search_docs` call adds `docs`, no tool call gives `direct`, and only tool names the loop exposed count. Because there is no supervisor, a gate corrective action is one more loop with the gate's feedback rather than a re-plan against a previous plan; `attempts` still stops at one, and the run total sums both attempts. The semantic cache is the same `Cache` port call before the loop and a store after a passing gate; the loop cannot reuse the cache embedding, because the model chooses the search query rather than the user's original wording. Both orchestrators pass the same orchestrator contract tests (answer, citations, plan label, status, errors and run span). The comparison report (T2.12) puts plan accuracy, tool-call accuracy, latency, tokens and cost side by side for both orchestrators on both providers.
 
@@ -474,7 +507,7 @@ The plan does not exist before the run, so it is derived from what the loop actu
 
 ### 7.1 MCP server
 
-`mcp_servers/olist` is a FastMCP server (renamed `MCPServer` in the official SDK 2.x) exposed over streamable HTTP. It owns a connection pool to PostgreSQL using the `switchboard_tools` role, which has `SELECT` on the `olist` schema and nothing else. Every tool runs inside `SET TRANSACTION READ ONLY` with `statement_timeout = 5s` and a hard row cap of 200 per result.
+`mcp_servers/olist` is a FastMCP server (renamed `MCPServer` in the official SDK 2.x) exposed over streamable HTTP. It owns a connection pool to PostgreSQL using the `switchboard_tools` role, which has `SELECT` on the `olist` schema and, since T3.01, `SELECT` and `INSERT` on the one append-only note table. Every read tool runs inside `SET TRANSACTION READ ONLY` with `statement_timeout = 5s` and a hard row cap of 200 per result; the one write tool runs in a read-write transaction with the same timeout and a one-row result.
 
 Tools are designed to return aggregates first: `orders_late@1` returns counts and averages plus the matching rows, so the model can usually answer from the summary without reading rows.
 
@@ -487,6 +520,15 @@ Phase 1 tools (all `risk: read`, all parameterized, no free-form SQL):
 | `order_lookup@1` | `order_id` | yes |
 | `top_products@1` | `date_from`, `date_to`, `metric: revenue or count`, `limit` | yes |
 | `describe_schema@1` | none | no |
+
+T3.01 adds the one write tool:
+
+| Tool | Arguments | Risk | Tenant scoped |
+| --- | --- | --- | --- |
+| `add_order_note@1` | `order_id`, `note` (1 to 500 characters) | write, approval required | yes |
+
+`add_order_note@1` appends one row to `olist.order_notes` (`order_id`, `tenant_id`, `note`, `created_at`), checks in the same transaction that the order belongs to one of the tenant's sellers, and never touches an order status or any existing row. The table is append-only (`08-hitl.sql`): `switchboard_tools` has `SELECT` and `INSERT`, no role has update or delete, and the API role has nothing. The tool is listed only in `seller_a`'s `tools.ask`, so the LangGraph path pauses for approval before it runs (6.7); both the API and the server refuse a write tool in `tools.allow` (7.3).
+
 
 Every result carries the `audit_id` of its audit row in the MCP result metadata, so tool citations can link to the audit log.
 
@@ -517,23 +559,26 @@ tenants:
   default:
     provider: lmstudio
     agents:
-      allow: ["direct", "docs", "data"]          # v1 adds "clarify"
+      allow: ["direct", "docs", "data", "clarify"]
     tools:
       allow: ["orders_summary@1", "orders_late@1", "order_lookup@1", "top_products@1", "describe_schema@1"]
-      ask: []                                     # v2, human approval
+      ask: []
     seller_ids: null          # unrestricted
   seller_a:
     provider: lmstudio
     agents:
-      allow: ["docs", "data"]
+      allow: ["docs", "data", "clarify"]
     tools:
-      allow: ["orders_summary@1", "order_lookup@1", "top_products@1"]
+      allow: ["orders_summary@1", "order_lookup@1", "top_products@1",
+              "review_summary@1", "order_reviews@1"]
+      ask: ["add_order_note@1"]     # the demo write tool, approval required
     seller_ids: ["955fee9216a65b617aa5c0531780ce60"]
 ```
 
-Tools not listed under `allow` or `ask` are denied. `ask` is the v2 human-approval list: this phase has no approval hook, so an ask tool is denied and audited like an unlisted one.
+Tools not listed under `allow` or `ask` are denied. `ask` is the human-approval list: the LangGraph path offers those tools to the model and pauses the run before one runs (6.7); the agent loop withholds them; the tool server accepts a call to an allow or ask name because it cannot see the decision, and the orchestrator is the only component that calls a tool (ADR 0015). A write tool must be listed under `ask`, never under `allow`: both the API and the MCP server refuse that configuration at startup, so no tenant file can skip the approval.
 
-`config/tenants.yaml` documents the schema and both processes validate it at startup. The API rejects unknown tenant keys, malformed or duplicate wire names, a tool in both `allow` and `ask`, empty or duplicate `seller_ids`, unknown agent names (resolved through the entry point registry) and unknown tool wire names (resolved through the manifest each tool source declares in `platform.yaml`). The MCP server reads the same file but stays independent of `switchboard.core`: it validates the fields its trust boundary depends on (tool wire names against its own manifest, the ask list and the seller ids) and rejects unknown keys. A typo therefore fails the start of either process instead of surfacing as a silently missing agent or a denied call during a run.
+
+`config/tenants.yaml` documents the schema and both processes validate it at startup. The API rejects unknown tenant keys, malformed or duplicate wire names, a tool in both `allow` and `ask`, a write tool in `allow`, empty or duplicate `seller_ids`, unknown agent names (resolved through the entry point registry) and unknown tool wire names (resolved through the manifest each tool source declares in `platform.yaml`). The MCP server reads the same file but stays independent of `switchboard.core`: it validates the fields its trust boundary depends on (tool wire names against its own manifest, the ask list, a write tool in `allow` and the seller ids) and rejects unknown keys. A typo therefore fails the start of either process instead of surfacing as a silently missing agent or a denied call during a run.
 
 **The tool server must not trust the caller's claim about who it is.** In 0.1 the tenant id travelled in request metadata, so the server-side check compared a claim against a list without knowing whether the claim was true. In 0.2 the API mints a **run token** at the start of every run (ADR 0014):
 
@@ -569,7 +614,7 @@ Some tools belong to the platform, not to a data source. They are served by an `
 
 ### 7.6 Why there is no sandbox
 
-Products such as Codex and Claude Code run model-written shell commands, so they need a sandbox (filesystem and network isolation, resource limits). Switchboard's tools are fixed functions whose arguments are validated against a schema; the model cannot execute code. The equivalent containment is already in place: a SELECT-only role, read-only transactions, statement timeout, row cap, a separate process and an audit log. A sandbox becomes necessary only if a tool that executes model-written code is added (for example Python for charts); that would need its own ADR.
+Products such as Codex and Claude Code run model-written shell commands, so they need a sandbox (filesystem and network isolation, resource limits). Switchboard's tools are fixed functions whose arguments are validated against a schema; the model cannot execute code. The equivalent containment is already in place: a SELECT-only role, read-only transactions, statement timeout, row cap, a separate process and an audit log. The one write tool (T3.01) adds a human decision instead of a sandbox: it appends to a table no other tool reads, the role can only INSERT there, and nothing existing can be changed (ADR 0015). A sandbox becomes necessary only if a tool that executes model-written code is added (for example Python for charts); that would need its own ADR.
 
 ### 7.7 Second data source: reviews (v2, T3.08)
 
@@ -840,9 +885,9 @@ The code uses the OpenTelemetry API directly. Span names and attributes follow t
 
 | Span | Kind | Key attributes |
 | --- | --- | --- |
-| `run` | server | `switchboard.tenant_id`, `switchboard.run_id`, `switchboard.orchestrator`, `switchboard.plan`, `switchboard.cache.hit`, `switchboard.attempts`, `switchboard.status` |
+| `run` | server | `switchboard.tenant_id`, `switchboard.run_id`, `switchboard.orchestrator`, `switchboard.plan`, `switchboard.cache.hit`, `switchboard.attempts`, `switchboard.status`, `switchboard.approval.tool`, `switchboard.approval.resumed` (v2) |
 | `supervisor.plan` | internal | `switchboard.plan`, `switchboard.plan.size`, `switchboard.plan.reason`, `switchboard.plan.fallback` |
-| `agent.<name>` | internal | `switchboard.agent`, `switchboard.partial`, `switchboard.citations` |
+| `agent.<name>` | internal | `switchboard.agent`, `switchboard.partial`, `switchboard.citations`, `switchboard.approval.tool`, `switchboard.approval.reason`, `switchboard.approval.request_id`, `switchboard.approval.decision`, `switchboard.approval.paused` (v2) |
 | `chat <model>` | client | `gen_ai.operation.name=chat`, `gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `switchboard.usage.cached_input_tokens`, `switchboard.usage.cache_write_input_tokens`, `gen_ai.response.id`, `switchboard.provider.stop_reason`, `switchboard.structured_output.strategy`, `switchboard.context.tokens_estimated`, `switchboard.context.compacted`, `switchboard.context.cleared_results`, `switchboard.latency_ms`, `switchboard.cost_usd` |
 | `embeddings <model>` | client | `gen_ai.operation.name=embeddings`, token usage |
 | `execute_tool <name>` | client | `gen_ai.tool.name`, `switchboard.tool.version`, `switchboard.tool.args_hash`, `switchboard.tool.status`, `switchboard.tool.total_rows`, `switchboard.tool.audit_id`, guardrail attributes below; event `tool.result` with the full result capped at 64 KB |
@@ -979,6 +1024,7 @@ erDiagram
     timestamptz started_at
     timestamptz ended_at
     bool trace_complete
+    jsonb pending_approval
   }
   spans {
     text span_id PK
@@ -1042,11 +1088,20 @@ erDiagram
     text note
     timestamptz created_at
   }
+  order_notes {                // olist schema, the one write table (T3.01)
+    uuid id PK
+    text order_id FK
+    text tenant_id
+    text note
+    timestamptz created_at
+  }
 ```
 
-`spans.run_id` and `tool_audit.run_id` are indexed without a foreign key (12.2). Run status values: `running`, `ok`, `partial`, `needs_clarification`, `timeout`, `provider_error`, `auth_error`, `waiting_approval` (v2).
+`spans.run_id` and `tool_audit.run_id` are indexed without a foreign key (12.2). Run status values: `running`, `ok`, `partial`, `needs_clarification`, `timeout`, `provider_error`, `auth_error`, `waiting_approval` and `rejected` (v2). `runs.pending_approval` holds the paused tool call as jsonb and is null for every other status.
 
-The Olist tables live in a separate schema `olist` loaded from the public CSV files. Two database roles: `switchboard_app` (read and write on the platform tables, no access to `olist`) and `switchboard_tools` (SELECT on `olist`, INSERT on `tool_audit` and `spans`, nothing else). The tool role has no SELECT on `spans`, so the exporter's insert uses `ON CONFLICT DO NOTHING` without a conflict target.
+The Olist tables live in a separate schema `olist` loaded from the public CSV files. Two database roles: `switchboard_app` (read and write on the platform tables, no access to `olist`) and `switchboard_tools` (SELECT on `olist`, SELECT and INSERT on `olist.order_notes`, INSERT on `tool_audit` and `spans`, nothing else). `order_notes` has no update, delete or truncate grant for either role, so even the server process can only append. The tool role has no SELECT on `spans`, so the exporter's insert uses `ON CONFLICT DO NOTHING` without a conflict target.
+
+`runs.pending_approval` is written from the orchestrator result by `finish_run` and cleared when the resumed run finishes; the approve and reject routes read the tenant, the status and the pending call from that row, never from the request body, and claim the row with one `UPDATE ... WHERE status = 'waiting_approval'` so a double click is a 409 (6.7, T3.01).
 
 `GET /audit` reads `tool_audit` through `switchboard_app`. `tenant_id` is required and applied in SQL, so another tenant's rows are invisible; `run_id`, `tool_name`, `status`, `from`, `to`, `limit` (1 to 200, default 50) and `offset` narrow the rows, which are ordered newest first. The response carries the stored redacted arguments only, and the API applies the manifest's `sensitive_args` again on read, so a raw sensitive argument cannot leave the process (AC-18a, AC-18b).
 

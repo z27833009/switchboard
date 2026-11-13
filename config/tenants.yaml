@@ -10,8 +10,10 @@
 #   agents.allow: registered agent names the supervisor may plan with; clarify
 #                 asks one question and ends the run with needs_clarification
 #   tools.allow:  tool wire names the tenant may call without approval
-#   tools.ask:    tool wire names that would need human approval (v2); this
-#                 phase denies them, same as tools missing from both lists
+#   tools.ask:    tool wire names that need human approval before a call (T3.01).
+#                 The LangGraph path shows them to the model and pauses the run
+#                 as waiting_approval; the agent-loop path withholds them, so it
+#                 stays read-only. A write tool must be here, never in allow.
 #   seller_ids:   null means every seller (unrestricted demo tenant); a list
 #                 scopes every tool to those sellers, server-side
 #   retrieval:    k, min_score, rewrite, rewrite_mode, search
@@ -67,7 +69,10 @@ tenants:
         # Served by mcp_servers/reviews, not by mcp_servers/olist.
         - review_summary@1
         - order_reviews@1
-      ask: []
+      # The demo write tool (T3.01, ADR 0015). A run that wants to add a note
+      # pauses as waiting_approval until POST /runs/{id}/approve.
+      ask:
+        - add_order_note@1
     seller_ids: ["955fee9216a65b617aa5c0531780ce60"]
     retrieval:
       search: hybrid

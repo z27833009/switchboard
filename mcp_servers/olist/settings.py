@@ -52,9 +52,13 @@ class ToolDefinition:
 class TenantSettings:
     allowed_tools: frozenset[str]
     seller_ids: tuple[str, ...] | None
-    # ask is the v2 human-approval list. The approval hook does not exist yet,
-    # so an ask tool is not in allowed_tools and a call is denied and audited.
+    # ask is the v2 human-approval list: the orchestrator pauses before one of
+    # these tools runs, and this server accepts the call because it cannot see
+    # the decision (ADR 0015).
     ask_tools: frozenset[str] = field(default_factory=frozenset)
+    # The tenant id is what the write tool stores beside a note; it always comes
+    # from the verified token, never from an argument.
+    tenant_id: str = ""
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -90,6 +94,10 @@ def load_manifest(path: Path) -> dict[str, ToolDefinition]:
             raise ServerConfigError(f"{path} has an invalid tool entry: {exc}") from exc
         if tool.wire_name in tools:
             raise ServerConfigError(f"{path} declares {tool.wire_name} twice")
+        if tool.risk not in {"read", "write"}:
+            raise ServerConfigError(
+                f"{path} gives {tool.wire_name} risk {tool.risk!r}; expected read or write"
+            )
         tools[tool.wire_name] = tool
     return tools
 
@@ -169,6 +177,17 @@ def load_tenants(path: Path, manifest: Mapping[str, ToolDefinition]) -> dict[str
                 f"{', '.join(overlap)}; a tool is either allowed automatically "
                 "or requires approval"
             )
+        # A write tool runs only behind the approval hook, so listing one under
+        # tools.allow would silently skip the decision (T3.01, ADR 0015). The
+        # API checks the same rule against every declared manifest.
+        unapproved_writes = sorted(
+            name for name in allow if name in manifest and manifest[name].risk == "write"
+        )
+        if unapproved_writes:
+            raise ServerConfigError(
+                f"tenant {tenant_id!r} tools.allow lists write tools "
+                f"{', '.join(unapproved_writes)}; a write tool must be in tools.ask"
+            )
 
         seller_ids = entry.get("seller_ids")
         if seller_ids is not None:
@@ -197,5 +216,6 @@ def load_tenants(path: Path, manifest: Mapping[str, ToolDefinition]) -> dict[str
             allowed_tools=frozenset(name for name in allow if name in manifest),
             seller_ids=tuple(sellers) if seller_ids is not None else None,
             ask_tools=frozenset(name for name in ask if name in manifest),
+            tenant_id=tenant_id,
         )
     return tenants

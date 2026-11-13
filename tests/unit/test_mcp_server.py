@@ -6,7 +6,7 @@ from typing import Any, cast
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_servers.olist import server
-from mcp_servers.olist.db import hash_args, redact_args
+from mcp_servers.olist.db import NOTE_MAX_CHARS, hash_args, redact_args
 from mcp_servers.olist.server import MANIFEST, mcp, sanitise_arguments
 from mcp_servers.olist.settings import ServerConfigError, load_manifest, load_tenants
 from mcp_servers.olist.sql_guard import MAX_SQL_LENGTH
@@ -16,7 +16,7 @@ MANIFEST_FILE = REPO / "mcp_servers" / "olist" / "manifest.yaml"
 TENANTS_FILE = REPO / "config" / "tenants.yaml"
 
 
-def test_manifest_has_six_versioned_read_only_tools() -> None:
+def test_manifest_has_seven_versioned_tools_and_one_write() -> None:
     assert set(MANIFEST) == {
         "orders_summary@1",
         "orders_late@1",
@@ -24,9 +24,20 @@ def test_manifest_has_six_versioned_read_only_tools() -> None:
         "top_products@1",
         "describe_schema@1",
         "query_readonly_sql@1",
+        "add_order_note@1",
     }
     assert all(tool.input_schema["additionalProperties"] is False for tool in MANIFEST.values())
-    assert all(tool.risk == "read" for tool in MANIFEST.values())
+    write = {name for name, tool in MANIFEST.items() if tool.risk == "write"}
+    assert write == {"add_order_note@1"}
+    assert all(tool.risk == "read" for name, tool in MANIFEST.items() if name not in write)
+
+
+def test_the_note_tool_is_bounded_and_tenant_scoped() -> None:
+    tool = MANIFEST["add_order_note@1"]
+    assert tool.tenant_scoped is True
+    note = tool.input_schema["properties"]["note"]
+    assert note["maxLength"] == NOTE_MAX_CHARS
+    assert "approval" in tool.description.lower()
 
 
 def test_the_sql_tool_is_tenant_scoped_and_bounded() -> None:
@@ -42,6 +53,7 @@ def test_tenants_carry_allowlists_and_seller_scope() -> None:
     tenants = load_tenants(TENANTS_FILE, MANIFEST)
     assert tenants["default"].seller_ids is None
     assert len(tenants["default"].allowed_tools) == 5
+    assert tenants["default"].ask_tools == frozenset()
     assert tenants["seller_a"].allowed_tools == {
         "orders_summary@1",
         "order_lookup@1",
@@ -51,8 +63,12 @@ def test_tenants_carry_allowlists_and_seller_scope() -> None:
     # are ignored by this server.
     assert "review_summary@1" not in tenants["seller_a"].allowed_tools
     assert "order_reviews@1" not in tenants["seller_a"].allowed_tools
-    assert tenants["seller_a"].ask_tools == frozenset()
+    # The demo write tool is only reachable through approval (T3.01).
+    assert tenants["seller_a"].ask_tools == frozenset({"add_order_note@1"})
+    assert tenants["seller_a"].tenant_id == "seller_a"
     assert tenants["seller_a"].seller_ids == ("955fee9216a65b617aa5c0531780ce60",)
+    for tenant_id, tenant in tenants.items():
+        assert "add_order_note@1" not in tenant.allowed_tools, tenant_id
 
 
 def test_no_demo_tenant_allows_the_sql_tool() -> None:
@@ -186,7 +202,41 @@ def test_manifest_file_reloads_identically() -> None:
 async def test_server_registers_exactly_the_manifest_tools() -> None:
     tools = await mcp.list_tools()
     assert {tool.name for tool in tools} == set(MANIFEST)
-    assert len(tools) == 6
+    assert len(tools) == 7
+
+
+def test_a_write_tool_in_tools_allow_is_refused(tmp_path: Path) -> None:
+    """A write tool must always be behind approval (T3.01, ADR 0015)."""
+    path = write_tenants(
+        tmp_path,
+        """
+tenants:
+  default:
+    tools:
+      allow: ["add_order_note@1"]
+""",
+    )
+    with pytest.raises(ServerConfigError, match=r"must be in tools\.ask"):
+        load_tenants(path, MANIFEST)
+
+
+def test_an_unknown_risk_in_the_manifest_is_refused(tmp_path: Path) -> None:
+    path = tmp_path / "manifest.yaml"
+    path.write_text(
+        """
+tools:
+  - name: ghost
+    version: "1"
+    description: A tool with a risk nobody understands.
+    risk: maybe
+    input_schema:
+      type: object
+      properties: {}
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(ServerConfigError, match="risk 'maybe'"):
+        load_manifest(path)
 
 
 async def test_query_tool_refuses_sql_before_any_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:

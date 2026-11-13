@@ -59,11 +59,27 @@ def declared_tool_names(settings: Settings) -> set[str]:
     return names
 
 
+def declared_tool_risks(settings: Settings) -> dict[str, str]:
+    """Wire name to manifest risk for every tool a source declares.
+
+    The startup check needs the risk, not only the name: a tool the manifest
+    declares ``write`` must never sit in ``tools.allow``, because that would let
+    it run without an approval (design.md section 6.7, ADR 0015).
+    """
+    risks: dict[str, str] = {}
+    for source in settings.platform.tool_sources:
+        if source.manifest:
+            for spec in load_tool_specs(Path(source.manifest)):
+                risks[spec.wire_name] = spec.risk
+    return risks
+
+
 def validate_tenant_permissions(
     settings: Settings,
     *,
     agent_names: Iterable[str],
     tool_names: Iterable[str],
+    tool_risks: Mapping[str, str] | None = None,
 ) -> None:
     """Fail with a named error when a tenant names an unregistered agent or tool.
 
@@ -71,15 +87,29 @@ def validate_tenant_permissions(
     This check answers the other question: does the name exist? It runs at
     startup, so a typo cannot surface as a silently missing agent or a denied
     tool call during a run (AC-11a, design.md section 11).
+
+    With ``tool_risks`` it also refuses a write tool in ``tools.allow``: a write
+    tool only ever runs behind the approval hook, so listing it under ``allow``
+    is a configuration error rather than a way to skip the interrupt.
     """
     known_agents = sorted(set(agent_names))
     known_tools = sorted(set(tool_names))
+    risks = dict(tool_risks or {})
     for tenant_id, tenant in settings.tenants.tenants.items():
         unknown_agents = sorted(set(tenant.agents.allow) - set(known_agents))
         if unknown_agents:
             raise ConfigError(
                 f"tenant {tenant_id!r} allows unknown agents {unknown_agents}; "
                 f"registered agents: {known_agents or 'none'}"
+            )
+        unapproved_writes = sorted(
+            name for name in tenant.tools.allow if risks.get(name) == "write"
+        )
+        if unapproved_writes:
+            raise ConfigError(
+                f"tenant {tenant_id!r} allows write tools {unapproved_writes} under "
+                "tools.allow; a write tool must be listed under tools.ask so a run "
+                "pauses for approval"
             )
         # Without any manifest there is no server-side source of truth to check
         # against; the MCP server still validates its own copy of this file.
@@ -112,5 +142,6 @@ def load_settings(config_dir: Path, env: Mapping[str, str] | None = None) -> Set
         settings,
         agent_names=Registry().names(AGENTS),
         tool_names=declared_tool_names(settings),
+        tool_risks=declared_tool_risks(settings),
     )
     return settings

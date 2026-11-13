@@ -14,6 +14,7 @@ from switchboard.core.models import (
     AgentResult,
     AgentSpec,
     AgentTask,
+    ApprovalDecision,
     CachedAnswer,
     CacheHit,
     CacheKey,
@@ -48,6 +49,7 @@ __all__ = [
     "Judge",
     "ModelProvider",
     "Orchestrator",
+    "ResumableOrchestrator",
     "Retriever",
     "ToolSource",
 ]
@@ -112,6 +114,24 @@ class Orchestrator(Protocol):
     name: str
 
     async def run(self, request: ChatRequest, ctx: RunContext) -> RunResult: ...
+
+
+class ResumableOrchestrator(Protocol):
+    """An orchestrator that can pause a run and continue it later (6.7).
+
+    Only the LangGraph path implements this, because only a checkpointed graph
+    can resume the exact paused task. ``run`` returns a result whose status is
+    ``waiting_approval`` and whose ``pending_approval`` names the tool call;
+    ``resume`` takes the decision and runs to the end of that same graph, and
+    the API never has to re-run the model planning step. ``ctx`` replaces the
+    paused run context (a fresh run token) when the API supplies one.
+    """
+
+    name: str
+
+    async def resume(
+        self, run_id: str, decision: ApprovalDecision, *, ctx: RunContext | None = None
+    ) -> RunResult: ...
 
 
 class ContextPolicy(Protocol):

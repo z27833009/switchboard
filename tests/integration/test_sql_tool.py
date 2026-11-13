@@ -352,7 +352,8 @@ async def test_the_server_still_registers_the_tool() -> None:
         tools = await session.list_tools()
     names = {tool.name for tool in tools.tools}
     assert "query_readonly_sql@1" in names
-    assert len(names) == 6
+    # add_order_note@1 is the one write tool (T3.01) and is listed too.
+    assert len(names) == 7
     spec = next(tool for tool in tools.tools if tool.name == "query_readonly_sql@1")
     schema = spec.model_dump(by_alias=True)["inputSchema"]
     assert schema["properties"]["sql"]["maxLength"] == 4000

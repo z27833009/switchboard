@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
 import { errorMessage, getJson, isAbortError } from "../api";
-import type { RunSummary } from "../api";
+import type { ChatResponse, RunSummary } from "../api";
+import { ApprovalCard } from "../components/Approval";
 import { CitationChips, ErrorList, StatusBadge, Tag } from "../components/Badges";
 import { FeedbackForm } from "../components/Feedback";
 import { Markdown } from "../components/Markdown";
@@ -28,6 +29,7 @@ export function RunDetailPage({
   const [run, setRun] = useState<RunSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeSession = sessionId ?? run?.session_id ?? null;
 
   useEffect(() => {
@@ -56,7 +58,26 @@ export function RunDetailPage({
     return () => {
       controller.abort();
     };
-  }, [runId, tenantId]);
+  }, [runId, tenantId, reloadKey]);
+
+  function handleDecided(result: ChatResponse) {
+    // The POST returns the finished run; reload so the record, answer and
+    // feedback form all read the stored row (T3.01).
+    setRun((current) =>
+      current === null
+        ? current
+        : {
+            ...current,
+            status: result.status,
+            answer: result.answer,
+            citations: result.citations,
+            errors: result.errors,
+            pending_approval: null,
+            ended_at: result.ended_at,
+          },
+    );
+    setReloadKey((value) => value + 1);
+  }
 
   return (
     <div className="page">
@@ -78,6 +99,15 @@ export function RunDetailPage({
 
       {run !== null ? (
         <>
+          {run.status === "waiting_approval" && run.pending_approval !== null ? (
+            <ApprovalCard
+              runId={run.run_id}
+              tenantId={run.tenant_id}
+              pending={run.pending_approval}
+              onDecided={handleDecided}
+            />
+          ) : null}
+
           <section className="surface">
             <div className="surface-head">
               <h2 className="surface-title">Question</h2>

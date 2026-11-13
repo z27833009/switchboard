@@ -8,6 +8,7 @@ from typing import Any, Literal
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from tests.fakes import UnusedToolSource
 
 from switchboard.adapters.orchestrator.langgraph_impl import LangGraphOrchestrator
 from switchboard.core.config import Limits
@@ -142,7 +143,7 @@ def make(
         registry=registry,
         context_policy=ClearOldestToolResults(),
         limits=Limits(run_timeout_s=5.0, fallback_plan=["docs", "data"]),
-        tool_sources=[object()],
+        tool_sources=[UnusedToolSource()],
         retriever=object(),
         tracer=tracer,
     )

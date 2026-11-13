@@ -23,6 +23,10 @@ from mcp_servers.olist.settings import TenantSettings
 
 ROW_CAP = 200
 STATEMENT_TIMEOUT = "5s"
+# The note tool's one argument is model-written text; the cap is declared in the
+# manifest, enforced again by the tool wrapper and by the table's check
+# constraint (T3.01, ADR 0015).
+NOTE_MAX_CHARS = 500
 
 
 @dataclass(frozen=True)
@@ -53,6 +57,21 @@ async def run_readonly(
     operation: Callable[[asyncpg.Connection], Awaitable[ToolOutcome]],
 ) -> ToolOutcome:
     async with pool.acquire() as connection, connection.transaction(readonly=True):
+        await connection.execute(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT}'")
+        return await operation(connection)
+
+
+async def run_readwrite(
+    pool: asyncpg.Pool,
+    operation: Callable[[asyncpg.Connection], Awaitable[ToolOutcome]],
+) -> ToolOutcome:
+    """One read-write transaction for the single append-only write tool (T3.01).
+
+    The database role can still only INSERT into ``olist.order_notes``; the
+    transaction is writable so that one statement can commit, with the same
+    statement timeout as every read.
+    """
+    async with pool.acquire() as connection, connection.transaction():
         await connection.execute(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT}'")
         return await operation(connection)
 
@@ -466,4 +485,64 @@ async def query_readonly_sql(
         },
         rows=rows,
         total_rows=total_rows,
+    )
+
+
+async def add_order_note(
+    connection: asyncpg.Connection,
+    tenant: TenantSettings,
+    order_id: str,
+    note: str,
+) -> ToolOutcome:
+    """Append one note to one of the tenant's orders (T3.01, ADR 0015).
+
+    The order has to belong to the tenant's seller ids, checked in the same
+    transaction and from server-side config, so the model's arguments cannot
+    widen the scope. Nothing else is written: no order status, no existing row.
+    A foreign or unknown order is an empty result, like ``order_lookup``, so the
+    model learns the truth without a stack trace and the audit row records it.
+    """
+    sellers = seller_filter(tenant)
+    owned = await connection.fetchval(
+        """
+        SELECT 1
+        FROM olist.orders o
+        WHERE o.order_id = $1
+          AND ($2::text[] IS NULL OR EXISTS (
+                SELECT 1 FROM olist.order_items i
+                WHERE i.order_id = o.order_id AND i.seller_id = ANY($2::text[])
+          ))
+        LIMIT 1
+        """,
+        order_id,
+        sellers,
+    )
+    if owned is None:
+        return ToolOutcome(
+            summary={"inserted": False, "found": False, "order_id": order_id},
+            rows=[],
+            total_rows=0,
+        )
+    row = await connection.fetchrow(
+        """
+        INSERT INTO olist.order_notes (order_id, tenant_id, note)
+        VALUES ($1, $2, $3)
+        RETURNING id, order_id, tenant_id, note, created_at
+        """,
+        order_id,
+        tenant.tenant_id,
+        note,
+    )
+    if row is None:  # pragma: no cover - INSERT RETURNING always yields a row
+        raise RuntimeError("the note row was not returned")
+    return ToolOutcome(
+        summary={
+            "inserted": True,
+            "found": True,
+            "order_id": order_id,
+            "note_id": str(row["id"]),
+            "created_at": json_value(row["created_at"]),
+        },
+        rows=rows_from([row]),
+        total_rows=1,
     )

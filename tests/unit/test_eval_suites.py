@@ -114,9 +114,10 @@ def test_datasets_load_with_the_expected_sizes_and_splits() -> None:
     assert all(case.expected_tool for case in toolcall)
 
 
-def test_manifest_has_the_six_olist_tools() -> None:
+def test_manifest_has_the_seven_olist_tools() -> None:
     tools = load_tool_specs(REPO_ROOT / "mcp_servers" / "olist" / "manifest.yaml")
     assert [tool.wire_name for tool in tools] == [
+        "add_order_note@1",
         "describe_schema@1",
         "order_lookup@1",
         "orders_late@1",
@@ -124,6 +125,10 @@ def test_manifest_has_the_six_olist_tools() -> None:
         "query_readonly_sql@1",
         "top_products@1",
     ]
+    by_name = {tool.wire_name: tool for tool in tools}
+    assert by_name["add_order_note@1"].risk == "write"
+    assert by_name["add_order_note@1"].tenant_scoped is True
+    assert all(tool.risk == "read" for name, tool in by_name.items() if name != "add_order_note@1")
 
 
 async def test_routing_suite_executes_and_scores_a_valid_plan() -> None:
@@ -326,8 +331,12 @@ def test_toolcall_suite_rejects_an_unsupported_orchestrator() -> None:
 async def test_toolcall_suite_sends_tools_and_scores_the_first_call() -> None:
     tools = load_tool_specs(REPO_ROOT / "mcp_servers" / "olist" / "manifest.yaml")
     # The demo tenant does not allow the free-form SQL tool (T3.05), so a live
-    # data agent never sees it and the suite must not offer it either.
-    tenant_tools = [tool for tool in tools if tool.wire_name != "query_readonly_sql@1"]
+    # data agent never sees it and the suite must not offer it either. The write
+    # tool stays out for the same reason: no model sees it without approval.
+    tenant_tools = [
+        tool for tool in tools if tool.wire_name not in {"query_readonly_sql@1", "add_order_note@1"}
+    ]
+    assert len(tenant_tools) == 5
     suite = ToolCallSuite(tools=tools, tenant_tools=tenant_tools)
     arguments = {"date_from": "2017-04-01", "date_to": "2017-04-30", "status": "invoiced"}
     provider = ScriptedProvider(

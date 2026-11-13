@@ -56,10 +56,12 @@ from switchboard.api.step_events import RUN_FINISHED, StepEvent
 from switchboard.api.store import parse_run_id, rows_are_complete
 from switchboard.api.trace import assemble_trace
 from switchboard.core.config import tenant_context
-from switchboard.core.errors import ConfigError
+from switchboard.core.errors import ApprovalUnavailable, ConfigError
 from switchboard.core.models import (
+    ApprovalDecision,
     ChatRequest,
     ErrorRecord,
+    PendingApproval,
     RunContext,
     RunResult,
     TenantContext,
@@ -447,6 +449,121 @@ async def post_run_feedback(
     return FeedbackSummary.from_row(created)
 
 
+async def _resolve_approval(
+    deps: AppDeps,
+    *,
+    run_id: str,
+    tenant_id: str,
+    approved: bool,
+) -> ChatResponse:
+    """Decide one pending tool call and finish the resumed run (T3.01).
+
+    The run row is the only source of truth: its status must be
+    ``waiting_approval`` and its stored ``pending_approval`` names the call, so a
+    client cannot approve something the graph did not ask for. The claim is one
+    atomic UPDATE, which is what makes a double click a 409 rather than two
+    executions. The tenant comes from the row, never from the body.
+    """
+    row = await _load_run(deps, run_id, tenant_id)
+    tenant = _tenant(deps, str(row["tenant_id"]))
+    status = str(row.get("status"))
+    if status != "waiting_approval":
+        raise HTTPException(
+            status_code=409,
+            detail=f"run {row['id']} is not waiting for approval (status {status})",
+        )
+    try:
+        pending = PendingApproval.model_validate(row.get("pending_approval"))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=409, detail=f"run {row['id']} has no pending tool call"
+        ) from exc
+    orchestrator = deps.orchestrator_for(tenant.provider, str(row["orchestrator"]))
+    resume = getattr(orchestrator, "resume", None)
+    if resume is None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"orchestrator {orchestrator.name!r} has no approval hook; only the "
+                "LangGraph path can resume a paused run"
+            ),
+        )
+    claimed = await deps.store.claim_approval(
+        run_id=str(row["id"]), tenant_id=str(row["tenant_id"])
+    )
+    if not claimed:
+        raise HTTPException(
+            status_code=409,
+            detail=f"run {row['id']} is not waiting for approval any more",
+        )
+    decision = ApprovalDecision(request_id=pending.request_id, approved=approved)
+    # A fresh run token: the original one may have expired while the run waited
+    # (ADR 0014). RunContext keeps the same run id, so the trace stays one run.
+    context = _run_context(deps, tenant, str(row["id"]), "")
+    try:
+        result = await resume(str(row["id"]), decision, ctx=context)
+    except ApprovalUnavailable as exc:
+        await _fail_waiting_run(deps, row, kind="ApprovalUnavailable", message=str(exc))
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.warning("run %s: resume failed with %s", run_id, type(exc).__name__)
+        await _fail_waiting_run(
+            deps,
+            row,
+            kind=type(exc).__name__,
+            message="the approval could not be applied",
+        )
+        raise HTTPException(status_code=500, detail="the approval could not be applied") from exc
+    flushed = await deps.flush()
+    await deps.store.finish_run(result, trace_complete=flushed)
+    return ChatResponse.from_result(
+        result,
+        session_id=cast(str | None, row.get("session_id")),
+        trace_incomplete=not flushed,
+    )
+
+
+async def _fail_waiting_run(deps: AppDeps, row: dict[str, Any], *, kind: str, message: str) -> None:
+    """Store a clear end state instead of leaving a claimed run at ``running``."""
+    now = datetime.now(UTC)
+    await deps.store.finish_run(
+        RunResult(
+            run_id=str(row["id"]),
+            tenant_id=str(row["tenant_id"]),
+            query=str(row["query"]),
+            status="provider_error",
+            errors=[ErrorRecord(kind=kind, message=message, stage="api.approval")],
+            started_at=row.get("started_at"),
+            ended_at=now,
+        ),
+        trace_complete=False,
+    )
+
+
+@router.post("/runs/{run_id}/approve", response_model=ChatResponse)
+async def approve_run(
+    request: Request,
+    run_id: str,
+    tenant_id: str = Query(min_length=1, description="Tenant that owns the run."),
+) -> ChatResponse:
+    """Approve the pending tool call and run to the end (AC-15b)."""
+    return await _resolve_approval(
+        _deps(request.app), run_id=run_id, tenant_id=tenant_id, approved=True
+    )
+
+
+@router.post("/runs/{run_id}/reject", response_model=ChatResponse)
+async def reject_run(
+    request: Request,
+    run_id: str,
+    tenant_id: str = Query(min_length=1, description="Tenant that owns the run."),
+) -> ChatResponse:
+    """Reject the pending tool call: nothing executes and the run ends."""
+    return await _resolve_approval(
+        _deps(request.app), run_id=run_id, tenant_id=tenant_id, approved=False
+    )
+
+
 @router.get("/runs/{run_id}/trace", response_model=TraceResponse)
 async def get_run_trace(
     request: Request,
@@ -654,6 +771,7 @@ __all__ = [
     "RUN_TOKEN_MIN_BYTES",
     "SSE_HEADERS",
     "app",
+    "approve_run",
     "chat",
     "chat_stream",
     "check_http",
@@ -669,6 +787,7 @@ __all__ = [
     "list_audit",
     "list_runs",
     "post_run_feedback",
+    "reject_run",
     "request_with_history",
     "require_run_token_secret",
 ]

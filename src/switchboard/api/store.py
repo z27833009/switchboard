@@ -27,7 +27,7 @@ from switchboard.tracing.runs import insert_run
 RUN_COLUMNS = """
     id, tenant_id, session_id, query, orchestrator, provider, plan, answer, citations,
     errors, status, cache_hit, attempts, input_tokens, cached_input_tokens,
-    output_tokens, cost_usd, started_at, ended_at, trace_complete
+    output_tokens, cost_usd, started_at, ended_at, trace_complete, pending_approval
 """
 
 SPAN_COLUMNS = """
@@ -49,8 +49,19 @@ UPDATE public.runs SET
     output_tokens = $11,
     cost_usd = $12,
     ended_at = $13,
-    trace_complete = $14
+    trace_complete = $14,
+    pending_approval = $15::jsonb
 WHERE id = $1
+"""
+
+# One atomic claim of a paused run (T3.01). The tenant and the status are in the
+# WHERE clause, so a foreign run, a run that is not waiting, and a second click
+# on the same approval all return no row (the API answers 409). The status goes
+# back to running for the resumed graph, which finishes it normally.
+CLAIM_APPROVAL_SQL = """
+UPDATE public.runs SET status = 'running'
+WHERE id = $1 AND tenant_id = $2 AND status = 'waiting_approval'
+RETURNING id
 """
 
 LIST_RUNS_SQL = f"""
@@ -200,6 +211,9 @@ def run_row(row: Mapping[str, Any]) -> dict[str, Any]:
     payload["id"] = str(payload["id"])
     payload["citations"] = decode_json(payload.get("citations"), [])
     payload["errors"] = decode_json(payload.get("errors"), [])
+    # A waiting run carries the tool call the graph paused on (T3.01). It is
+    # null for every other status.
+    payload["pending_approval"] = decode_json(payload.get("pending_approval"), None)
     cost = payload.get("cost_usd")
     # sums of numeric come back as Decimal; the API and the report speak float.
     payload["cost_usd"] = float(cost) if cost is not None else None
@@ -269,6 +283,8 @@ class RunStore(Protocol):
 
     async def finish_run(self, result: RunResult, *, trace_complete: bool) -> None: ...
 
+    async def claim_approval(self, *, run_id: str, tenant_id: str) -> bool: ...
+
     async def list_runs(
         self,
         *,
@@ -326,7 +342,11 @@ class PgRunStore:
 
     async def finish_run(self, result: RunResult, *, trace_complete: bool) -> None:
         answer = result.answer
-        ended_at = result.ended_at or datetime.now(UTC)
+        # A paused run has not ended; its ended_at is the real end after approve
+        # or reject overwrites this row (T3.01).
+        ended_at = (
+            None if result.status == "waiting_approval" else result.ended_at or datetime.now(UTC)
+        )
         await self._pool.execute(
             FINISH_RUN_SQL,
             uuid.UUID(result.run_id),
@@ -347,7 +367,16 @@ class PgRunStore:
             result.cost_usd,
             ended_at,
             trace_complete,
+            (
+                json.dumps(result.pending_approval.model_dump(mode="json"))
+                if result.pending_approval is not None
+                else None
+            ),
         )
+
+    async def claim_approval(self, *, run_id: str, tenant_id: str) -> bool:
+        row = await self._pool.fetchrow(CLAIM_APPROVAL_SQL, uuid.UUID(run_id), tenant_id)
+        return row is not None
 
     async def list_runs(
         self, *, tenant_id: str, limit: int = 50, session_id: str | None = None
@@ -414,6 +443,7 @@ def rows_are_complete(name_rows: Sequence[Mapping[str, Any]]) -> bool:
 
 __all__ = [
     "AGGREGATE_RUNS_SQL",
+    "CLAIM_APPROVAL_SQL",
     "SESSION_TURNS_SQL",
     "PgRunStore",
     "RunStore",

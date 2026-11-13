@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { errorMessage, getJson, isAbortError, postJson } from "../api";
 import type { ChatResponse, RunSummary, SettingsResponse, SpanEvent, TraceResponse, TraceSpan } from "../api";
+import { ApprovalCard } from "../components/Approval";
 import { StatusBadge } from "../components/Badges";
 import { ChevronDownIcon } from "../components/Icons";
 import { TENANTS } from "../config";
@@ -629,6 +630,7 @@ export function TracePage({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<TraceView>(view ?? "tree");
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -660,7 +662,26 @@ export function TracePage({
     return () => {
       controller.abort();
     };
-  }, [runId, tenantId]);
+  }, [runId, tenantId, reloadKey]);
+
+  function handleDecided(result: ChatResponse) {
+    // The decision finished the run: reload both the run and its trace, because
+    // the resumed graph appended spans (T3.01).
+    setRun((current) =>
+      current === null
+        ? current
+        : {
+            ...current,
+            status: result.status,
+            answer: result.answer,
+            citations: result.citations,
+            errors: result.errors,
+            pending_approval: null,
+            ended_at: result.ended_at,
+          },
+    );
+    setReloadKey((value) => value + 1);
+  }
 
   const allRows = trace === null ? [] : flattenSpanTree(trace.spans);
 
@@ -828,6 +849,15 @@ export function TracePage({
       ) : null}
 
       {run !== null ? <ReplayPanel run={run} tenantId={tenantId} /> : null}
+
+      {run !== null && run.status === "waiting_approval" && run.pending_approval !== null ? (
+        <ApprovalCard
+          runId={run.run_id}
+          tenantId={run.tenant_id}
+          pending={run.pending_approval}
+          onDecided={handleDecided}
+        />
+      ) : null}
 
       {loading ? <p className="muted">Loading trace...</p> : null}
       {error !== null ? (

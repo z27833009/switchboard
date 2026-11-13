@@ -13,6 +13,9 @@ const WARNING_STATUSES = new Set([
   "waiting_approval",
 ]);
 
+// A rejected run ended on a human decision, not on a failure, so ``rejected``
+// falls through to the neutral tone (T3.01).
+
 export type Tone = "ok" | "running" | "warning" | "neutral";
 
 export function statusTone(status: string): Tone {

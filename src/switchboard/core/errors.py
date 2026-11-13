@@ -91,6 +91,34 @@ class RunTimeout(SwitchboardError):
     retryable = False
 
 
+class ToolApprovalRejected(SwitchboardError):
+    """The user rejected a tool call, so the tool was never executed (6.7).
+
+    Agents treat this like a denied call: they record it and answer without the
+    result. The LangGraph adapter ends such a run with status ``rejected``.
+    """
+
+    retryable = False
+
+    def __init__(self, tool: str) -> None:
+        self.tool = tool
+        super().__init__(
+            f"the user rejected the tool call {tool}, so nothing was executed",
+            details={"tool": tool},
+        )
+
+
+class ApprovalUnavailable(SwitchboardError):
+    """The paused graph state is gone, so an approval can no longer resume it.
+
+    Pending approvals live in the in-process checkpointer, so an API restart
+    loses them (design.md section 6.7). The API answers 409 and marks the run
+    instead of pretending to resume it.
+    """
+
+    retryable = False
+
+
 class ConfigError(SwitchboardError):
     retryable = False
 

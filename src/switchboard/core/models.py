@@ -27,7 +27,12 @@ RunStatus = Literal[
     "timeout",
     "provider_error",
     "auth_error",
+    # The run paused before a tool that needs human approval and is waiting
+    # for POST /runs/{id}/approve or /reject (design.md section 6.7).
     "waiting_approval",
+    # The user rejected the pending tool call, so nothing was executed and the
+    # run ended with the rejection as its answer (T3.01).
+    "rejected",
 ]
 
 
@@ -296,6 +301,30 @@ class RunContext(BaseModel):
     trace_parent: str
 
 
+class PendingApproval(BaseModel):
+    """One tool call waiting for a human decision (design.md section 6.7).
+
+    The orchestrator builds this from the call the model actually made, so the
+    API and the UI show what would run without trusting anything the client
+    sends. ``request_id`` is derived from the run, the wire name and a
+    canonical hash of the arguments, so resuming the same graph reproduces the
+    same id and a decision can never be applied to a different call.
+    """
+
+    request_id: str
+    tool: str
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    # Why the stop happened: the manifest risk or the tenant's ``tools.ask``.
+    reason: str = ""
+
+
+class ApprovalDecision(BaseModel):
+    """The answer to one ``PendingApproval``, from approve or reject."""
+
+    request_id: str = Field(min_length=1)
+    approved: bool
+
+
 class CacheKey(BaseModel):
     tenant_id: str
     normalized_query: str
@@ -405,6 +434,9 @@ class RunResult(BaseModel):
     attempts: int = Field(default=0, ge=0)
     gate: GateVerdict | None = None
     errors: list[ErrorRecord] = Field(default_factory=list)
+    # Set when status is ``waiting_approval``: the tool call the run paused on.
+    # The API persists it on the run row so a client never supplies it.
+    pending_approval: PendingApproval | None = None
     started_at: datetime | None = None
     ended_at: datetime | None = None
 

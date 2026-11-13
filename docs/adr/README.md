@@ -20,3 +20,4 @@ Status was reconciled with the code on 2026-11-13. Every record is `accepted`; A
 | [0012](0012-bounded-tool-output-and-layered-context-policy.md) | Bounded tool output and a layered context policy | accepted, 2026-11-13 |
 | [0013](0013-quality-gate-deterministic-checks-first.md) | Quality gate with deterministic checks first and one corrective action | accepted, 2026-11-13 (layer 1) |
 | [0014](0014-signed-run-tokens-between-api-and-tool-server.md) | Signed run tokens between the API and the tool server | accepted, 2026-11-13 |
+| [0015](0015-append-only-write-tool-behind-approval.md) | One append-only write tool behind a human approval gate | accepted, 2026-11-13 |

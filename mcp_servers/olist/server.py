@@ -32,10 +32,12 @@ from starlette.responses import JSONResponse, Response
 from mcp_servers.olist import db
 from mcp_servers.olist.auth import TokenError, bearer_token, verify_token
 from mcp_servers.olist.db import (
+    NOTE_MAX_CHARS,
     ROW_CAP,
     ToolOutcome,
     insert_audit,
     run_readonly,
+    run_readwrite,
 )
 from mcp_servers.olist.settings import (
     ServerConfigError,
@@ -192,7 +194,6 @@ async def _dispatch(
     started = time.perf_counter()
     tenant_id = "unknown"
     run_id: str | None = None
-
     try:
         headers = ctx.headers or {}
     except ValueError:
@@ -228,12 +229,16 @@ async def _dispatch(
                 tenant = state().tenants.get(tenant_id)
                 if tenant is None:
                     raise TokenError(f"tenant {tenant_id!r} is not configured")
-                if wire_name not in tenant.allowed_tools:
+                # An ask tool is callable here: the human decision happens in the
+                # orchestrator before the call, and this server cannot see it
+                # (ADR 0015). Its job is the tenant boundary, so allow and ask
+                # both pass and everything else is denied.
+                if wire_name not in tenant.allowed_tools | tenant.ask_tools:
                     raise PermissionError(
                         f"tool {wire_name} is not allowed for tenant {tenant_id!r}"
                     )
 
-                outcome = await run_readonly(
+                outcome = await (run_readwrite if tool.risk == "write" else run_readonly)(
                     state().pool, lambda connection: operation(connection, tenant)
                 )
                 duration_ms = int((time.perf_counter() - started) * 1000)
@@ -463,6 +468,34 @@ async def query_readonly_sql(
         "query_readonly_sql@1",
         {"sql": sql},
         lambda connection, tenant: db.query_readonly_sql(connection, tenant, statement),
+    )
+
+
+@mcp.tool(
+    name="add_order_note@1",
+    description=MANIFEST["add_order_note@1"].description,
+    meta=tool_meta("add_order_note@1"),
+)
+async def add_order_note(
+    ctx: Context[Any, Any],
+    order_id: Annotated[str, Field(min_length=1)],
+    note: Annotated[str, Field(min_length=1, max_length=NOTE_MAX_CHARS)],
+) -> dict[str, Any]:
+    # The only write tool (T3.01, ADR 0015). It appends one row to
+    # olist.order_notes and touches no existing row; the manifest marks it
+    # ``risk: write`` and the tenant lists it in ``tools.ask``, so the
+    # orchestrator pauses for approval before this function is reached.
+    if not order_id.strip():
+        raise ToolArgumentError("order_id must not be empty")
+    if not note.strip():
+        raise ToolArgumentError("note must not be empty")
+    if len(note) > NOTE_MAX_CHARS:
+        raise ToolArgumentError(f"note must be at most {NOTE_MAX_CHARS} characters")
+    return await _call_tool(
+        ctx,
+        "add_order_note@1",
+        {"order_id": order_id, "note": note},
+        lambda connection, tenant: db.add_order_note(connection, tenant, order_id, note),
     )
 
 

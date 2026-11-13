@@ -4,24 +4,34 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from contextlib import suppress
 from datetime import UTC, datetime
 from functools import partial
 from typing import Annotated, Any, TypedDict
 
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.errors import GraphBubbleUp
 from langgraph.graph import END, START, StateGraph
-from langgraph.types import Send
+from langgraph.types import Command, Send
 from opentelemetry import trace
 from pydantic import ValidationError
 
+from switchboard.adapters.orchestrator.langgraph_impl.approval import wrap_tool_sources
 from switchboard.agents.base import zero_usage
 from switchboard.agents.merge import MergeAgent
 from switchboard.core.cache import agents_from_label
 from switchboard.core.config import Limits, PriceEntry
-from switchboard.core.errors import PlanValidationError, SwitchboardError
+from switchboard.core.errors import (
+    ApprovalUnavailable,
+    PlanValidationError,
+    SwitchboardError,
+    ToolApprovalRejected,
+)
 from switchboard.core.models import (
     AgentResult,
     AgentSpec,
     AgentTask,
+    ApprovalDecision,
     Budget,
     CachedAnswer,
     CacheKey,
@@ -30,6 +40,7 @@ from switchboard.core.models import (
     ErrorRecord,
     GateVerdict,
     Message,
+    PendingApproval,
     RoutingDecision,
     RunContext,
     RunResult,
@@ -101,6 +112,9 @@ class RunState(TypedDict, total=False):
     spent_cost: Annotated[float | None, add_cost]
     cache_hit: bool
     cache_key: CacheKey | None
+    # Set when the user rejected a tool call, so the run ends as ``rejected``
+    # with the rejection as its answer and the gate never retries it (6.7).
+    approval_rejected: str | None
     result: RunResult | None
 
 
@@ -130,17 +144,25 @@ class LangGraphOrchestrator:
         price: PriceEntry | None = None,
         answer_delta: AnswerDeltaSink | None = None,
         judge: Judge | None = None,
+        checkpointer: Any = None,
     ) -> None:
         self._provider = provider
         self._context_policy = context_policy
         self._limits = limits or Limits()
         self._embedder = embedder
-        self._tool_sources = list(tool_sources or [])
+        # Every tool source is wrapped in the approval gate (T3.01). The gate is
+        # inert for a read-only tenant, and a write or ask call pauses the
+        # checkpointed graph instead of executing.
+        self._tool_sources, self._gates = wrap_tool_sources(list(tool_sources or []))
         self._retriever = retriever
         self._cache = cache
         self._price = price
         self._answer_delta = answer_delta
         self._judge = judge
+        # In-process checkpointer: an approval can resume the run while this
+        # process lives. Pending approvals do not survive an API restart, which
+        # is the documented demo limitation (design.md section 6.7).
+        self._checkpointer = checkpointer if checkpointer is not None else InMemorySaver()
         self._tracer = tracer or trace.get_tracer("switchboard.orchestrator.langgraph")
         self._agents = self._load_agents(registry)
         self._graph = self._build_graph()
@@ -214,7 +236,9 @@ class LangGraphOrchestrator:
         )
         builder.add_edge("cache_store", "finish")
         builder.add_edge("finish", END)
-        return builder.compile()
+        # A checkpointer is required for ``interrupt`` (design.md section 6.7);
+        # the thread id is the run id, so approve and reject resume this run.
+        return builder.compile(checkpointer=self._checkpointer)
 
     async def _cache_lookup(self, state: RunState) -> dict[str, Any]:
         """Lookup before the supervisor (design.md section 10.1).
@@ -447,6 +471,12 @@ class LangGraphOrchestrator:
         with agent_span(self._tracer, agent=name, run_id=ctx.run_id) as span:
             try:
                 outputs = await self._run_agent_branch(branch)
+            except GraphBubbleUp:
+                # The run is pausing for approval; the graph re-executes this
+                # node on resume, so a paused attempt is not an agent error
+                # (design.md section 6.7).
+                span.set_attribute("switchboard.approval.paused", True)
+                raise
             except Exception as exc:
                 record_error(span, exc)
                 raise
@@ -489,6 +519,36 @@ class LangGraphOrchestrator:
                 ),
                 self._deps(ctx),
             )
+        except ToolApprovalRejected as exc:
+            # The user rejected the call, so nothing ran. The run ends with this
+            # text as its answer and status ``rejected``; the gate must not turn
+            # it into a retry or a re-plan (design.md section 6.7).
+            result = AgentResult(
+                answer=(
+                    f"The tool call {exc.tool} was rejected, so it was not executed "
+                    "and nothing was changed. Ask again if you want it to run."
+                ),
+                usage=zero_usage(),
+            )
+            return {
+                "results": {name: result},
+                "spent_usage": result.usage,
+                "spent_cost": result.cost_usd,
+                "approval_rejected": exc.tool,
+                "errors": [
+                    ErrorRecord(
+                        kind="ToolApprovalRejected",
+                        message=str(exc),
+                        retryable=False,
+                        stage=f"agent.{name}",
+                        details={"tool": exc.tool},
+                    )
+                ],
+            }
+        except GraphBubbleUp:
+            # The approval interrupt is control flow for the graph, not an agent
+            # failure: it has to reach LangGraph unchanged so the run can pause.
+            raise
         except SwitchboardError as exc:
             result = AgentResult(
                 answer=f"The {name} agent failed: {exc}",
@@ -548,6 +608,10 @@ class LangGraphOrchestrator:
         plan = state.get("plan")
         answer = state.get("answer")
         results = state.get("results", {})
+        if state.get("approval_rejected"):
+            # A rejected call is a decision, not a weak answer: no check, no
+            # judge, no retry and no re-plan (design.md section 6.7).
+            return {"verdict": None}
         with gate_span(self._tracer, run_id=ctx.run_id) as span:
             if plan is None or answer is None:
                 verdict = GateVerdict(
@@ -718,7 +782,11 @@ class LangGraphOrchestrator:
         status: RunStatus = "ok"
         if answer is None or answer.partial:
             status = "partial"
-        if verdict is not None and not verdict.passed:
+        if state.get("approval_rejected"):
+            # The run ended on a user decision, so the rejection is the status
+            # and the answer above says what was not done (T3.01).
+            status = "rejected"
+        elif verdict is not None and not verdict.passed:
             status = "partial"
             if (
                 answer is not None
@@ -781,20 +849,66 @@ class LangGraphOrchestrator:
             except BaseException as exc:
                 record_error(span, exc)
                 raise
-            set_attributes(
-                span,
-                {
-                    "switchboard.plan": result.plan.label if result.plan else None,
-                    "switchboard.cache.hit": result.cache_hit,
-                    "switchboard.attempts": result.attempts,
-                    "switchboard.status": result.status,
-                },
-            )
-            if result.status == "ok":
-                span.set_status(trace.Status(trace.StatusCode.OK))
-            elif result.status in {"timeout", "provider_error", "auth_error"}:
-                span.set_status(trace.Status(trace.StatusCode.ERROR, result.status))
+            self._set_run_span_attributes(span, result)
             return result
+
+    def _set_run_span_attributes(self, span: trace.Span, result: RunResult) -> None:
+        set_attributes(
+            span,
+            {
+                "switchboard.plan": result.plan.label if result.plan else None,
+                "switchboard.cache.hit": result.cache_hit,
+                "switchboard.attempts": result.attempts,
+                "switchboard.status": result.status,
+                "switchboard.approval.tool": (
+                    result.pending_approval.tool if result.pending_approval else None
+                ),
+            },
+        )
+        if result.status in {"ok", "rejected"}:
+            span.set_status(trace.Status(trace.StatusCode.OK))
+        elif result.status in {"timeout", "provider_error", "auth_error"}:
+            span.set_status(trace.Status(trace.StatusCode.ERROR, result.status))
+
+    def _config(self, run_id: str) -> dict[str, Any]:
+        return {
+            "configurable": {"thread_id": run_id},
+            "recursion_limit": 50,
+        }
+
+    @staticmethod
+    def _interrupt_value(final: dict[str, Any]) -> Any:
+        interrupts = final.get("__interrupt__")
+        if not interrupts:
+            return None
+        first = interrupts[0]
+        return getattr(first, "value", first)
+
+    def _waiting_result(
+        self,
+        request: ChatRequest,
+        ctx: RunContext,
+        final: dict[str, Any],
+        *,
+        started_at: datetime | None,
+    ) -> RunResult:
+        """The run paused on an approval: report what is waiting, execute nothing."""
+        value = self._interrupt_value(final)
+        try:
+            pending = PendingApproval.model_validate(value)
+        except ValidationError as exc:  # pragma: no cover - our own payload
+            raise RuntimeError("the approval interrupt carried no tool call") from exc
+        return RunResult(
+            run_id=ctx.run_id,
+            tenant_id=ctx.tenant.tenant_id,
+            query=request.query,
+            plan=final.get("plan"),
+            status="waiting_approval",
+            pending_approval=pending,
+            usage=final.get("supervisor_usage", zero_usage()),
+            errors=list(final.get("errors") or []),
+            started_at=started_at,
+        )
 
     async def _execute(self, request: ChatRequest, ctx: RunContext) -> RunResult:
         initial: RunState = {
@@ -815,10 +929,12 @@ class LangGraphOrchestrator:
             "spent_cost": None,
             "cache_hit": False,
             "cache_key": None,
+            "approval_rejected": None,
         }
+        self._reset_approvals(ctx.run_id)
         try:
             final = await asyncio.wait_for(
-                self._graph.ainvoke(initial, {"recursion_limit": 50}),
+                self._graph.ainvoke(initial, self._config(ctx.run_id)),
                 timeout=self._limits.run_timeout_s,
             )
         except TimeoutError:
@@ -854,10 +970,105 @@ class LangGraphOrchestrator:
                 started_at=initial["started_at"],
                 ended_at=datetime.now(UTC),
             )
+        if self._interrupt_value(final) is not None:
+            # Keep the thread: approve or reject resumes it. The run row holds
+            # the pending call, so the API never trusts a client copy.
+            return self._waiting_result(request, ctx, final, started_at=initial["started_at"])
+        return self._finished(ctx, final)
+
+    def _finished(self, ctx: RunContext, final: dict[str, Any]) -> RunResult:
         result = final.get("result")
         if not isinstance(result, RunResult):
             raise RuntimeError("the graph finished without a RunResult")
+        # The run is over, so the thread is not needed for an approval any more.
+        self._drop_thread(ctx.run_id)
         return result
+
+    def _drop_thread(self, run_id: str) -> None:
+        delete = getattr(self._checkpointer, "delete_thread", None)
+        if delete is None:  # pragma: no cover - a checkpointer without deletion
+            return
+        with suppress(Exception):  # cleanup only
+            delete(run_id)
+
+    def _reset_approvals(self, run_id: str) -> None:
+        for gate in self._gates:
+            gate.reset(run_id)
+
+    async def resume(
+        self,
+        run_id: str,
+        decision: ApprovalDecision,
+        *,
+        ctx: RunContext | None = None,
+    ) -> RunResult:
+        """Continue a paused run with the user's decision (design.md 6.7).
+
+        The paused state carries the request and the run context, so the run
+        keeps its tenant and query. A supplied ``ctx`` replaces it, which is how
+        the API refreshes an expired run token before the resumed tool call.
+        Only the LangGraph adapter implements this; the API answers 409 for an
+        orchestrator without it.
+        """
+        state = await self._graph.aget_state(self._config(run_id))
+        values: dict[str, Any] = dict(state.values) if state is not None else {}
+        request = values.get("request")
+        paused_ctx = values.get("ctx")
+        if not isinstance(request, ChatRequest) or not isinstance(paused_ctx, RunContext):
+            raise ApprovalUnavailable(
+                "the paused state for this run is gone; pending approvals do not "
+                "survive an API restart"
+            )
+        if ctx is not None:
+            paused_ctx = ctx
+            await self._graph.aupdate_state(self._config(run_id), {"ctx": ctx})
+        with run_span(
+            self._tracer,
+            tenant_id=paused_ctx.tenant.tenant_id,
+            run_id=run_id,
+            orchestrator=self.name,
+        ) as span:
+            span.set_attribute("switchboard.approval.resumed", True)
+            span.set_attribute("switchboard.approval.decision", decision.approved)
+            self._reset_approvals(run_id)
+            try:
+                final = await asyncio.wait_for(
+                    self._graph.ainvoke(
+                        Command(resume=decision.model_dump(mode="json")),
+                        self._config(run_id),
+                    ),
+                    timeout=self._limits.run_timeout_s,
+                )
+            except TimeoutError:
+                self._drop_thread(run_id)
+                result = RunResult(
+                    run_id=run_id,
+                    tenant_id=paused_ctx.tenant.tenant_id,
+                    query=request.query,
+                    status="timeout",
+                    errors=[
+                        ErrorRecord(
+                            kind="RunTimeout",
+                            message=f"run exceeded {self._limits.run_timeout_s}s",
+                            stage="orchestrator",
+                        )
+                    ],
+                    started_at=values.get("started_at"),
+                    ended_at=datetime.now(UTC),
+                )
+                self._set_run_span_attributes(span, result)
+                return result
+            if self._interrupt_value(final) is not None:
+                # The model asked for another tool that needs approval; the run
+                # pauses again with the new call (one decision per call).
+                result = self._waiting_result(
+                    request, paused_ctx, final, started_at=values.get("started_at")
+                )
+                self._set_run_span_attributes(span, result)
+                return result
+            result = self._finished(paused_ctx, final)
+            self._set_run_span_attributes(span, result)
+            return result
 
 
 __all__ = [

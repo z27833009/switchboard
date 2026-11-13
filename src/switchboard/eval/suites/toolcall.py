@@ -71,7 +71,10 @@ class ToolCallSuite:
         self._by_name = {tool.wire_name: tool for tool in self._tools}
         self._dataset_root = Path(dataset_root)
         self._orchestrator = orchestrator
-        self._tenant_tools = list(tenant_tools or [])
+        # A write tool is never offered to the model without approval, so an
+        # eval of the read path must not offer it either (T3.01). The ask list is
+        # not visible here, so the risk is the only rule the manifest can give.
+        self._tenant_tools = [tool for tool in (tenant_tools or []) if tool.risk == "read"]
         self._retriever_configured = retriever_configured
 
     @classmethod

@@ -15,6 +15,7 @@ import pytest
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from tests.fakes import UnusedToolSource
 
 from switchboard.adapters.orchestrator.agent_loop import AgentLoopOrchestrator
 from switchboard.adapters.orchestrator.langgraph_impl import LangGraphOrchestrator
@@ -297,7 +298,7 @@ async def test_layer_two_runs_only_after_layer_one_passes(kind: str) -> None:
         )
         provider = ScriptedProvider(plan=["data"], answer="unused")
         orchestrator = make_orchestrator(
-            kind, provider, judge=judge, agents=[agent], tool_sources=[object()]
+            kind, provider, judge=judge, agents=[agent], tool_sources=[UnusedToolSource()]
         )
     else:
         provider = ScriptedProvider(answer="I could not reach the tool.")
@@ -328,7 +329,7 @@ async def test_the_langgraph_judge_sees_the_answer_that_passed_layer_one() -> No
     )
     provider = ScriptedProvider(plan=["data"], answer="unused")
     orchestrator = make_orchestrator(
-        "langgraph", provider, judge=judge, agents=[agent], tool_sources=[object()]
+        "langgraph", provider, judge=judge, agents=[agent], tool_sources=[UnusedToolSource()]
     )
 
     result = await orchestrator.run(

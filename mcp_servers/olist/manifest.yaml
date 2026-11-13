@@ -119,3 +119,30 @@ tools:
           description: One SELECT statement over olist.sql_order_facts.
       required: [sql]
       additionalProperties: false
+
+  # The one write tool (T3.01, ADR 0015). It appends one note row and changes
+  # nothing else, and every tenant that lists it must list it under tools.ask,
+  # so the orchestrator pauses for a human decision before it runs.
+  - name: add_order_note
+    version: "1"
+    description: >-
+      Add a note to one of this tenant's orders: a short free-text remark kept
+      in a separate append-only note table for follow-up. It never changes the
+      order status or any existing record, and it needs human approval before
+      it runs, so the run pauses and asks the user first.
+    risk: write
+    tenant_scoped: true
+    sensitive_args: []
+    input_schema:
+      type: object
+      properties:
+        order_id:
+          type: string
+          minLength: 1
+        note:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: The note text, at most 500 characters.
+      required: [order_id, note]
+      additionalProperties: false

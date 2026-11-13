@@ -146,7 +146,12 @@ class McpToolSource:
         async with self._session(ctx) as session:
             result = await session.list_tools()
         specs = [to_tool_spec(tool) for tool in result.tools]
-        return [spec for spec in specs if spec.wire_name in ctx.tenant.allowed_tools]
+        # An ask tool is listed too, so the LangGraph path can offer it and pause
+        # for approval before calling it. The agent loop drops every write and
+        # ask spec again, so a tenant's ask list never widens the read-only path
+        # (design.md sections 6.7, 6.9 and 7.3).
+        permitted = ctx.tenant.allowed_tools | ctx.tenant.ask_tools
+        return [spec for spec in specs if spec.wire_name in permitted]
 
     async def call(self, name: str, args: dict[str, Any], ctx: RunContext) -> ToolResult:
         with self._tracer.start_as_current_span(

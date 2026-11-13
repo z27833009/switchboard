@@ -267,6 +267,42 @@ def test_unknown_tenant_keys_are_rejected(tmp_path: Path) -> None:
         load_settings(write_config(tmp_path, tenants=tenants), ENV)
 
 
+def test_a_write_tool_in_tools_allow_is_a_config_error(tmp_path: Path) -> None:
+    """The registration hook is the only route to a write tool: tools.ask."""
+    tenants = TENANTS.replace(
+        'allow: ["orders_late@1"]\n      ask: []',
+        'allow: ["orders_late@1", "add_order_note@1"]\n      ask: []',
+    )
+    with pytest.raises(ConfigError, match=r"must be listed under tools\.ask"):
+        load_settings(write_config(tmp_path, tenants=tenants), ENV)
+
+    asked = TENANTS.replace(
+        'allow: ["orders_late@1"]\n      ask: []',
+        'allow: ["orders_late@1"]\n      ask: ["add_order_note@1"]',
+    )
+    settings = load_settings(write_config(tmp_path, tenants=asked), ENV)
+    assert settings.tenants.tenants["default"].tools.ask == ["add_order_note@1"]
+
+
+def test_the_committed_seller_a_can_ask_for_the_note_tool() -> None:
+    settings = load_settings(
+        REPO / "config",
+        {
+            "LMSTUDIO_BASE_URL": "http://host.docker.internal:18080/v1",
+            "LMSTUDIO_MODEL": "qwen3-8b",
+            "LMSTUDIO_EMBEDDING_MODEL": "bge-m3",
+            "MCP_OLIST_URL": "http://localhost:8001",
+            "MCP_REVIEWS_URL": "http://localhost:8002",
+        },
+    )
+    default = settings.tenants.tenants["default"]
+    seller_a = settings.tenants.tenants["seller_a"]
+    assert seller_a.tools.ask == ["add_order_note@1"]
+    assert "add_order_note@1" not in seller_a.tools.allow
+    assert "add_order_note@1" not in default.tools.allow
+    assert "add_order_note@1" not in default.tools.ask
+
+
 def test_committed_config_files_load() -> None:
     settings = load_settings(
         REPO / "config",

@@ -111,7 +111,7 @@ async def denied_unknown_count() -> int:
         await connection.close()
 
 
-async def test_lists_the_six_manifest_tools() -> None:
+async def test_lists_the_seven_manifest_tools() -> None:
     token, _ = mint()
     async with mcp_session(token) as session:
         tools = await session.list_tools()
@@ -122,6 +122,7 @@ async def test_lists_the_six_manifest_tools() -> None:
         "top_products@1",
         "describe_schema@1",
         "query_readonly_sql@1",
+        "add_order_note@1",
     }
 
 

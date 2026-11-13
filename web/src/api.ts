@@ -12,7 +12,8 @@ export type RunStatus =
   | "timeout"
   | "provider_error"
   | "auth_error"
-  | "waiting_approval";
+  | "waiting_approval"
+  | "rejected";
 
 export interface Citation {
   kind: "document" | "tool";
@@ -42,6 +43,15 @@ export interface RoutingDecision {
   reason: string;
 }
 
+// A tool call the run paused on (POST /runs/{id}/approve or /reject, T3.01).
+// Every field comes from the stored run row, never from this page.
+export interface PendingApproval {
+  request_id: string;
+  tool: string;
+  arguments: Record<string, unknown>;
+  reason: string;
+}
+
 export interface ChatResponse {
   run_id: string;
   tenant_id: string;
@@ -55,6 +65,8 @@ export interface ChatResponse {
   cache_hit: boolean;
   attempts: number;
   errors: ErrorRecord[];
+  // Set only while the run is waiting_approval.
+  pending_approval: PendingApproval | null;
   started_at: string | null;
   ended_at: string | null;
   trace_incomplete: boolean;
@@ -81,6 +93,8 @@ export interface RunSummary {
   answer: string | null;
   citations: Citation[];
   errors: ErrorRecord[];
+  // Only a waiting run carries one; the run list leaves it null.
+  pending_approval: PendingApproval | null;
   // Only GET /runs/{id} loads it; the run list leaves it null.
   latest_feedback: FeedbackSummary | null;
 }
@@ -267,6 +281,31 @@ export class ApiError extends Error {
     this.name = "ApiError";
     this.status = status;
   }
+}
+
+/**
+ * POST /runs/{id}/approve or /reject. The body is empty on purpose: the pending
+ * tool call and the tenant come from the stored run, so the browser cannot
+ * approve a call the run did not make (T3.01).
+ */
+export async function decideApproval(
+  runId: string,
+  tenantId: string,
+  action: "approve" | "reject",
+  signal?: AbortSignal,
+): Promise<ChatResponse> {
+  const response = await fetch(
+    `${API_BASE}/runs/${encodeURIComponent(runId)}/${action}?tenant_id=${encodeURIComponent(tenantId)}`,
+    {
+      method: "POST",
+      signal,
+      headers: { Accept: "application/json" },
+    },
+  );
+  if (!response.ok) {
+    throw new ApiError(await describeHttpError(response), response.status);
+  }
+  return (await response.json()) as ChatResponse;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
