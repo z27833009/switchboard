@@ -5,6 +5,11 @@ import type { Citation } from "./api";
 // can select the span without the UI guessing when span_id is null.
 // Run and trace reads are tenant scoped: the API requires tenant_id, and the
 // route carries it so a link never falls back to another tenant's run.
+// `view` is optional and only picks the initial span view (tree or timeline);
+// the page switch does not rewrite the hash, so a screenshot or a shared link
+// can still open a named view.
+export type TraceView = "tree" | "timeline";
+
 export type Route =
   | { name: "chat" }
   | { name: "runs" }
@@ -15,6 +20,7 @@ export type Route =
       tenant: string | null;
       spanId: string | null;
       auditId: string | null;
+      view: TraceView | null;
     };
 
 export function parseRoute(hash: string): Route {
@@ -40,12 +46,14 @@ export function parseRoute(hash: string): Route {
   }
   if (segments.length === 3 && segments[0] === "runs" && segments[2] === "trace") {
     const params = new URLSearchParams(queryPart);
+    const viewParam = params.get("view");
     return {
       name: "trace",
       runId: decodeURIComponent(segments[1]),
       tenant: params.get("tenant"),
       spanId: params.get("span"),
       auditId: params.get("audit"),
+      view: viewParam === "timeline" ? "timeline" : viewParam === "tree" ? "tree" : null,
     };
   }
   return { name: "chat" };
@@ -53,7 +61,7 @@ export function parseRoute(hash: string): Route {
 
 export function routeKey(route: Route): string {
   if (route.name === "trace") {
-    return `trace:${route.runId}:${route.tenant ?? ""}:${route.spanId ?? ""}:${route.auditId ?? ""}`;
+    return `trace:${route.runId}:${route.tenant ?? ""}:${route.spanId ?? ""}:${route.auditId ?? ""}:${route.view ?? ""}`;
   }
   if (route.name === "run") {
     return `run:${route.runId}:${route.tenant ?? ""}`;

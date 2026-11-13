@@ -1,77 +1,163 @@
 import { useEffect, useState } from "react";
 
 import { errorMessage, getJson, isAbortError } from "../api";
-import type { SpanEvent, TraceResponse, TraceSpan } from "../api";
+import type { RunSummary, SpanEvent, TraceResponse, TraceSpan } from "../api";
+import { StatusBadge } from "../components/Badges";
 import { TENANTS } from "../config";
-import { formatDuration, formatValue } from "../format";
+import { formatDateTime, formatDuration, formatTokens, formatValue } from "../format";
+import type { TraceView } from "../routes";
+import {
+  ancestorsOf,
+  buildPlanGraph,
+  expandableSpanIds,
+  flattenSpanTree,
+  gateSummary,
+  logTone,
+  planLabel,
+  spanMarkers,
+  spanStartOffset,
+  traceWindow,
+  visibleSpanRows,
+} from "../trace";
+import type { FlatSpan, PlanEdge, PlanGraph, PlanNode, SpanMarker } from "../trace";
 
-interface SpanNodeProps {
-  span: TraceSpan;
-  depth: number;
-  expanded: ReadonlySet<string>;
-  selectedId: string | null;
-  maxDuration: number;
-  onToggle: (spanId: string) => void;
-  onSelect: (spanId: string) => void;
+function MarkerChips({ markers }: { markers: SpanMarker[] }) {
+  if (markers.length === 0) {
+    return null;
+  }
+  return (
+    <>
+      {markers.map((marker) => (
+        <span key={marker.label} className={`marker marker-${marker.tone}`} title={marker.title}>
+          {marker.label}
+        </span>
+      ))}
+    </>
+  );
 }
 
-function SpanNode({
+function SpanToggle({
   span,
-  depth,
+  expanded,
+  onToggle,
+}: {
+  span: TraceSpan;
+  expanded: ReadonlySet<string>;
+  onToggle: (spanId: string) => void;
+}) {
+  if (span.children.length === 0) {
+    return <span className="toggle-placeholder" aria-hidden="true" />;
+  }
+  const isExpanded = expanded.has(span.span_id);
+  return (
+    <button
+      type="button"
+      className="toggle"
+      onClick={() => onToggle(span.span_id)}
+      aria-expanded={isExpanded}
+      aria-label={`${isExpanded ? "Collapse" : "Expand"} ${span.name}`}
+    >
+      {isExpanded ? "v" : ">"}
+    </button>
+  );
+}
+
+function TreeRow({
+  row,
   expanded,
   selectedId,
   maxDuration,
   onToggle,
   onSelect,
-}: SpanNodeProps) {
-  const hasChildren = span.children.length > 0;
-  const isExpanded = expanded.has(span.span_id);
+}: {
+  row: FlatSpan;
+  expanded: ReadonlySet<string>;
+  selectedId: string | null;
+  maxDuration: number;
+  onToggle: (spanId: string) => void;
+  onSelect: (spanId: string) => void;
+}) {
+  const { span, depth } = row;
   const barWidth =
     maxDuration > 0 ? Math.max(1, Math.round((span.duration_ms / maxDuration) * 100)) : 0;
+  const markers = spanMarkers(span);
   return (
-    <>
-      <div
-        className={`span-row${selectedId === span.span_id ? " selected" : ""}`}
-        style={{ paddingLeft: `${depth * 18 + 4}px` }}
-      >
-        {hasChildren ? (
-          <button
-            type="button"
-            className="toggle"
-            onClick={() => onToggle(span.span_id)}
-            aria-expanded={isExpanded}
-            aria-label={`${isExpanded ? "Collapse" : "Expand"} ${span.name}`}
-          >
-            {isExpanded ? "v" : ">"}
-          </button>
-        ) : (
-          <span className="toggle-placeholder" aria-hidden="true" />
-        )}
-        <button type="button" className="span-select" onClick={() => onSelect(span.span_id)}>
+    <div
+      className={`span-row${selectedId === span.span_id ? " selected" : ""}`}
+      style={{ paddingLeft: `${depth * 18 + 4}px` }}
+    >
+      <SpanToggle span={span} expanded={expanded} onToggle={onToggle} />
+      <button type="button" className="span-select" onClick={() => onSelect(span.span_id)}>
+        <span className="span-name">{span.name}</span>
+        <span className="span-kind">{span.kind}</span>
+        <span className={`span-status status-${span.status}`}>{span.status}</span>
+        <MarkerChips markers={markers} />
+        <span className="duration-bar" aria-hidden="true">
+          <span style={{ width: `${barWidth}%` }} />
+        </span>
+        <span className="span-duration">{formatDuration(span.duration_ms)}</span>
+      </button>
+    </div>
+  );
+}
+
+function TimelineRow({
+  row,
+  window,
+  expanded,
+  selectedId,
+  onToggle,
+  onSelect,
+}: {
+  row: FlatSpan;
+  window: { start: number; total: number };
+  expanded: ReadonlySet<string>;
+  selectedId: string | null;
+  onToggle: (spanId: string) => void;
+  onSelect: (spanId: string) => void;
+}) {
+  const { span, depth } = row;
+  const offset = spanStartOffset(span, {
+    start: window.start,
+    end: window.start + window.total,
+    total: window.total,
+  });
+  const total = Math.max(1, window.total);
+  const leftPct = Math.min(99.5, (offset / total) * 100);
+  const widthPct = Math.max(0.5, (span.duration_ms / total) * 100);
+  const markers = spanMarkers(span);
+  const tone = logTone(span.status);
+  return (
+    <div
+      className={`timeline-row${selectedId === span.span_id ? " selected" : ""}`}
+    >
+      <div className="timeline-label" style={{ paddingLeft: `${depth * 14 + 2}px` }}>
+        <SpanToggle span={span} expanded={expanded} onToggle={onToggle} />
+        <button
+          type="button"
+          className="timeline-select"
+          onClick={() => onSelect(span.span_id)}
+          title={`${span.name} (${span.kind}, ${span.status})`}
+        >
           <span className="span-name">{span.name}</span>
           <span className="span-kind">{span.kind}</span>
           <span className={`span-status status-${span.status}`}>{span.status}</span>
-          <span className="duration-bar" aria-hidden="true">
-            <span style={{ width: `${barWidth}%` }} />
-          </span>
-          <span className="span-duration">{formatDuration(span.duration_ms)}</span>
+          <MarkerChips markers={markers} />
         </button>
       </div>
-      {hasChildren && isExpanded
-        ? span.children.map((child) => (
-            <SpanNode
-              key={child.span_id}
-              span={child}
-              depth={depth + 1}
-              expanded={expanded}
-              selectedId={selectedId}
-              maxDuration={maxDuration}
-              onToggle={onToggle}
-              onSelect={onSelect}
-            />
-          ))
-        : null}
-    </>
+      <div className="timeline-track">
+        <button
+          type="button"
+          className={`timeline-bar bar-${tone}`}
+          style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+          onClick={() => onSelect(span.span_id)}
+          aria-label={`Select ${span.name}, ${formatDuration(span.duration_ms)}`}
+          title={`${span.name}\nstart +${formatDuration(offset)}\nduration ${formatDuration(span.duration_ms)}\nstatus ${span.status}`}
+        />
+      </div>
+      <span className="timeline-offset">+{formatDuration(offset)}</span>
+      <span className="timeline-duration">{formatDuration(span.duration_ms)}</span>
+    </div>
   );
 }
 
@@ -141,9 +227,15 @@ function SpanDetail({ span }: { span: TraceSpan | null }) {
     return <p className="muted">Select a span to see its attributes and events.</p>;
   }
   const attributeEntries = Object.entries(span.attributes);
+  const markers = spanMarkers(span);
   return (
     <div>
       <h3>{span.name}</h3>
+      {markers.length > 0 ? (
+        <p className="marker-line">
+          <MarkerChips markers={markers} />
+        </p>
+      ) : null}
       <dl className="facts">
         <div>
           <dt>span id</dt>
@@ -217,29 +309,140 @@ function SpanDetail({ span }: { span: TraceSpan | null }) {
   );
 }
 
-function flatten(spans: TraceSpan[]): TraceSpan[] {
-  const result: TraceSpan[] = [];
-  const walk = (nodes: TraceSpan[]) => {
-    for (const node of nodes) {
-      result.push(node);
-      walk(node.children);
-    }
-  };
-  walk(spans);
-  return result;
+function PlanNodeCard({
+  node,
+  selectedId,
+  onSelect,
+}: {
+  node: PlanNode;
+  selectedId: string | null;
+  onSelect: (spanId: string) => void;
+}) {
+  const className = `plan-node plan-node-${node.tone}${
+    node.executed ? "" : " plan-node-skipped"
+  }${node.spanId !== null && node.spanId === selectedId ? " selected" : ""}`;
+  const body = (
+    <>
+      <span className="plan-node-kind">{node.kind}</span>
+      <strong className="plan-node-title">{node.title}</strong>
+      <span className="plan-node-detail">{node.detail}</span>
+      {node.note !== null ? <span className="plan-node-note">{node.note}</span> : null}
+      {node.spanId !== null ? (
+        <span className="plan-node-span">span {node.spanId.slice(0, 12)}</span>
+      ) : (
+        <span className="plan-node-span">no span</span>
+      )}
+    </>
+  );
+  if (node.spanId === null) {
+    return <div className={className}>{body}</div>;
+  }
+  const spanId = node.spanId;
+  return (
+    <button
+      type="button"
+      className={`${className} plan-node-select`}
+      onClick={() => onSelect(spanId)}
+    >
+      {body}
+    </button>
+  );
 }
 
-function ancestorsOf(flat: TraceSpan[], spanId: string): string[] {
-  const byId = new Map(flat.map((span) => [span.span_id, span]));
-  const ancestors: string[] = [];
-  const seen = new Set<string>();
-  let current = byId.get(spanId)?.parent_span_id ?? null;
-  while (current !== null && !seen.has(current)) {
-    seen.add(current);
-    ancestors.push(current);
-    current = byId.get(current)?.parent_span_id ?? null;
+function edgeLabel(edges: PlanEdge[]): string {
+  const labels = [...new Set(edges.map((edge) => edge.label))];
+  return labels.join(", ");
+}
+
+function PlanGraphView({
+  graph,
+  rows,
+  selectedId,
+  onSelect,
+}: {
+  graph: PlanGraph;
+  rows: FlatSpan[];
+  selectedId: string | null;
+  onSelect: (spanId: string) => void;
+}) {
+  const byId = new Map(graph.nodes.map((node) => [node.id, node]));
+  if (graph.empty) {
+    return (
+      <div className="plan-graph">
+        {graph.notes.map((note) => (
+          <p key={note} className="warning-text">
+            {note}
+          </p>
+        ))}
+      </div>
+    );
   }
-  return ancestors;
+  const corrective = graph.edges.filter((edge) => edge.corrective);
+  return (
+    <div className="plan-graph">
+      <p className="muted">
+        Built from the run record and the stored spans. Every node is an executed span or a
+        graph step this run recorded; a node without a span says so.
+      </p>
+      {graph.layers.map((layer, index) => {
+        const from = index === 0 ? [] : graph.layers[index - 1];
+        const layerEdges = graph.edges.filter(
+          (edge) => !edge.corrective && from.includes(edge.from) && layer.includes(edge.to),
+        );
+        return (
+          <div key={`layer-${index}`} className="plan-layer-block">
+            {index > 0 ? (
+              <div className="plan-edge">
+                <span className="plan-edge-label">{edgeLabel(layerEdges)}</span>
+              </div>
+            ) : null}
+            <div className="plan-layer">
+              {layer.map((id) => {
+                const node = byId.get(id);
+                if (node === undefined) {
+                  return null;
+                }
+                return (
+                  <PlanNodeCard
+                    key={node.id}
+                    node={node}
+                    selectedId={selectedId}
+                    onSelect={onSelect}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      {corrective.length > 0 ? (
+        <div className="plan-corrective">
+          <strong>Corrective edges</strong>
+          <ul>
+            {corrective.map((edge) => (
+              <li key={`${edge.from}-${edge.to}-${edge.label}`}>
+                <code>{edge.from}</code> back to <code>{edge.to}</code>: {edge.label}
+                {edge.to.startsWith("agent:") && byId.has(edge.to)
+                  ? ` (${byId.get(edge.to)?.title ?? edge.to})`
+                  : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {graph.notes.length > 0 ? (
+        <ul className="plan-notes">
+          {graph.notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      ) : null}
+      <p className="muted">
+        Click a node with a span to select it in the attribute pane below. {rows.length} span(s)
+        feed this view.
+      </p>
+    </div>
+  );
 }
 
 export interface TracePageProps {
@@ -247,34 +450,36 @@ export interface TracePageProps {
   tenant: string | null;
   spanId: string | null;
   auditId: string | null;
+  view: TraceView | null;
 }
 
-export function TracePage({ runId, tenant, spanId, auditId }: TracePageProps) {
+export function TracePage({ runId, tenant, spanId, auditId, view }: TracePageProps) {
   const tenantId = tenant ?? TENANTS[0];
   const [trace, setTrace] = useState<TraceResponse | null>(null);
+  const [run, setRun] = useState<RunSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<TraceView>(view ?? "tree");
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    getJson<TraceResponse>(
-      `/runs/${encodeURIComponent(runId)}/trace?tenant_id=${encodeURIComponent(tenantId)}`,
-      controller.signal,
-    )
-      .then((data) => {
-        setTrace(data);
-        setExpanded(
-          new Set(
-            flatten(data.spans)
-              .filter((span) => span.children.length > 0)
-              .map((span) => span.span_id),
-          ),
-        );
+    const query = `tenant_id=${encodeURIComponent(tenantId)}`;
+    Promise.all([
+      getJson<TraceResponse>(
+        `/runs/${encodeURIComponent(runId)}/trace?${query}`,
+        controller.signal,
+      ),
+      getJson<RunSummary>(`/runs/${encodeURIComponent(runId)}?${query}`, controller.signal),
+    ])
+      .then(([traceData, runData]) => {
+        setTrace(traceData);
+        setRun(runData);
+        setExpanded(new Set(expandableSpanIds(flattenSpanTree(traceData.spans))));
       })
       .catch((caught) => {
         if (!isAbortError(caught)) {
@@ -291,14 +496,28 @@ export function TracePage({ runId, tenant, spanId, auditId }: TracePageProps) {
     };
   }, [runId, tenantId]);
 
+  const allRows = trace === null ? [] : flattenSpanTree(trace.spans);
+
+  function selectSpan(spanIdToSelect: string) {
+    setSelectedId(spanIdToSelect);
+    setSelectionNotice(null);
+    setExpanded((current) => {
+      const next = new Set(current);
+      for (const id of ancestorsOf(allRows, spanIdToSelect)) {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
   useEffect(() => {
     if (trace === null) {
       return;
     }
-    const flat = flatten(trace.spans);
+    const rows = flattenSpanTree(trace.spans);
     let match: TraceSpan | null = null;
     if (spanId !== null) {
-      match = flat.find((span) => span.span_id === spanId) ?? null;
+      match = rows.find((row) => row.span.span_id === spanId)?.span ?? null;
       if (match === null) {
         setSelectionNotice(`No span with span id ${spanId} is stored for this run.`);
       } else {
@@ -306,10 +525,10 @@ export function TracePage({ runId, tenant, spanId, auditId }: TracePageProps) {
       }
     } else if (auditId !== null) {
       match =
-        flat.find((span) => {
-          const value = span.attributes["switchboard.tool.audit_id"];
+        rows.find((row) => {
+          const value = row.span.attributes["switchboard.tool.audit_id"];
           return typeof value === "string" && value === auditId;
-        }) ?? null;
+        })?.span ?? null;
       if (match === null) {
         setSelectionNotice(`No tool span with audit id ${auditId} is stored for this run.`);
       } else {
@@ -320,7 +539,7 @@ export function TracePage({ runId, tenant, spanId, auditId }: TracePageProps) {
     }
     setSelectedId(match?.span_id ?? null);
     if (match !== null) {
-      const ancestors = ancestorsOf(flat, match.span_id);
+      const ancestors = ancestorsOf(rows, match.span_id);
       setExpanded((current) => {
         const next = new Set(current);
         for (const id of ancestors) {
@@ -331,9 +550,13 @@ export function TracePage({ runId, tenant, spanId, auditId }: TracePageProps) {
     }
   }, [trace, spanId, auditId]);
 
-  const flat = trace === null ? [] : flatten(trace.spans);
-  const selected = flat.find((span) => span.span_id === selectedId) ?? null;
-  const maxDuration = flat.reduce((max, span) => Math.max(max, span.duration_ms), 0);
+  const selected = allRows.find((row) => row.span.span_id === selectedId)?.span ?? null;
+  const maxDuration = allRows.reduce((max, row) => Math.max(max, row.span.duration_ms), 0);
+  const window = traceWindow(allRows);
+  const visibleRows = trace === null ? [] : visibleSpanRows(trace.spans, expanded);
+  const graph = buildPlanGraph(run, allRows);
+  const gate = gateSummary(allRows);
+  const recordedPlan = planLabel(run, allRows);
 
   function handleToggle(spanIdToToggle: string) {
     setExpanded((current) => {
@@ -345,6 +568,14 @@ export function TracePage({ runId, tenant, spanId, auditId }: TracePageProps) {
       }
       return next;
     });
+  }
+
+  function expandAll() {
+    setExpanded(new Set(expandableSpanIds(allRows)));
+  }
+
+  function collapseAll() {
+    setExpanded(new Set());
   }
 
   return (
@@ -359,7 +590,37 @@ export function TracePage({ runId, tenant, spanId, auditId }: TracePageProps) {
           ) : null}
         </div>
         <p className="meta">
-          run <code>{runId}</code>
+          run <code>{runId}</code> tenant <code>{tenantId}</code>
+        </p>
+        {run !== null ? (
+          <p className="meta">
+            <StatusBadge status={run.status} /> plan {recordedPlan ?? "-"} attempts {run.attempts}{" "}
+            input {formatTokens(run.input_tokens)} tokens output {formatTokens(run.output_tokens)}{" "}
+            tokens
+            {run.cost_usd !== null ? ` cost $${run.cost_usd.toFixed(4)}` : " no API cost recorded"}{" "}
+            gate{" "}
+            {gate.verdict === null ? (
+              <span className="muted">no gate span</span>
+            ) : (
+              <span className={`marker marker-${gate.verdict === "pass" ? "ok" : "warning"}`}>
+                {gate.verdict}
+                {gate.action !== null ? ` (${gate.action})` : ""}
+                {gate.spanCount > 1 ? `, ${gate.spanCount} checks` : ""}
+              </span>
+            )}
+            {gate.failedChecks !== null ? (
+              <span className="warning-text"> failed: {gate.failedChecks}</span>
+            ) : null}
+            {gate.corrective && gate.correctiveAction !== null ? (
+              <span className="marker marker-warning">
+                corrective: {gate.correctiveAction} ({gate.spanCount} gate check(s))
+              </span>
+            ) : null}
+          </p>
+        ) : null}
+        <p className="meta">
+          started {run === null ? "-" : formatDateTime(run.started_at)} ended{" "}
+          {run === null ? "-" : formatDateTime(run.ended_at)}
         </p>
         {loading ? <p className="muted">Loading trace...</p> : null}
         {error !== null ? (
@@ -371,35 +632,123 @@ export function TracePage({ runId, tenant, spanId, auditId }: TracePageProps) {
         {trace !== null && trace.incomplete ? (
           <div className="warning-box">
             <strong>Incomplete trace.</strong> The API reported that span data is missing for this run,
-            because the flush timed out or a span batch was lost. The tree below contains only the spans that
-            were stored; it is not a complete record of the run.
+            because the flush timed out or a span batch was lost. The views below contain only the
+            spans that were stored; they are not a complete record of the run.
           </div>
         ) : null}
         {selectionNotice !== null ? <div className="warning-box">{selectionNotice}</div> : null}
+
         {trace !== null ? (
-          <div className="trace-layout">
-            <div className="trace-tree">
-              {trace.spans.length === 0 ? (
-                <p className="muted">The API returned no spans for this run.</p>
-              ) : (
-                trace.spans.map((span) => (
-                  <SpanNode
-                    key={span.span_id}
-                    span={span}
-                    depth={0}
-                    expanded={expanded}
-                    selectedId={selectedId}
-                    maxDuration={maxDuration}
-                    onToggle={handleToggle}
-                    onSelect={setSelectedId}
-                  />
-                ))
-              )}
+          <>
+            <h3 className="section-title">Plan graph</h3>
+            <PlanGraphView
+              graph={graph}
+              rows={allRows}
+              selectedId={selectedId}
+              onSelect={selectSpan}
+            />
+
+            <div className="panel-header trace-toolbar">
+              <h3 className="section-title">Spans</h3>
+              <div className="view-switch" role="group" aria-label="Span view">
+                <button
+                  type="button"
+                  aria-pressed={activeView === "tree"}
+                  className={activeView === "tree" ? "active" : undefined}
+                  onClick={() => setActiveView("tree")}
+                >
+                  Tree
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={activeView === "timeline"}
+                  className={activeView === "timeline" ? "active" : undefined}
+                  onClick={() => setActiveView("timeline")}
+                >
+                  Timeline
+                </button>
+                <button type="button" onClick={expandAll}>
+                  Expand all
+                </button>
+                <button type="button" onClick={collapseAll}>
+                  Collapse all
+                </button>
+              </div>
             </div>
-            <aside className="trace-detail">
-              <SpanDetail span={selected} />
-            </aside>
-          </div>
+
+            <div
+              className={`trace-layout${activeView === "timeline" ? " timeline-layout" : ""}`}
+            >
+              <div className={activeView === "tree" ? "trace-tree" : "trace-timeline"}>
+                {allRows.length === 0 ? (
+                  <p className="muted">
+                    The API returned no spans for this run, so there is nothing to draw in either
+                    view.
+                  </p>
+                ) : activeView === "tree" ? (
+                  visibleRows.map((row) => (
+                    <TreeRow
+                      key={row.span.span_id}
+                      row={row}
+                      expanded={expanded}
+                      selectedId={selectedId}
+                      maxDuration={maxDuration}
+                      onToggle={handleToggle}
+                      onSelect={selectSpan}
+                    />
+                  ))
+                ) : (
+                  <>
+                    <div className="timeline-axis" aria-hidden="true">
+                      <span className="timeline-axis-label">span</span>
+                      <div className="timeline-track">
+                        {[0, 0.5, 1].map((fraction) => (
+                          <span
+                            key={fraction}
+                            className="timeline-tick"
+                            style={{
+                              left: `${fraction * 100}%`,
+                              transform:
+                                fraction === 0
+                                  ? "none"
+                                  : fraction === 1
+                                    ? "translateX(-100%)"
+                                    : "translateX(-50%)",
+                            }}
+                          >
+                            +{formatDuration(window.total * fraction)}
+                          </span>
+                        ))}
+                      </div>
+                      <span className="timeline-offset">start</span>
+                      <span className="timeline-duration">duration</span>
+                    </div>
+                    {visibleRows.map((row) => (
+                      <TimelineRow
+                        key={row.span.span_id}
+                        row={row}
+                        window={window}
+                        expanded={expanded}
+                        selectedId={selectedId}
+                        onToggle={handleToggle}
+                        onSelect={selectSpan}
+                      />
+                    ))}
+                  </>
+                )}
+                {visibleRows.length < allRows.length ? (
+                  <p className="muted timeline-hint">
+                    {allRows.length - visibleRows.length} span(s) are hidden by a collapsed parent.
+                    Expand a row to show them; the tree and the timeline share the same expansion
+                    state.
+                  </p>
+                ) : null}
+              </div>
+              <aside className="trace-detail">
+                <SpanDetail span={selected} />
+              </aside>
+            </div>
+          </>
         ) : null}
         <p className="links">
           <a href={`#/runs/${encodeURIComponent(runId)}?tenant=${encodeURIComponent(tenantId)}`}>

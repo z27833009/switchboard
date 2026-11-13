@@ -56,6 +56,7 @@ export default function App() {
             tenant={route.tenant}
             spanId={route.spanId}
             auditId={route.auditId}
+            view={route.view}
           />
         ) : null}
       </main>
