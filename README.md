@@ -8,7 +8,7 @@ Switchboard takes a user question, lets a supervisor decide whether to answer di
 
 The badge reports the CI gate. That gate replays recorded model output with the mock provider, so it measures the pipeline (parsing, plan validation, tool normalization, scoring), not the model. See [ADR 0008](docs/adr/0008-evaluation-strategy.md).
 
-> Status: **Phase 1 complete, and v1 is built through T2.18.** T2.01 to T2.15 and T2.17 to T2.18 are merged. T2.16 (optional `langgraph-visualizer` integration) was cancelled by the author on 2026-11-12. The semantic cache is implemented and measured; its false-hit rate is above the 2 percent target, so the demo tenants keep it disabled and the report says why. T2.12's comparison tool and all six LM Studio rows are committed; the six DeepSeek rows are `not run` because no `DEEPSEEK_API_KEY` is available. Every metric in the docs is a target until a report backs it.
+> Status: **Phase 1 complete, and v1 is built through T2.18.** T2.01 to T2.15 and T2.17 to T2.18 are merged. T2.16 (optional `langgraph-visualizer` integration) was cancelled by the author on 2026-11-12. The semantic cache is implemented and measured; its false-hit rate is above the 2 percent target, so the demo tenants keep it disabled and the report says why. T2.12's comparison tool and all six LM Studio rows are committed; the author deferred the six DeepSeek rows on 2026-11-13 because local LM Studio is enough for v1, so they remain `not run` and can be added later without code changes. Every metric in the docs is a target until a report backs it.
 
 ## Measured results
 
@@ -46,7 +46,7 @@ The six LM Studio rows were measured on 2026-11-12 (langgraph) and 2026-11-13 (a
 
 Per-suite reports: [routing langgraph](evals/reports/routing-lmstudio.md), [routing agent loop](evals/reports/routing-agent_loop-lmstudio.md), [tool call langgraph](evals/reports/toolcall-lmstudio.md), [tool call agent loop](evals/reports/toolcall-agent_loop-lmstudio.md), [rag langgraph](evals/reports/rag-lmstudio.md), [rag agent loop](evals/reports/rag-agent_loop-lmstudio.md). The agent-loop routing and tool-call rows score the first loop decision with the loop's full toolset; the suite does not execute tools, so a live loop can differ. Rag measures retrieval, which both adapters share, so its two rows run the same strategy code and differ only by run-to-run timing. The three langgraph reports predate the price table and keep a null cost; the comparison applies the table's explicit zero row and labels them "no API cost" without changing those files.
 
-The six DeepSeek rows (routing, toolcall and rag for both orchestrators) are **pending**: this environment has no `DEEPSEEK_API_KEY`, so the comparison marks them `not run: DEEPSEEK_API_KEY missing`. DeepSeek is configured in `config/providers.yaml` with verified prices in `config/prices.yaml`, but it has not been live-tested. With a key in `.env`, the exact commands are:
+The six DeepSeek rows (routing, toolcall and rag for both orchestrators) are **deferred**: the author decided on 2026-11-13 that local LM Studio is enough for v1, so this environment has no `DEEPSEEK_API_KEY` and the comparison marks them `not run: DEEPSEEK_API_KEY missing`. The rows can be added later without code changes. DeepSeek is configured in `config/providers.yaml` with verified prices in `config/prices.yaml`, but it has not been live-tested. With a key in `.env`, the exact commands are:
 
 ```bash
 uv run --env-file .env switchboard eval run --suite routing --provider deepseek --confirm-cost
@@ -108,6 +108,8 @@ The last command must list `qwen3-8b` and `bge-m3`.
 LM Studio defaults to port 1234. On the development machine TCP 1234 falls inside a Windows excluded port range (1210 to 1309), so the compose file, `.env.example` and the committed reports all use 18080. Run `netsh interface ipv4 show excludedportrange protocol=tcp` to see the ranges on your machine. Use 18080 for the documented path; changing it means editing `docker-compose.yml`, because the `api` service reaches the host as `host.docker.internal:18080`.
 
 Keep `--parallel 1`. The committed reports were measured with one slot at context 8192. On the development machine, the same supervisor call took 28 s with four parallel slots loaded instead of about 2.3 s with one.
+
+Context 8192 leaves very little VRAM free on an 8 GB laptop once desktop apps hold memory. If a supervisor call takes far longer than the reports (for example more than 20 s), check free VRAM and try `lms load qwen3-8b --gpu max -c 6144 --parallel 1 --identifier qwen3-8b -y`. On 2026-11-13 this kept the model out of paging and a 64-token probe fell from about 30 s to 3.6 s; 6144 is enough for the demo prompts. The committed numbers were measured at 8192 and were not re-measured at 6144.
 
 ### 4. Build and start the stack
 

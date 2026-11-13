@@ -57,7 +57,7 @@ The lookup runs before the supervisor, keyed by tenant, normalized query, embedd
 ## 14. Known limitations
 
 - The two routing rows measure different things on one local 7B model.
-- Six DeepSeek combinations are not run (no key).
+- Six DeepSeek combinations are deferred by the author (local LM Studio is enough for v1; no key was used).
 - `numbers_grounded` rejects some correct derived numbers; one measured false positive (g013).
 - The UI is functional; the visual pass is v2, and T2.16 was cancelled.
 - The semantic cache is built, but its measured false-hit rate is above target (0.04 at the chosen 0.94, target 0.02), so the demo tenants keep it off; the report shows the sweep.
@@ -73,6 +73,6 @@ The lookup runs before the supervisor, keyed by tenant, normalized query, embedd
 6. Stable prefix for caching; versioned price table.
 7. Frozen datasets; the mock gate measures the pipeline; 0.05 drop; gate 0.9667.
 8. OTel with PostgreSQL default and a Jaeger switch; hybrid retrieval, recall@5 1.0000, MRR 0.8521.
-9. Limits: DeepSeek pending, one derived-number false positive, v2 visual pass, T2.16 cut, cache off because its measured false-hit rate is above target.
+9. Limits: DeepSeek deferred, one derived-number false positive, v2 visual pass, T2.16 cut, cache off because its measured false-hit rate is above target.
 
-Measured: the six reports above. Target, not measured: DeepSeek, p50 under 8 s for data+docs on a cloud model, and startup under 15 minutes. Local targets 0.75 routing and 0.60 tool call are exceeded. The cache false-hit target is not met at the chosen threshold; the measured sweep is in the cache report.
+Measured: the six reports above and startup under 15 minutes (T1.18). Deferred, not measured: DeepSeek and p50 under 8 s for data+docs on a cloud model. Local targets 0.75 routing and 0.60 tool call are exceeded. The cache false-hit target is not met at the chosen threshold; the measured sweep is in the cache report.

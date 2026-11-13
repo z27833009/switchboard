@@ -11,7 +11,7 @@ Status was reconciled with the code on 2026-11-13. Every record is `accepted`; A
 | [0003](0003-postgresql-for-vectors-cache-and-traces.md) | PostgreSQL for vectors, cache and traces; no Redis in Phase 1 | accepted, 2026-11-13 |
 | [0004](0004-opentelemetry-with-postgres-exporter.md) | OpenTelemetry API with a PostgreSQL exporter | accepted, 2026-11-13, amended 2026-11-12 and 2026-11-13 |
 | [0005](0005-mcp-tools-read-only-parameterized.md) | MCP tool server in Python with read-only parameterized tools | accepted, 2026-11-13, amended 2026-11-12 |
-| [0006](0006-openai-compatible-provider-first.md) | OpenAI-compatible adapter as the first model provider, local models first | accepted, 2026-11-13, amended 2026-11-12 (DeepSeek pending) |
+| [0006](0006-openai-compatible-provider-first.md) | OpenAI-compatible adapter as the first model provider, local models first | accepted, 2026-11-13, amended 2026-11-13 (DeepSeek deferred) |
 | [0007](0007-semantic-cache-scoped-by-route-and-tenant.md) | Semantic cache before routing, scoped by tenant and index version | accepted, 2026-11-13, amended 2026-11-12 (measured false-hit above target, demo off) |
 | [0008](0008-evaluation-strategy.md) | Evaluation strategy: versioned datasets, mock provider in CI, honest reporting | accepted, 2026-11-13, amended 2026-11-12 |
 | [0009](0009-license-polyform-noncommercial.md) | License: PolyForm Noncommercial 1.0.0 | accepted, 2026-11-13 |
