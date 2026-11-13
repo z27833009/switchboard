@@ -822,7 +822,16 @@ def render_markdown(report: dict[str, Any]) -> str:
             "run agents. A live loop can call more tools on later steps, so a whole run's "
             "plan is a superset of the first decision's: with exact-set scoring this number "
             "can land above or below the live loop's plan accuracy. It measures the first "
-            "decision and is not a substitute for the mechanism comparison in T2.12."
+            "decision; the comparison report puts it beside the supervisor mode."
+        )
+        lines.append("")
+    elif report["suite"] == "toolcall" and report.get("orchestrator") == "agent_loop":
+        lines.append(
+            "Agent loop mode: each case sends the first step of the agent loop (design.md "
+            "section 6.9), the production loop prompt and the tools the adapter exposes (the "
+            "default tenant's read-only tools plus `result_page@1` and `search_docs@1`), and "
+            "scores the first tool call. The suite does not execute the tool or continue the "
+            "loop, so a live loop can choose a different or additional tool on a later step."
         )
         lines.append("")
 
@@ -888,6 +897,16 @@ def render_markdown(report: dict[str, Any]) -> str:
             "pay for that cost."
         )
         lines.append("")
+        if report.get("orchestrator") not in {None, "langgraph"}:
+            lines.append(
+                f"Orchestrator dimension: this report is labeled "
+                f"`{report['orchestrator']}` for the provider by orchestrator comparison. "
+                "Retrieval is orchestration independent (both adapters share the retriever "
+                "and the rewrite helper), so the strategies and code path are identical to "
+                "the langgraph report; any difference between the two runs is run-to-run "
+                "timing, not a mechanism difference."
+            )
+            lines.append("")
 
     if report["suite"] == "gate":
         lines.append("## Checks")
@@ -978,17 +997,26 @@ def render_markdown(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def report_stem(report: dict[str, Any]) -> str:
+def report_file_stem(suite: str, provider: str, orchestrator: str | None) -> str:
     """File name stem: ``<suite>-<provider>``, plus the orchestrator when set.
 
     The LangGraph reports keep the names committed before T2.11
     (``routing-mock``), so a second orchestrator gets its own file instead of
-    overwriting the baseline report (design.md section 20.2).
+    overwriting the baseline report (design.md section 20.2). The compare
+    command locates reports with the same rule, so a reader and a writer cannot
+    disagree about a file name.
     """
-    orchestrator = report.get("orchestrator")
     if isinstance(orchestrator, str) and orchestrator and orchestrator != "langgraph":
-        return f"{report['suite']}-{orchestrator}-{report['provider']}"
-    return f"{report['suite']}-{report['provider']}"
+        return f"{suite}-{orchestrator}-{provider}"
+    return f"{suite}-{provider}"
+
+
+def report_stem(report: dict[str, Any]) -> str:
+    return report_file_stem(
+        str(report["suite"]),
+        str(report["provider"]),
+        report.get("orchestrator"),
+    )
 
 
 def write_report(report: dict[str, Any], output_dir: Path) -> tuple[Path, Path]:
@@ -1012,6 +1040,7 @@ __all__ = [
     "latency_summary",
     "percentile",
     "render_markdown",
+    "report_file_stem",
     "report_stem",
     "write_report",
 ]

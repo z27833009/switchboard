@@ -21,6 +21,39 @@ Dataset v1, qwen3-8b on LM Studio, full default split with no limit, run on 2026
 
 Reports: [routing](evals/reports/routing-lmstudio.md), [tool call](evals/reports/toolcall-lmstudio.md). Latency is one model call per case, not an end-to-end run. The LM Studio runs have no API cost: `config/prices.yaml` records zero for the local provider, and a new run or report computes its USD cost from that table, including cached input tokens at the cached rate. The committed reports predate the price table and keep a null cost rather than a backfilled number. The mock reports under [evals/reports/](evals/reports/) replay recorded model output, so the CI gate measures the pipeline, not the model.
 
+## Provider and orchestrator comparison
+
+`switchboard eval compare` merges the per-suite JSON reports into one table with provider and orchestrator as dimensions. The committed table is [evals/reports/compare.md](evals/reports/compare.md) (JSON: [compare.json](evals/reports/compare.json)); it links every per-suite report and is written with:
+
+```bash
+uv run switchboard eval compare --not-run-reason "deepseek=DEEPSEEK_API_KEY missing"
+```
+
+Measured on LM Studio 1.2.0 with qwen3-8b on 2026-11-13, full test split of dataset v1 (routing, toolcall) and v3 (rag). These rows have no API cost.
+
+| Suite | Orchestrator | Score | p50 / p95 | Tokens per 100 queries |
+| --- | --- | --- | --- | --- |
+| Routing | langgraph | plan accuracy 0.9231, Jaccard 0.9359 | 4466.0 / 5551.7 ms | 54156.4 |
+| Routing | agent_loop | plan accuracy 0.6410, Jaccard 0.7564 | 1132.0 / 1870.2 ms | 131517.9 |
+| Tool call | langgraph | both accuracy 0.9500 | 3407.5 / 3747.8 ms | 88115.0 |
+| Tool call | agent_loop | both accuracy 0.9250 | 1296.5 / 1501.4 ms | 121950.0 |
+| Rag | langgraph | recall@5 1.0000, MRR 0.8521 | 606.0 / 1218.8 ms | 19345.0 |
+| Rag | agent_loop | recall@5 1.0000, MRR 0.8521 | 595.0 / 1157.3 ms | 19345.0 |
+
+Per-suite reports: [routing langgraph](evals/reports/routing-lmstudio.md), [routing agent loop](evals/reports/routing-agent_loop-lmstudio.md), [tool call langgraph](evals/reports/toolcall-lmstudio.md), [tool call agent loop](evals/reports/toolcall-agent_loop-lmstudio.md), [rag langgraph](evals/reports/rag-lmstudio.md), [rag agent loop](evals/reports/rag-agent_loop-lmstudio.md). The agent-loop routing and tool-call rows score the first loop decision with the loop's full toolset; the suite does not execute tools, so a live loop can differ. Rag measures retrieval, which both adapters share, so its two rows run the same strategy code and differ only by run-to-run timing. The three langgraph reports predate the price table and keep a null cost; the comparison applies the table's explicit zero row and labels them "no API cost" without changing those files.
+
+The six DeepSeek rows (routing, toolcall and rag for both orchestrators) are **pending**: this environment has no `DEEPSEEK_API_KEY`, so the comparison marks them `not run: DEEPSEEK_API_KEY missing`. DeepSeek is configured in `config/providers.yaml` with verified prices in `config/prices.yaml`, but it has not been live-tested. With a key in `.env`, the exact commands are:
+
+```bash
+uv run --env-file .env switchboard eval run --suite routing --provider deepseek --confirm-cost
+uv run --env-file .env switchboard eval run --suite routing --provider deepseek --orchestrator agent_loop --confirm-cost --concurrency 1
+uv run --env-file .env switchboard eval run --suite toolcall --provider deepseek --confirm-cost --concurrency 1
+uv run --env-file .env switchboard eval run --suite toolcall --provider deepseek --orchestrator agent_loop --confirm-cost --concurrency 1
+uv run --env-file .env switchboard eval run --suite rag --provider deepseek --dataset-version v3 --confirm-cost --concurrency 1
+uv run --env-file .env switchboard eval run --suite rag --provider deepseek --orchestrator agent_loop --dataset-version v3 --confirm-cost --concurrency 1
+uv run --env-file .env switchboard eval compare
+```
+
 ## Quick start
 
 This path is tested from a fresh clone on Windows 11 with Docker Desktop and LM Studio on the host. It starts four containers, loads the 1000-order sample and ingests five synthetic policy documents. The five minute tour is in [docs/demo.md](docs/demo.md).

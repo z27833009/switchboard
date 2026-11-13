@@ -28,6 +28,18 @@ from switchboard.data.olist import (
     load_directory,
     read_expected,
 )
+from switchboard.eval.compare import (
+    DEFAULT_COMPARE_NAME,
+    DEFAULT_COMPARE_REPORTS_DIR,
+    DEFAULT_ORCHESTRATORS,
+    DEFAULT_PRICES_PATH,
+    DEFAULT_PROVIDERS,
+    DEFAULT_SUITES,
+    build_comparison,
+    load_zero_price_providers,
+    parse_not_run_reasons,
+    write_comparison,
+)
 from switchboard.eval.cost_guard import estimate_eval_cost
 from switchboard.eval.datasets import dataset_path
 from switchboard.eval.gate import DEFAULT_MAX_DROP, default_report_path, evaluate_gate
@@ -293,7 +305,10 @@ def eval_run(
         str,
         typer.Option(
             "--orchestrator",
-            help="Orchestrator dimension; langgraph (default) or agent_loop for routing.",
+            help=(
+                "Orchestrator dimension; langgraph (default) or agent_loop for routing, "
+                "toolcall and rag."
+            ),
         ),
     ] = "langgraph",
     limit: Annotated[
@@ -362,10 +377,10 @@ def eval_run(
                 f"unknown orchestrator {orchestrator!r}; "
                 f"registered: {', '.join(orchestrators) or 'none'}"
             )
-        if orchestrator != "langgraph" and suite != "routing":
+        if orchestrator != "langgraph" and suite not in {"routing", "toolcall", "rag"}:
             raise ConfigError(
-                f"the {suite!r} suite scores one dimension only; "
-                f"--orchestrator {orchestrator!r} is supported for routing"
+                f"the {suite!r} suite has no orchestrator dimension; "
+                f"--orchestrator {orchestrator!r} is supported for routing, toolcall and rag"
             )
 
         manifest_tools = load_tool_specs(manifest)
@@ -490,6 +505,96 @@ def eval_run(
         f"latency p50 {report['latency_ms']['p50']} ms, p95 {report['latency_ms']['p95']} ms"
     )
     typer.echo(f"wall time {elapsed:.2f} s")
+    typer.echo(f"wrote {markdown_path}")
+    typer.echo(f"wrote {json_path}")
+
+
+@eval_app.command("compare")
+def eval_compare(
+    reports_dir: Annotated[
+        Path,
+        typer.Option("--reports-dir", help="Directory holding the per-suite JSON reports."),
+    ] = DEFAULT_COMPARE_REPORTS_DIR,
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir", help="Directory for the comparison markdown and JSON."),
+    ] = DEFAULT_COMPARE_REPORTS_DIR,
+    name: Annotated[
+        str, typer.Option("--name", help="File name stem for the comparison output.")
+    ] = DEFAULT_COMPARE_NAME,
+    prices: Annotated[
+        Path,
+        typer.Option(
+            "--prices",
+            help="Price table used only to label a report written before it existed.",
+        ),
+    ] = DEFAULT_PRICES_PATH,
+    suite: Annotated[
+        list[str] | None,
+        typer.Option("--suite", help="Suite to include; repeat for several."),
+    ] = None,
+    provider: Annotated[
+        list[str] | None,
+        typer.Option("--provider", help="Provider dimension; repeat for several."),
+    ] = None,
+    orchestrator: Annotated[
+        list[str] | None,
+        typer.Option("--orchestrator", help="Orchestrator dimension; repeat for several."),
+    ] = None,
+    not_run_reason: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--not-run-reason",
+            help="provider=reason for a combination with no report, for example "
+            "'deepseek=DEEPSEEK_API_KEY missing'.",
+        ),
+    ] = None,
+) -> None:
+    """Merge per-suite reports into one provider by orchestrator table (AC-13a).
+
+    The command only reads reports and writes ``<name>.md`` and ``<name>.json``;
+    it never rewrites a per-suite report or a baseline. A combination with no
+    report is marked ``not run`` and can carry the reason passed with
+    ``--not-run-reason``, so a pending paid provider is visible rather than
+    silently absent.
+    """
+    try:
+        if not name.strip() or Path(name).name != name:
+            raise ConfigError("--name must be a plain file name without a directory")
+        suites = tuple(dict.fromkeys(suite or DEFAULT_SUITES))
+        providers = tuple(dict.fromkeys(provider or DEFAULT_PROVIDERS))
+        orchestrators = tuple(dict.fromkeys(orchestrator or DEFAULT_ORCHESTRATORS))
+        if not suites or not providers or not orchestrators:
+            raise ConfigError("--suite, --provider and --orchestrator must not be empty")
+        known = Registry().names(ORCHESTRATORS)
+        unknown = [value for value in orchestrators if value not in known]
+        if unknown:
+            raise ConfigError(
+                f"unknown orchestrator {unknown[0]!r}; registered: {', '.join(known) or 'none'}"
+            )
+        comparison = build_comparison(
+            reports_dir=reports_dir,
+            suites=suites,
+            providers=providers,
+            orchestrators=orchestrators,
+            not_run_reasons=parse_not_run_reasons(not_run_reason),
+            zero_price_providers=load_zero_price_providers(prices),
+        )
+        markdown_path, json_path = write_comparison(comparison, output_dir, name=name.strip())
+    except SwitchboardError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    typer.echo(
+        f"comparison suites {', '.join(suites)}; providers {', '.join(providers)}; "
+        f"orchestrators {', '.join(orchestrators)}"
+    )
+    typer.echo(
+        f"measured {comparison['measured']} of {len(comparison['rows'])} combinations; "
+        f"not run {comparison['not_run']}; smoke {comparison['smoke']}"
+    )
+    for warning in comparison["warnings"]:
+        typer.echo(f"warning: {warning}")
     typer.echo(f"wrote {markdown_path}")
     typer.echo(f"wrote {json_path}")
 

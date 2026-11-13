@@ -17,7 +17,7 @@ the agent-loop mode stops after the first decision. A live loop can call more
 tools on later steps, so the plan a whole run would earn is a superset of the
 first decision's tools: with exact-set scoring the first-decision number can
 land above or below the live loop's. The report states which measurement it is,
-and T2.12 makes the mechanism comparison.
+and the comparison report puts it beside the supervisor mode.
 
 A dataset version freezes the agent universe it measures: the supervisor mode
 offers only agents named in that version's labels. A newly registered agent
@@ -34,9 +34,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from switchboard.adapters.tools.platform import search_docs_spec
 from switchboard.agent_loop import derive_plan, loop_request
-from switchboard.agents.results import result_page_spec
 from switchboard.core.errors import ConfigError, PlanValidationError
 from switchboard.core.models import (
     AgentSpec,
@@ -53,6 +51,7 @@ from switchboard.core.validation import validate_plan
 from switchboard.eval.datasets import DEFAULT_DATASET_ROOT, load_cases
 from switchboard.eval.scorers.routing import score_routing
 from switchboard.eval.suite import SuiteContext
+from switchboard.eval.suites.loop_tools import agent_loop_tool_specs
 from switchboard.routing import SUPERVISOR_SYSTEM, plan_schema, supervisor_prompt
 
 SUPERVISOR_MODE = "langgraph"
@@ -140,10 +139,10 @@ class RoutingSuite:
 
     def _agent_loop_tools(self) -> list[ToolSpec]:
         """The tools the first loop step offers (design.md sections 6.9, 7.5)."""
-        tools = [*self._tenant_tools, result_page_spec()]
-        if self._retriever_configured:
-            tools.append(search_docs_spec())
-        return sorted(tools, key=lambda spec: spec.wire_name)
+        return agent_loop_tool_specs(
+            self._tenant_tools,
+            retriever_configured=self._retriever_configured,
+        )
 
     async def execute(self, case: EvalCase, deps: EvalDeps) -> EvalOutcome:
         if self._orchestrator == AGENT_LOOP_MODE:

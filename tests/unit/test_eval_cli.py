@@ -282,14 +282,15 @@ def test_an_unknown_orchestrator_is_refused_before_any_case(
     assert "agent_loop" in result.output
 
 
-def test_the_agent_loop_dimension_is_routing_only_for_now(
+def test_the_deterministic_suites_have_no_orchestrator_dimension(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(REPO_ROOT)
-    result = invoke_orchestrator(tmp_path, "toolcall", "agent_loop")
+    result = invoke_orchestrator(tmp_path, "gate", "agent_loop")
 
     assert result.exit_code == 1
-    assert "is supported for routing" in result.output
+    assert "has no orchestrator dimension" in result.output
+    assert "routing, toolcall and rag" in result.output
 
 
 def test_the_routing_suite_accepts_the_agent_loop(

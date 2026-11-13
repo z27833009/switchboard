@@ -261,6 +261,67 @@ def test_routing_suite_rejects_an_unsupported_orchestrator() -> None:
         RoutingSuite(agent_specs=specs(), max_plan_size=3, orchestrator="sequential")
 
 
+async def test_toolcall_suite_agent_loop_sends_the_first_loop_step() -> None:
+    tools = load_tool_specs(REPO_ROOT / "mcp_servers" / "olist" / "manifest.yaml")
+    suite = ToolCallSuite(
+        tools=tools,
+        orchestrator="agent_loop",
+        tenant_tools=[spec for spec in tools if spec.name in {"orders_summary", "orders_late"}],
+    )
+    arguments = {"date_from": "2017-04-01", "date_to": "2017-04-30", "status": "invoiced"}
+    provider = ScriptedProvider(
+        response(
+            tool_calls=[ToolCall(name="orders_summary@1", arguments=arguments, call_id="call-1")]
+        )
+    )
+    case = EvalCase(
+        id="t001",
+        query="Count the invoiced orders in April 2017.",
+        expected_tool="orders_summary@1",
+        expected_args=arguments,
+    )
+
+    outcome = await suite.execute(case, EvalDeps(provider=provider))
+
+    assert outcome.details["mode"] == "agent_loop"
+    assert outcome.tool_calls == ["orders_summary@1"]
+    assert suite.score(case, outcome).passed is True
+    request = provider.requests[0]
+    assert request.messages[0].content == AGENT_LOOP_SYSTEM
+    assert request.metadata["purpose"] == "agent.agent_loop"
+    wire_names = [tool.wire_name for tool in request.tools]
+    assert "orders_summary@1" in wire_names
+    assert "result_page@1" in wire_names
+    assert "search_docs@1" in wire_names
+    assert wire_names == sorted(wire_names)
+
+
+async def test_toolcall_suite_agent_loop_scores_a_docs_call_as_a_miss() -> None:
+    tools = load_tool_specs(REPO_ROOT / "mcp_servers" / "olist" / "manifest.yaml")
+    suite = ToolCallSuite(tools=tools, orchestrator="agent_loop", tenant_tools=tools)
+    provider = ScriptedProvider(
+        response(tool_calls=[ToolCall(name="search_docs@1", arguments={}, call_id="c1")])
+    )
+    case = EvalCase(
+        id="t001",
+        query="Count orders.",
+        expected_tool="orders_summary@1",
+        expected_args={},
+    )
+
+    outcome = await suite.execute(case, EvalDeps(provider=provider))
+
+    score = suite.score(case, outcome)
+    assert score.metrics["tool_name_match"] == 0.0
+    assert score.passed is False
+
+
+def test_toolcall_suite_rejects_an_unsupported_orchestrator() -> None:
+    tools = load_tool_specs(REPO_ROOT / "mcp_servers" / "olist" / "manifest.yaml")
+    with pytest.raises(ConfigError, match="cannot score"):
+        ToolCallSuite(tools=tools, orchestrator="sequential")
+
+
 async def test_toolcall_suite_sends_tools_and_scores_the_first_call() -> None:
     tools = load_tool_specs(REPO_ROOT / "mcp_servers" / "olist" / "manifest.yaml")
     suite = ToolCallSuite(tools=tools)
