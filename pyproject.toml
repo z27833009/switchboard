@@ -50,6 +50,9 @@ mcp = "switchboard.adapters.tools.mcp_client:McpToolSource"
 [project.entry-points."switchboard.retrievers"]
 pgvector = "switchboard.adapters.retrievers.pgvector:PgVectorRetriever"
 
+[project.entry-points."switchboard.caches"]
+none = "switchboard.adapters.cache.none:NoCache"
+
 [project.entry-points."switchboard.agents"]
 direct = "switchboard.agents.direct:DirectAgent"
 docs = "switchboard.agents.docs:DocsAgent"
