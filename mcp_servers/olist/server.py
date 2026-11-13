@@ -1,9 +1,12 @@
 """Olist MCP server (T1.07).
 
-Run with ``python -m mcp_servers.olist.server``. It exposes five read-only
-tools over streamable HTTP, verifies the signed run token on every call, applies
-the tenant allowlist and seller filter from server-side config, and writes an
-audit row before returning (design.md sections 7.1 to 7.4).
+Run with ``python -m mcp_servers.olist.server``. It exposes six read-only tools
+over streamable HTTP, verifies the signed run token on every call, applies the
+tenant allowlist and seller filter from server-side config, and writes an audit
+row before returning (design.md sections 7.1 to 7.4). Five tools are the fixed
+aggregates and lookups; the sixth, ``query_readonly_sql@1``, accepts one
+validated SELECT over ``olist.sql_order_facts`` and is hidden from a model until
+a tenant allowlist names it (T3.05).
 """
 
 from __future__ import annotations
@@ -15,13 +18,14 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import asyncpg
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from opentelemetry import trace
 from opentelemetry.trace import SpanKind
+from pydantic import Field
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
@@ -40,6 +44,7 @@ from mcp_servers.olist.settings import (
     load_manifest,
     load_tenants,
 )
+from mcp_servers.olist.sql_guard import MAX_SQL_LENGTH, SqlValidationError, validate_readonly_sql
 from switchboard.tracing import (
     TracingHandle,
     add_tool_result_event,
@@ -431,6 +436,33 @@ async def describe_schema(ctx: Context[Any, Any]) -> dict[str, Any]:
         "describe_schema@1",
         {},
         lambda connection, _: db.describe_schema(connection),
+    )
+
+
+@mcp.tool(
+    name="query_readonly_sql@1",
+    description=MANIFEST["query_readonly_sql@1"].description,
+    meta=tool_meta("query_readonly_sql@1"),
+)
+async def query_readonly_sql(
+    ctx: Context[Any, Any],
+    sql: Annotated[str, Field(min_length=1, max_length=MAX_SQL_LENGTH)],
+) -> dict[str, Any]:
+    # The guard is the boundary for model-written SQL: it runs before the tool
+    # opens a connection, so a refused statement never reads a row. The tenant
+    # scope is not an argument; the server sets it from the signed token's
+    # tenant (db.query_readonly_sql, design.md section 7.1). FastMCP only
+    # forwards a ToolError message to the model, so the reason is raised that
+    # way rather than as a bare exception the transport would mask.
+    try:
+        statement = validate_readonly_sql(sql)
+    except SqlValidationError as exc:
+        raise ToolError(f"sql rejected: {exc}") from exc
+    return await _call_tool(
+        ctx,
+        "query_readonly_sql@1",
+        {"sql": sql},
+        lambda connection, tenant: db.query_readonly_sql(connection, tenant, statement),
     )
 
 

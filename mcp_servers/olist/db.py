@@ -423,3 +423,47 @@ async def describe_schema(connection: asyncpg.Connection) -> ToolOutcome:
         rows=rows,
         total_rows=len(rows),
     )
+
+
+# The fact view reads this transaction-local setting (design.md sections 7.1 and
+# 11). An empty value means every seller, so the server always sets it and never
+# relies on an unset default.
+SQL_SELLER_SETTING = "switchboard.seller_ids"
+
+
+def seller_scope(tenant: TenantSettings) -> str:
+    return ",".join(tenant.seller_ids or ())
+
+
+async def query_readonly_sql(
+    connection: asyncpg.Connection,
+    tenant: TenantSettings,
+    statement: str,
+) -> ToolOutcome:
+    """Run one validated SELECT over ``olist.sql_order_facts``.
+
+    ``statement`` must be the output of ``sql_guard.validate_readonly_sql``: the
+    guard, not this function, is the boundary that keeps the SQL a read of the
+    one view. The seller filter is applied first, on this transaction, so it
+    cannot be supplied or overridden by the model's arguments (ADR 0014).
+    """
+    await connection.execute(
+        f"SELECT set_config('{SQL_SELLER_SETTING}', $1, true)",
+        seller_scope(tenant),
+    )
+    total = await connection.fetchval(f"SELECT count(*)::int FROM ({statement}) AS guarded_query")
+    records = await connection.fetch(
+        f"SELECT * FROM ({statement}) AS guarded_query LIMIT {ROW_CAP}"
+    )
+    rows = rows_from(records)
+    total_rows = int(total or 0)
+    return ToolOutcome(
+        summary={
+            "rows_returned": len(rows),
+            "row_cap": ROW_CAP,
+            "truncated": total_rows > len(rows),
+            "columns": list(records[0].keys()) if records else [],
+        },
+        rows=rows,
+        total_rows=total_rows,
+    )

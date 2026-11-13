@@ -314,10 +314,15 @@ async def test_known_tenant_returns_the_expected_shape(
         "order_lookup@1",
         "orders_late@1",
         "orders_summary@1",
+        "query_readonly_sql@1",
         "top_products@1",
     }
     assert tools["orders_summary@1"]["allowed"] is True
     assert tools["order_lookup@1"]["allowed"] is False
+    # The free-form SQL tool ships disabled: it is listed but never allowed.
+    assert tools["query_readonly_sql@1"]["allowed"] is False
+    assert tools["query_readonly_sql@1"]["risk"] == "read"
+    assert tools["query_readonly_sql@1"]["tenant_scoped"] is True
     assert tools["orders_summary@1"]["risk"] == "read"
     assert tools["orders_summary@1"]["tenant_scoped"] is True
     assert tools["describe_schema@1"]["tenant_scoped"] is False

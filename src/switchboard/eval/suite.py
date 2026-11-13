@@ -38,8 +38,9 @@ class SuiteContext:
     # uses the platform embedder (bge-m3 on LM Studio).
     provider: str = "mock"
     # The default tenant's read-only tool specs, which the routing and toolcall
-    # suites offer in agent-loop mode. The MCP source filters by tenant at run
-    # time; the eval has no run context, so the CLI passes the filtered list.
+    # suites offer (agent-loop mode, and the toolcall suite's data prompt). The
+    # MCP source filters by tenant at run time; the eval has no run context, so
+    # the CLI passes the filtered list.
     tenant_tools: list[ToolSpec] = field(default_factory=list)
     # search_docs@1 is a platform tool that only exists when a retriever is
     # configured, so the agent-loop prompt must not offer it otherwise.

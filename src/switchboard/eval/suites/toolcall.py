@@ -1,12 +1,14 @@
 """Toolcall suite: one data-agent completion per case, scored, tools not run.
 
 The langgraph mode (the default, unchanged) uses the data agent's stable prefix
-and exactly the five Olist tool specs from the manifest, sorted by wire name the
-way ``DataAgent`` sorts them. The agent_loop mode sends the first step of the
-agent loop instead: the production loop prompt and the tools the adapter exposes
-(the tenant's read-only tools plus ``result_page@1`` and ``search_docs@1``), and
-scores the first tool call. Only the model's tool call is inspected; no database
-or MCP server is touched, and the loop is not continued.
+and the Olist tool specs the demo tenant may call, sorted by wire name the way
+``DataAgent`` sorts them. That is five tools in this build: the free-form
+``query_readonly_sql@1`` is disabled by default and a live ``list_tools`` hides
+it, so the suite does not offer it either (T3.05). The agent_loop mode sends the
+first step of the agent loop instead: the production loop prompt and the tools
+the adapter exposes (the tenant's read-only tools plus ``result_page@1`` and
+``search_docs@1``), and scores the first tool call. Only the model's tool call is
+inspected; no database or MCP server is touched, and the loop is not continued.
 """
 
 from __future__ import annotations
@@ -90,7 +92,11 @@ class ToolCallSuite:
     async def execute(self, case: EvalCase, deps: EvalDeps) -> EvalOutcome:
         if self._orchestrator == AGENT_LOOP_MODE:
             return await self._execute_agent_loop(case, deps)
-        response = await deps.provider.complete(build_toolcall_request(case.query, self._tools))
+        # A live data agent only sees the tenant's tools (the MCP source filters
+        # list_tools). The eval follows that filter when the CLI supplies it, so a
+        # manifest tool that no tenant allows stays out of the prompt.
+        tools = self._tenant_tools or self._tools
+        response = await deps.provider.complete(build_toolcall_request(case.query, tools))
         return _outcome(case, response, {"mode": SUPERVISOR_MODE})
 
     async def _execute_agent_loop(self, case: EvalCase, deps: EvalDeps) -> EvalOutcome:

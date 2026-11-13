@@ -3,7 +3,10 @@
 The nine source files are public data, not part of the package. The command
 ``switchboard data load-olist <dir>`` is a development tool that connects with
 the bootstrap database user because the application role has no access to the
-``olist`` schema (design.md section 14).
+``olist`` schema (design.md section 14). After a successful load it re-applies
+``docker/postgres/init/07-sql-tool.sql`` so the read-only fact view for
+``query_readonly_sql@1`` exists on a fresh volume, where the entrypoint ran that
+file before the tables did.
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ import asyncpg
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCHEMA_SQL = REPO_ROOT / "data" / "olist" / "schema.sql"
+SQL_TOOL_SQL = REPO_ROOT / "docker" / "postgres" / "init" / "07-sql-tool.sql"
 DEFAULT_EXPECTED_COUNTS = REPO_ROOT / "data" / "olist" / "expected_counts.json"
 COPY_BATCH_SIZE = 50_000
 
@@ -226,6 +230,10 @@ async def load_directory(directory: Path, database_url: str) -> dict[str, int]:
         for table in TABLES:
             value = await connection.fetchval(f"SELECT count(*) FROM olist.{table.name}")
             counts[table.name] = int(value or 0)
+        # The fact view for query_readonly_sql@1 reads these tables. A fresh
+        # volume runs 07-sql-tool.sql before they exist (it skips itself), so
+        # the load applies the idempotent migration again once the data is in.
+        await connection.execute(SQL_TOOL_SQL.read_text(encoding="utf-8"))
         return counts
     finally:
         await connection.close()

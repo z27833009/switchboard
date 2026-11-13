@@ -114,13 +114,14 @@ def test_datasets_load_with_the_expected_sizes_and_splits() -> None:
     assert all(case.expected_tool for case in toolcall)
 
 
-def test_manifest_has_the_five_olist_tools() -> None:
+def test_manifest_has_the_six_olist_tools() -> None:
     tools = load_tool_specs(REPO_ROOT / "mcp_servers" / "olist" / "manifest.yaml")
     assert [tool.wire_name for tool in tools] == [
         "describe_schema@1",
         "order_lookup@1",
         "orders_late@1",
         "orders_summary@1",
+        "query_readonly_sql@1",
         "top_products@1",
     ]
 
@@ -324,7 +325,10 @@ def test_toolcall_suite_rejects_an_unsupported_orchestrator() -> None:
 
 async def test_toolcall_suite_sends_tools_and_scores_the_first_call() -> None:
     tools = load_tool_specs(REPO_ROOT / "mcp_servers" / "olist" / "manifest.yaml")
-    suite = ToolCallSuite(tools=tools)
+    # The demo tenant does not allow the free-form SQL tool (T3.05), so a live
+    # data agent never sees it and the suite must not offer it either.
+    tenant_tools = [tool for tool in tools if tool.wire_name != "query_readonly_sql@1"]
+    suite = ToolCallSuite(tools=tools, tenant_tools=tenant_tools)
     arguments = {"date_from": "2017-04-01", "date_to": "2017-04-30", "status": "invoiced"}
     provider = ScriptedProvider(
         response(

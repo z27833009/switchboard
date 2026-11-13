@@ -172,6 +172,10 @@ def load_tenants(path: Path, manifest: Mapping[str, ToolDefinition]) -> dict[str
                     f"tenant {tenant_id!r} seller_ids must be null (all sellers) "
                     "or a non-empty list"
                 )
+            # The SQL fact view receives the scope as one comma-separated setting,
+            # so a comma inside an id would silently widen the filter.
+            if any("," in seller for seller in sellers):
+                raise ServerConfigError(f"tenant {tenant_id!r} seller_ids must not contain commas")
         else:
             sellers = []
 

@@ -234,7 +234,7 @@ Without this line the server lists the tool but the tenant allowlist hides it fr
 
 ### Verify it
 
-The unit test currently asserts exactly five tools. While the experiment is in the tree, add the new name to the expected set:
+The unit test currently asserts exactly six tools. While the experiment is in the tree, add the new name to the expected set:
 
 ```python
     assert set(MANIFEST) == {
@@ -243,11 +243,12 @@ The unit test currently asserts exactly five tools. While the experiment is in t
         "order_lookup@1",
         "top_products@1",
         "describe_schema@1",
+        "query_readonly_sql@1",
         "orders_by_state@1",
     }
 ```
 
-and change three assertions in `tests/unit/test_mcp_server.py`: `len(tools) == 5` becomes `len(tools) == 6` in `test_server_registers_exactly_the_manifest_tools`, and `len(tenants["default"].allowed_tools) == 5` becomes `== 6` in `test_tenants_carry_allowlists_and_seller_scope`, because the tenant config gained a tool. Rename the first test if you keep the tool for real.
+and change two assertions in `tests/unit/test_mcp_server.py`: `len(tools) == 6` becomes `len(tools) == 7` in `test_server_registers_exactly_the_manifest_tools`, and `len(tenants["default"].allowed_tools) == 5` becomes `== 6` in `test_tenants_carry_allowlists_and_seller_scope`, because the tenant config gained a tool. Rename the first test if you keep the tool for real.
 
 Then rebuild the two services that share the app image and check the manifest count:
 
@@ -257,9 +258,9 @@ docker compose up -d --build mcp-olist api
 curl -s http://localhost:8001/health
 ```
 
-Expected: the tests pass and `/health` reports `"tools":6`.
+Expected: the tests pass and `/health` reports `"tools":7`.
 
-For an end-to-end call with a real run token and an audit row, update the integration test in two places. Add the new name to the expected set in `test_lists_the_five_manifest_tools`, and add one line to the `calls` dictionary in `test_calls_every_tool_and_writes_audit_rows`:
+For an end-to-end call with a real run token and an audit row, update the integration test in two places. Add the new name to the expected set in `test_lists_the_six_manifest_tools`, and add one line to the `calls` dictionary in `test_calls_every_allowed_tool_and_writes_audit_rows`:
 
 ```python
             "orders_by_state@1": {"date_from": "2018-03-01", "date_to": "2018-03-31"},
@@ -284,4 +285,4 @@ git checkout -- mcp_servers/olist/manifest.yaml mcp_servers/olist/db.py \
 docker compose up -d --build mcp-olist api
 ```
 
-`/health` should report `"tools":5` again. This revert step is why the walkthrough can be run during a demo without committing a real new tool.
+`/health` should report `"tools":6` again. This revert step is why the walkthrough can be run during a demo without committing a real new tool.

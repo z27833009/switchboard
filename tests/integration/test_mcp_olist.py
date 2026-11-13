@@ -111,7 +111,7 @@ async def denied_unknown_count() -> int:
         await connection.close()
 
 
-async def test_lists_the_five_manifest_tools() -> None:
+async def test_lists_the_six_manifest_tools() -> None:
     token, _ = mint()
     async with mcp_session(token) as session:
         tools = await session.list_tools()
@@ -121,10 +121,13 @@ async def test_lists_the_five_manifest_tools() -> None:
         "order_lookup@1",
         "top_products@1",
         "describe_schema@1",
+        "query_readonly_sql@1",
     }
 
 
-async def test_calls_every_tool_and_writes_audit_rows() -> None:
+async def test_calls_every_allowed_tool_and_writes_audit_rows() -> None:
+    # The sixth manifest tool, query_readonly_sql@1, is disabled for the demo
+    # tenants; its denial is covered in tests/integration/test_sql_tool.py.
     token, run_id = mint()
     async with mcp_session(token) as session:
         calls: dict[str, dict[str, Any]] = {

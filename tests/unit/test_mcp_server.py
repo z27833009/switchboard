@@ -1,27 +1,41 @@
 """Manifest, tenant config, argument sanitising and tool registration."""
 
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
+from mcp.server.mcpserver.exceptions import ToolError
+from mcp_servers.olist import server
 from mcp_servers.olist.db import hash_args, redact_args
 from mcp_servers.olist.server import MANIFEST, mcp, sanitise_arguments
 from mcp_servers.olist.settings import ServerConfigError, load_manifest, load_tenants
+from mcp_servers.olist.sql_guard import MAX_SQL_LENGTH
 
 REPO = Path(__file__).resolve().parents[2]
 MANIFEST_FILE = REPO / "mcp_servers" / "olist" / "manifest.yaml"
 TENANTS_FILE = REPO / "config" / "tenants.yaml"
 
 
-def test_manifest_has_five_versioned_read_only_tools() -> None:
+def test_manifest_has_six_versioned_read_only_tools() -> None:
     assert set(MANIFEST) == {
         "orders_summary@1",
         "orders_late@1",
         "order_lookup@1",
         "top_products@1",
         "describe_schema@1",
+        "query_readonly_sql@1",
     }
     assert all(tool.input_schema["additionalProperties"] is False for tool in MANIFEST.values())
     assert all(tool.risk == "read" for tool in MANIFEST.values())
+
+
+def test_the_sql_tool_is_tenant_scoped_and_bounded() -> None:
+    tool = MANIFEST["query_readonly_sql@1"]
+    assert tool.tenant_scoped is True
+    sql = tool.input_schema["properties"]["sql"]
+    assert sql["type"] == "string"
+    assert sql["maxLength"] == MAX_SQL_LENGTH
+    assert "disabled by default" in tool.description.lower()
 
 
 def test_tenants_carry_allowlists_and_seller_scope() -> None:
@@ -35,6 +49,13 @@ def test_tenants_carry_allowlists_and_seller_scope() -> None:
     }
     assert tenants["seller_a"].ask_tools == frozenset()
     assert tenants["seller_a"].seller_ids == ("955fee9216a65b617aa5c0531780ce60",)
+
+
+def test_no_demo_tenant_allows_the_sql_tool() -> None:
+    tenants = load_tenants(TENANTS_FILE, MANIFEST)
+    for tenant_id, tenant in tenants.items():
+        assert "query_readonly_sql@1" not in tenant.allowed_tools, tenant_id
+        assert "query_readonly_sql@1" not in tenant.ask_tools, tenant_id
 
 
 def write_tenants(tmp_path: Path, body: str) -> Path:
@@ -143,7 +164,31 @@ def test_manifest_file_reloads_identically() -> None:
 async def test_server_registers_exactly_the_manifest_tools() -> None:
     tools = await mcp.list_tools()
     assert {tool.name for tool in tools} == set(MANIFEST)
-    assert len(tools) == 5
+    assert len(tools) == 6
+
+
+async def test_query_tool_refuses_sql_before_any_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The guard runs first: a refused statement never opens a connection."""
+
+    async def forbidden(*_: Any, **__: Any) -> dict[str, Any]:
+        raise AssertionError("dispatch must not run for a refused statement")
+
+    monkeypatch.setattr(server, "_call_tool", forbidden)
+    with pytest.raises(ToolError, match="only SELECT statements are allowed"):
+        await server.query_readonly_sql(cast(Any, object()), "DELETE FROM olist.orders")
+
+
+def test_seller_ids_may_not_contain_commas(tmp_path: Path) -> None:
+    path = write_tenants(
+        tmp_path,
+        """
+tenants:
+  default:
+    seller_ids: ["seller-1,seller-2"]
+""",
+    )
+    with pytest.raises(ServerConfigError, match="must not contain commas"):
+        load_tenants(path, MANIFEST)
 
 
 def test_identity_arguments_are_stripped() -> None:

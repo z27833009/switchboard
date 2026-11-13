@@ -91,3 +91,31 @@ tools:
       type: object
       properties: {}
       additionalProperties: false
+
+  # Free-form SQL is the one tool whose arguments are not a fixed shape, so it
+  # ships disabled: no demo tenant lists it in tools.allow, and list_tools hides
+  # it from the model. The server still registers it. A tenant opts in by naming
+  # this wire name (design.md section 7.1).
+  - name: query_readonly_sql
+    version: "1"
+    description: >-
+      Run one read-only SELECT over olist.sql_order_facts, one row per Olist
+      order item (order_id, order_item_id, seller_id, product_id, category,
+      price, freight_value, order_status, purchase_date, delivered_date,
+      estimated_date, days_late). Only that view is allowed, with one SELECT
+      statement and no DML, DDL, locking or SELECT INTO. Results are capped at
+      200 rows and scoped to the tenant's sellers. Disabled by default: the
+      tenant must allow it explicitly.
+    risk: read
+    tenant_scoped: true
+    sensitive_args: []
+    input_schema:
+      type: object
+      properties:
+        sql:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: One SELECT statement over olist.sql_order_facts.
+      required: [sql]
+      additionalProperties: false

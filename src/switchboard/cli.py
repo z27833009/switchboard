@@ -185,10 +185,12 @@ def _agent_specs(settings: Settings, registry: Registry) -> list[AgentSpec]:
 
 
 def _tenant_tool_specs(settings: Settings, tools: list[ToolSpec]) -> list[ToolSpec]:
-    """The default tenant's read-only tools, for the agent-loop routing mode.
+    """The default tenant's read-only tools, which the eval suites offer.
 
     A live run filters the MCP tool list by the tenant allowlist; the eval has
-    no run context, so the same filter is applied here from the config.
+    no run context, so the same filter is applied here from the config. A
+    manifest tool that no demo tenant allows (``query_readonly_sql@1``) stays
+    out of the routing and toolcall prompts, as it stays out of ``list_tools``.
     """
     try:
         tenant = settings.tenants.tenants["default"]
