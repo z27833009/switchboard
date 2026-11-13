@@ -123,6 +123,12 @@ class ProviderConfig(BaseModel):
     fixtures: str | None = None
     timeout_s: float = Field(default=120.0, gt=0)
     extra_body: dict[str, Any] = Field(default_factory=dict)
+    # Some OpenAI-compatible APIs reject function names outside a pattern
+    # (DeepSeek requires ^[a-zA-Z0-9_-]+$, so the @major wire-name suffix is not
+    # allowed). When set, the adapter sends a sanitised name and maps the
+    # model's call back to the wire name; the tool, audit and trace keep the
+    # original name. Null means send wire names unchanged.
+    tool_name_pattern: str | None = None
     # A provider may name one fallback provider (design.md section 8.4). The
     # factory wraps the pair in a decorator, so agents and the orchestrator see
     # a single ModelProvider. The fallback is used only after the primary's
@@ -130,6 +136,17 @@ class ProviderConfig(BaseModel):
     fallback_provider: str | None = None
     retry_attempts: int = Field(default=2, ge=0)
     retry_backoff_s: list[float] = Field(default_factory=lambda: [1.0, 3.0])
+
+    @field_validator("tool_name_pattern")
+    @classmethod
+    def _check_tool_name_pattern(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        try:
+            re.compile(value)
+        except re.error as exc:
+            raise ValueError(f"tool_name_pattern is not a valid regex: {exc}") from exc
+        return value
 
     @field_validator("fallback_provider")
     @classmethod

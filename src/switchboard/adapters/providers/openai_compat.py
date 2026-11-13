@@ -8,6 +8,7 @@ implements the three structured-output strategies with one repair round.
 from __future__ import annotations
 
 import json
+import re
 import time
 from collections.abc import Sequence
 from typing import Any, Literal
@@ -45,14 +46,47 @@ from switchboard.tracing.spans import (
 
 Strategy = Literal["native_json_schema", "tool_call", "prompted_json"]
 STRUCTURED_TOOL_NAME = "submit_structured_response"
+INVALID_TOOL_NAME_CHARS = re.compile(r"[^A-Za-z0-9_-]")
 
 
-def to_openai_messages(messages: Sequence[Message]) -> list[dict[str, Any]]:
+def _safe_tool_names(names: Sequence[str], pattern: str | None) -> dict[str, str]:
+    """Map wire names to names the provider will accept.
+
+    The wire name keeps ``@major`` (design.md section 7.2); some APIs reject
+    that character. The mapping is deterministic for a given set of names, so
+    an assistant tool-call message in a later turn gets the same safe name as
+    the tool definition in the first turn. When ``pattern`` is null the mapping
+    is the identity and existing providers behave exactly as before.
+    """
+    if pattern is None:
+        return {name: name for name in names}
+    accepted = re.compile(pattern)
+    mapping: dict[str, str] = {}
+    used: set[str] = set()
+    for name in sorted(set(names)):
+        if accepted.fullmatch(name) and name not in used:
+            safe = name
+        else:
+            base = name if accepted.fullmatch(name) else INVALID_TOOL_NAME_CHARS.sub("_", name)
+            safe = base or "tool"
+            suffix = 2
+            while safe in used:
+                safe = f"{base or 'tool'}_{suffix}"
+                suffix += 1
+        used.add(safe)
+        mapping[name] = safe
+    return mapping
+
+
+def to_openai_messages(
+    messages: Sequence[Message], names: dict[str, str] | None = None
+) -> list[dict[str, Any]]:
+    translated = names or {}
     converted: list[dict[str, Any]] = []
     for message in messages:
         item: dict[str, Any] = {"role": message.role, "content": message.content}
         if message.name:
-            item["name"] = message.name
+            item["name"] = translated.get(message.name, message.name)
         if message.tool_call_id:
             item["tool_call_id"] = message.tool_call_id
         if message.tool_calls:
@@ -61,7 +95,7 @@ def to_openai_messages(messages: Sequence[Message]) -> list[dict[str, Any]]:
                     "id": call.call_id,
                     "type": "function",
                     "function": {
-                        "name": call.name,
+                        "name": translated.get(call.name, call.name),
                         "arguments": json.dumps(call.arguments),
                     },
                 }
@@ -71,12 +105,15 @@ def to_openai_messages(messages: Sequence[Message]) -> list[dict[str, Any]]:
     return converted
 
 
-def to_openai_tools(tools: Sequence[ToolSpec]) -> list[dict[str, Any]]:
+def to_openai_tools(
+    tools: Sequence[ToolSpec], names: dict[str, str] | None = None
+) -> list[dict[str, Any]]:
+    translated = names or {}
     return [
         {
             "type": "function",
             "function": {
-                "name": tool.wire_name,
+                "name": translated.get(tool.wire_name, tool.wire_name),
                 "description": tool.description,
                 "parameters": tool.input_schema,
             },
@@ -131,13 +168,17 @@ def parse_json_object(text: str) -> dict[str, Any]:
     return value
 
 
-def _normalise_tool_calls(message: Any, *, skip_structured: bool) -> list[ToolCall]:
+def _normalise_tool_calls(
+    message: Any, *, skip_structured: bool, names: dict[str, str] | None = None
+) -> list[ToolCall]:
+    reverse = {safe: original for original, safe in (names or {}).items()}
     calls: list[ToolCall] = []
     for call in getattr(message, "tool_calls", None) or []:
         function = call.function
         if skip_structured and function.name == STRUCTURED_TOOL_NAME:
             continue
-        calls.append(_tool_call(function.name, function.arguments, call.id))
+        name = reverse.get(function.name, function.name)
+        calls.append(_tool_call(name, function.arguments, call.id))
     return calls
 
 
@@ -174,13 +215,17 @@ def _accumulate_tool_call(parts: dict[int, dict[str, str]], call: Any) -> None:
         slot["arguments"] += arguments
 
 
-def _streamed_tool_calls(parts: dict[int, dict[str, str]]) -> list[ToolCall]:
+def _streamed_tool_calls(
+    parts: dict[int, dict[str, str]], names: dict[str, str] | None = None
+) -> list[ToolCall]:
+    reverse = {safe: original for original, safe in (names or {}).items()}
     calls: list[ToolCall] = []
     for index in sorted(parts):
         slot = parts[index]
         if not slot["name"]:
             raise ToolValidationError("a streamed tool call arrived without a name")
-        calls.append(_tool_call(slot["name"], slot["arguments"], slot["id"] or str(index)))
+        name = reverse.get(slot["name"], slot["name"])
+        calls.append(_tool_call(name, slot["arguments"], slot["id"] or str(index)))
     return calls
 
 
@@ -198,6 +243,7 @@ class OpenAICompatibleProvider:
         timeout_s: float = 120.0,
         extra_body: dict[str, Any] | None = None,
         price: PriceEntry | None = None,
+        tool_name_pattern: str | None = None,
         client: Any | None = None,
         tracer: trace.Tracer | None = None,
     ) -> None:
@@ -206,6 +252,7 @@ class OpenAICompatibleProvider:
         self._capabilities = capabilities
         self._extra_body = dict(extra_body or {})
         self._price = price
+        self._tool_name_pattern = tool_name_pattern
         self._tracer = tracer or trace.get_tracer("switchboard.provider.openai_compatible")
         self._client: Any = client or AsyncOpenAI(
             base_url=base_url, api_key=api_key, timeout=timeout_s
@@ -234,10 +281,18 @@ class OpenAICompatibleProvider:
             timeout_s=config.timeout_s,
             extra_body=config.extra_body,
             price=price,
+            tool_name_pattern=config.tool_name_pattern,
         )
 
     def capabilities(self) -> ProviderCapabilities:
         return self._capabilities
+
+    def _tool_names(self, request: CompletionRequest) -> dict[str, str]:
+        """Include tools in the current request and tool calls in prior turns."""
+        names = [tool.wire_name for tool in request.tools]
+        for message in request.messages:
+            names.extend(call.name for call in message.tool_calls)
+        return _safe_tool_names(names, self._tool_name_pattern)
 
     def _strategy(self, request: CompletionRequest) -> Strategy | None:
         if request.response_schema is None:
@@ -253,8 +308,9 @@ class OpenAICompatibleProvider:
         request: CompletionRequest,
         strategy: Strategy | None,
         repair: str | None,
+        names: dict[str, str] | None = None,
     ) -> list[dict[str, Any]]:
-        messages = to_openai_messages(request.messages)
+        messages = to_openai_messages(request.messages, names)
         if strategy == "prompted_json" and request.response_schema is not None:
             instruction = (
                 "Return only a JSON object matching this JSON schema. "
@@ -281,6 +337,7 @@ class OpenAICompatibleProvider:
         request: CompletionRequest,
         messages: list[dict[str, Any]],
         strategy: Strategy | None,
+        names: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "model": self._model,
@@ -290,7 +347,7 @@ class OpenAICompatibleProvider:
         if request.max_tokens is not None:
             kwargs["max_tokens"] = request.max_tokens
         if request.tools:
-            kwargs["tools"] = to_openai_tools(request.tools)
+            kwargs["tools"] = to_openai_tools(request.tools, names)
         for key, value in self._extra_body.items():
             kwargs.setdefault(key, value)
 
@@ -375,10 +432,11 @@ class OpenAICompatibleProvider:
             return await self._stream(request, started)
         usage = Usage(input_tokens=0, output_tokens=0)
         repair: str | None = None
+        names = self._tool_names(request)
 
         for attempt in range(2):
-            messages = self._messages(request, strategy, repair)
-            kwargs = self._kwargs(request, messages, strategy)
+            messages = self._messages(request, strategy, repair, names)
+            kwargs = self._kwargs(request, messages, strategy, names)
             try:
                 response: ChatCompletion = await self._client.chat.completions.create(**kwargs)
             except openai.OpenAIError as exc:
@@ -394,7 +452,9 @@ class OpenAICompatibleProvider:
                 repair = str(exc)
                 continue
 
-            tool_calls = _normalise_tool_calls(message, skip_structured=strategy == "tool_call")
+            tool_calls = _normalise_tool_calls(
+                message, skip_structured=strategy == "tool_call", names=names
+            )
             latency_ms = int((time.perf_counter() - started) * 1000)
             return CompletionResponse(
                 text=getattr(message, "content", None) or None,
@@ -423,8 +483,9 @@ class OpenAICompatibleProvider:
         Usage is read from whichever chunk carries it; a gateway that sends none
         leaves it at zero rather than guessing token counts.
         """
-        messages = self._messages(request, None, None)
-        kwargs = self._kwargs(request, messages, None)
+        names = self._tool_names(request)
+        messages = self._messages(request, None, None, names)
+        kwargs = self._kwargs(request, messages, None, names)
         kwargs["stream"] = True
         kwargs.setdefault("stream_options", {"include_usage": True})
 
@@ -460,7 +521,7 @@ class OpenAICompatibleProvider:
         return CompletionResponse(
             text="".join(text_parts) or None,
             reasoning="".join(reasoning_parts) or None,
-            tool_calls=_streamed_tool_calls(tool_parts),
+            tool_calls=_streamed_tool_calls(tool_parts, names),
             parsed=None,
             structured_output_strategy=None,
             usage=usage,

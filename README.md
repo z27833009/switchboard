@@ -8,11 +8,11 @@ Switchboard takes a user question, lets a supervisor decide whether to answer di
 
 The badge reports the CI gate. That gate replays recorded model output with the mock provider, so it measures the pipeline (parsing, plan validation, tool normalization, scoring), not the model. See [ADR 0008](docs/adr/0008-evaluation-strategy.md).
 
-> Status: **Phase 1 complete, and v1 is built through T2.18.** T2.01 to T2.15 and T2.17 to T2.18 are merged. T2.16 (optional `langgraph-visualizer` integration) was cancelled by the author on 2026-11-12. The semantic cache is implemented and measured; its false-hit rate is above the 2 percent target, so the demo tenants keep it disabled and the report says why. T2.12's comparison tool and all six LM Studio rows are committed; the author deferred the six DeepSeek rows on 2026-11-13 because local LM Studio is enough for v1, so they remain `not run` and can be added later without code changes. Every metric in the docs is a target until a report backs it.
+> Status: **Phase 1 complete, and v1 is built through T2.18.** T2.01 to T2.15 and T2.17 to T2.18 are merged. T2.16 (optional `langgraph-visualizer` integration) was cancelled by the author on 2026-11-12. The semantic cache is implemented and measured; its false-hit rate is above the 2 percent target, so the demo tenants keep it disabled and the report says why. T2.12's comparison now covers all 12 provider and orchestrator combinations: six LM Studio rows and six DeepSeek rows, the latter measured on 2026-11-13 with a one-time DeepSeek key and a total actual cost of 0.0326 USD. Every metric in the docs is a target until a report backs it.
 
 ## Measured results
 
-All model rows were measured on LM Studio 1.2.0 with qwen3-8b at context 8192 and one parallel slot, on the dates in each report. Routing scores the 39 test cases of dataset v1, tool call all 40 v1 cases, retrieval the 40 test cases of v3, and the cache the 50 pairs of v5; the gate and injection suites are deterministic and make no model call, and the cache suite makes no chat call (it embeds with bge-m3).
+All LM Studio rows were measured on LM Studio 1.2.0 with qwen3-8b at context 8192 and one parallel slot, on the dates in each report. The DeepSeek rows were measured on 2026-11-13 with `deepseek-flash` at concurrency 1; its price is the verified peak rate. Routing scores the 39 test cases of dataset v1, tool call all 40 v1 cases, retrieval the 40 test cases of v3, and the cache the 50 pairs of v5; the gate and injection suites are deterministic and make no model call, and the cache suite makes no chat call (it embeds with bge-m3).
 
 | Suite | Result | Latency | Report |
 | --- | --- | --- | --- |
@@ -30,23 +30,31 @@ Latency is one model call per case for routing and tool call, not an end-to-end 
 `switchboard eval compare` merges the per-suite JSON reports into one table with provider and orchestrator as dimensions. The committed table is [evals/reports/compare.md](evals/reports/compare.md) (JSON: [compare.json](evals/reports/compare.json)); it links every per-suite report and is written with:
 
 ```bash
-uv run switchboard eval compare --not-run-reason "deepseek=DEEPSEEK_API_KEY missing"
+uv run switchboard eval compare
 ```
 
-The six LM Studio rows were measured on 2026-11-12 (langgraph) and 2026-11-13 (agent loop) with qwen3-8b, on dataset v1 (routing test split, toolcall all cases) and v3 (rag test split). The comparison covers 6 of the 12 provider and orchestrator combinations: every LM Studio row is measured, and every DeepSeek row is `not run: DEEPSEEK_API_KEY missing`. These rows have no API cost.
+The six LM Studio rows were measured on 2026-11-12 (langgraph) and 2026-11-13 (agent loop) with qwen3-8b, on dataset v1 (routing test split, toolcall all cases) and v3 (rag test split). The six DeepSeek rows were measured on 2026-11-13 with `deepseek-flash` at concurrency 1. The comparison covers 12 of 12 combinations. No row is `not run`.
 
-| Suite | Orchestrator | Score | p50 / p95 | Tokens per 100 queries |
-| --- | --- | --- | --- | --- |
-| Routing | langgraph | plan accuracy 0.9231, Jaccard 0.9359 | 4466.0 / 5551.7 ms | 54156.4 |
-| Routing | agent_loop | plan accuracy 0.6410, Jaccard 0.7564 | 1132.0 / 1870.2 ms | 131517.9 |
-| Tool call | langgraph | both accuracy 0.9500 | 3407.5 / 3747.8 ms | 88115.0 |
-| Tool call | agent_loop | both accuracy 0.9250 | 1296.5 / 1501.4 ms | 121950.0 |
-| Rag | langgraph | recall@5 1.0000, MRR 0.8521 | 606.0 / 1218.8 ms | 19345.0 |
-| Rag | agent_loop | recall@5 1.0000, MRR 0.8521 | 595.0 / 1157.3 ms | 19345.0 |
+| Provider | Suite | Orchestrator | Score | p50 / p95 | Cost per 100 queries |
+| --- | --- | --- | --- | --- | --- |
+| LM Studio | Routing | langgraph | plan accuracy 0.9231, Jaccard 0.9359 | 4466.0 / 5551.7 ms | 0 (no API cost) |
+| LM Studio | Routing | agent_loop | plan accuracy 0.6410, Jaccard 0.7564 | 1132.0 / 1870.2 ms | 0 (no API cost) |
+| DeepSeek | Routing | langgraph | plan accuracy 0.9487, Jaccard 0.9615 | 1054.0 / 1301.5 ms | 0.016440 |
+| DeepSeek | Routing | agent_loop | plan accuracy 0.9487, Jaccard 0.9615 | 1129.0 / 1798.9 ms | 0.018582 |
+| LM Studio | Tool call | langgraph | both accuracy 0.9500 | 3407.5 / 3747.8 ms | 0 (no API cost) |
+| LM Studio | Tool call | agent_loop | both accuracy 0.9250 | 1296.5 / 1501.4 ms | 0 (no API cost) |
+| DeepSeek | Tool call | langgraph | both accuracy 1.0000 | 1114.5 / 1440.8 ms | 0.018579 |
+| DeepSeek | Tool call | agent_loop | both accuracy 0.9750 | 1067.5 / 1376.4 ms | 0.016806 |
+| LM Studio | Rag | langgraph | recall@5 1.0000, MRR 0.8521 | 606.0 / 1218.8 ms | 0 (no API cost) |
+| LM Studio | Rag | agent_loop | recall@5 1.0000, MRR 0.8521 | 595.0 / 1157.3 ms | 0 (no API cost) |
+| DeepSeek | Rag | langgraph | recall@5 1.0000, MRR 0.8708 | 1191.0 / 2708.7 ms | 0.005948 |
+| DeepSeek | Rag | agent_loop | recall@5 1.0000, MRR 0.8708 | 1246.0 / 2717.5 ms | 0.005939 |
 
-Per-suite reports: [routing langgraph](evals/reports/routing-lmstudio.md), [routing agent loop](evals/reports/routing-agent_loop-lmstudio.md), [tool call langgraph](evals/reports/toolcall-lmstudio.md), [tool call agent loop](evals/reports/toolcall-agent_loop-lmstudio.md), [rag langgraph](evals/reports/rag-lmstudio.md), [rag agent loop](evals/reports/rag-agent_loop-lmstudio.md). The agent-loop routing and tool-call rows score the first loop decision with the loop's full toolset; the suite does not execute tools, so a live loop can differ. Rag measures retrieval, which both adapters share, so its two rows run the same strategy code and differ only by run-to-run timing. The three langgraph reports predate the price table and keep a null cost; the comparison applies the table's explicit zero row and labels them "no API cost" without changing those files.
+Per-suite reports: [routing langgraph](evals/reports/routing-lmstudio.md), [routing agent loop](evals/reports/routing-agent_loop-lmstudio.md), [routing DeepSeek](evals/reports/routing-deepseek.md), [routing DeepSeek agent loop](evals/reports/routing-agent_loop-deepseek.md), [tool call langgraph](evals/reports/toolcall-lmstudio.md), [tool call agent loop](evals/reports/toolcall-agent_loop-lmstudio.md), [tool call DeepSeek](evals/reports/toolcall-deepseek.md), [tool call DeepSeek agent loop](evals/reports/toolcall-agent_loop-deepseek.md), [rag langgraph](evals/reports/rag-lmstudio.md), [rag agent loop](evals/reports/rag-agent_loop-lmstudio.md), [rag DeepSeek](evals/reports/rag-deepseek.md), [rag DeepSeek agent loop](evals/reports/rag-agent_loop-deepseek.md). The agent-loop routing and tool-call rows score the first loop decision with the loop's full toolset; the suite does not execute tools, so a live loop can differ. Rag measures retrieval, which both adapters share, so its two rows run the same strategy code and differ only by run-to-run timing. The langgraph LM Studio reports predate the price table and keep a null cost; the comparison applies the table's explicit zero row and labels them "no API cost" without changing those files.
 
-The six DeepSeek rows (routing, toolcall and rag for both orchestrators) are **deferred**: the author decided on 2026-11-13 that local LM Studio is enough for v1, so this environment has no `DEEPSEEK_API_KEY` and the comparison marks them `not run: DEEPSEEK_API_KEY missing`. The rows can be added later without code changes. DeepSeek is configured in `config/providers.yaml` with verified prices in `config/prices.yaml`, but it has not been live-tested. With a key in `.env`, the exact commands are:
+The most interesting result is the routing row: on the small local model, the single agent loop drops from 0.9231 to 0.6410, but on DeepSeek both orchestrators score 0.9487. That is consistent with the plan structure compensating for a weaker model rather than adding value on its own; the comparison is a 39-case directional result, not a model ranking. DeepSeek also exposed a real adapter bug: its API rejects `@` in function names, so the first agent-loop run failed before any call. The provider now maps `orders_late@1` to `orders_late_1` on the wire and maps the model's call back, with tests for non-streaming, streaming and prior turns.
+
+The commands that produced the six DeepSeek rows were:
 
 ```bash
 uv run --env-file .env switchboard eval run --suite routing --provider deepseek --confirm-cost

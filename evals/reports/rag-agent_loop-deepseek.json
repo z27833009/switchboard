@@ -1,0 +1,3660 @@
+{
+  "suite": "rag",
+  "dataset_version": "v3",
+  "dataset_path": "evals/datasets/v3/rag.jsonl",
+  "split": "test",
+  "case_count": 40,
+  "dataset_case_count": 40,
+  "split_case_count": 40,
+  "smoke": false,
+  "orchestrator": "agent_loop",
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "generated_at": "2026-11-13T12:54:01.369193+00:00",
+  "wall_time_s": 55.016,
+  "recording": false,
+  "recorded_with": null,
+  "metrics": {
+    "recall_at_5_query_as_written": 1.0,
+    "mrr_query_as_written": 0.825,
+    "recall_at_5_always_rewrite": 0.95,
+    "mrr_always_rewrite": 0.8521,
+    "recall_at_5_conditional_rewrite": 1.0,
+    "mrr_conditional_rewrite": 0.8708,
+    "recall_at_5_conditional_hybrid": 1.0,
+    "mrr_conditional_hybrid": 0.8708
+  },
+  "latency_ms": {
+    "p50": 1246.0,
+    "p95": 2717.5,
+    "min": 894.0,
+    "max": 3206.0,
+    "mean": 1371.475
+  },
+  "runner_latency_ms": {
+    "p50": 1246.5,
+    "p95": 2718.55,
+    "min": 895.0,
+    "max": 3207.0,
+    "mean": 1373.45
+  },
+  "usage": {
+    "input_tokens": 6667,
+    "cached_input_tokens": 0,
+    "output_tokens": 313,
+    "total_tokens": 6980
+  },
+  "cost_usd": 0.0023757,
+  "price": {
+    "provider": "deepseek",
+    "model": "deepseek-flash",
+    "input_per_million": 0.3,
+    "cached_input_per_million": 0.006,
+    "output_per_million": 1.2,
+    "verified_on": "2026-11-12",
+    "source": "https://api-docs.deepseek.com/quick_start/pricing",
+    "note": "Peak rate for deepseek-flash (cache miss input, cache hit input, output); off-peak is half."
+  },
+  "no_api_cost": false,
+  "error_count": 0,
+  "error_case_ids": [],
+  "strategies": {
+    "query_as_written": {
+      "recall_at_5": 1.0,
+      "mrr": 0.825,
+      "cases": 40,
+      "rewrite_rounds": 0,
+      "retrieval_rounds": 40,
+      "cases_with_rewrite": 0,
+      "latency_ms": {
+        "p50": 87.0,
+        "p95": 96.2,
+        "min": 58.0,
+        "max": 381.0,
+        "mean": 88.7
+      },
+      "errors": 0,
+      "needs_rewrite_cases": 9,
+      "needs_rewrite_recall_at_5": 1.0,
+      "needs_rewrite_mrr": 0.6667
+    },
+    "always_rewrite": {
+      "recall_at_5": 0.95,
+      "mrr": 0.8521,
+      "cases": 40,
+      "rewrite_rounds": 40,
+      "retrieval_rounds": 40,
+      "cases_with_rewrite": 40,
+      "latency_ms": {
+        "p50": 926.0,
+        "p95": 1184.8,
+        "min": 604.0,
+        "max": 1328.0,
+        "mean": 915.2
+      },
+      "errors": 0,
+      "needs_rewrite_cases": 9,
+      "needs_rewrite_recall_at_5": 1.0,
+      "needs_rewrite_mrr": 0.9444
+    },
+    "conditional_rewrite": {
+      "recall_at_5": 1.0,
+      "mrr": 0.8708,
+      "cases": 40,
+      "rewrite_rounds": 4,
+      "retrieval_rounds": 40,
+      "cases_with_rewrite": 4,
+      "latency_ms": {
+        "p50": 91.0,
+        "p95": 915.8,
+        "min": 66.0,
+        "max": 1155.0,
+        "mean": 172.4
+      },
+      "errors": 0,
+      "needs_rewrite_cases": 9,
+      "needs_rewrite_recall_at_5": 1.0,
+      "needs_rewrite_mrr": 0.8704
+    },
+    "conditional_hybrid": {
+      "recall_at_5": 1.0,
+      "mrr": 0.8708,
+      "cases": 40,
+      "rewrite_rounds": 4,
+      "retrieval_rounds": 40,
+      "cases_with_rewrite": 4,
+      "latency_ms": {
+        "p50": 108.0,
+        "p95": 926.0,
+        "min": 103.0,
+        "max": 1095.0,
+        "mean": 195.175
+      },
+      "errors": 0,
+      "needs_rewrite_cases": 9,
+      "needs_rewrite_recall_at_5": 1.0,
+      "needs_rewrite_mrr": 0.8704
+    }
+  },
+  "retrieval_k": 5,
+  "rrf_k": 60,
+  "cases": [
+    {
+      "case_id": "rag001",
+      "query": "I changed my mind, how long do I have to send it back?",
+      "tags": [
+        "returns",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "returns-policy.md#1"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#1",
+            "returns-policy.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 381,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#1",
+            "returns-policy.md#2",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "return window for change of mind"
+          ],
+          "latency_ms": 847,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#1",
+            "returns-policy.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 99,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#1",
+            "returns-policy.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 116,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1443,
+      "runner_latency_ms": 1464,
+      "input_tokens": 137,
+      "cached_input_tokens": 0,
+      "output_tokens": 6,
+      "error": null
+    },
+    {
+      "case_id": "rag002",
+      "query": "电子产品可以退货吗？",
+      "tags": [
+        "returns",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "returns-policy.md#2"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#2",
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 91,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#2",
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#1",
+            "returns-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Can electronics be returned within the return window?"
+          ],
+          "latency_ms": 1011,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#2",
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 92,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#2",
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 119,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1313,
+      "runner_latency_ms": 1315,
+      "input_tokens": 128,
+      "cached_input_tokens": 0,
+      "output_tokens": 9,
+      "error": null
+    },
+    {
+      "case_id": "rag003",
+      "query": "Can I still return it?",
+      "tags": [
+        "returns",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "returns-policy.md#2"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#2",
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 83,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#2",
+            "returns-policy.md#1",
+            "returns-policy.md#3",
+            "returns-policy.md#4",
+            "returns-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "laptop return window five days after delivery"
+          ],
+          "latency_ms": 781,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#2",
+            "returns-policy.md#1",
+            "returns-policy.md#3",
+            "returns-policy.md#4",
+            "returns-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "laptop return window five days after delivery"
+          ],
+          "latency_ms": 907,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#2",
+            "returns-policy.md#1",
+            "returns-policy.md#3",
+            "returns-policy.md#4",
+            "returns-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "laptop return window five days after delivery"
+          ],
+          "latency_ms": 924,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 2695,
+      "runner_latency_ms": 2696,
+      "input_tokens": 474,
+      "cached_input_tokens": 0,
+      "output_tokens": 24,
+      "error": null
+    },
+    {
+      "case_id": "rag004",
+      "query": "Can I get my cash back after returning something?",
+      "tags": [
+        "returns",
+        "refunds",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "returns-policy.md#3",
+        "payments.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#4",
+            "returns-policy.md#3",
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 75,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#0",
+            "returns-policy.md#2",
+            "returns-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "refund after return"
+          ],
+          "latency_ms": 875,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#4",
+            "returns-policy.md#3",
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 96,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#4",
+            "returns-policy.md#3",
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 112,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1158,
+      "runner_latency_ms": 1159,
+      "input_tokens": 132,
+      "cached_input_tokens": 0,
+      "output_tokens": 4,
+      "error": null
+    },
+    {
+      "case_id": "rag005",
+      "query": "Can I return a personalized gift?",
+      "tags": [
+        "returns"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "returns-policy.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#4",
+            "returns-policy.md#0",
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 87,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "seller-onboarding.md#3",
+            "payments.md#4",
+            "returns-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "return policy for personalized items"
+          ],
+          "latency_ms": 1043,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#4",
+            "returns-policy.md#0",
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 88,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#4",
+            "returns-policy.md#0",
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 107,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1325,
+      "runner_latency_ms": 1326,
+      "input_tokens": 129,
+      "cached_input_tokens": 0,
+      "output_tokens": 5,
+      "error": null
+    },
+    {
+      "case_id": "rag006",
+      "query": "How quickly must I report an item that arrived damaged?",
+      "tags": [
+        "returns",
+        "damaged"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "returns-policy.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#4",
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#3",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 68,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#4",
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "report window for damaged item on delivery"
+          ],
+          "latency_ms": 1012,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#4",
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#3",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 67,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#4",
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#3",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 108,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1255,
+      "runner_latency_ms": 1256,
+      "input_tokens": 133,
+      "cached_input_tokens": 0,
+      "output_tokens": 7,
+      "error": null
+    },
+    {
+      "case_id": "rag007",
+      "query": "Who do I contact about a specific order?",
+      "tags": [
+        "returns",
+        "support"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "returns-policy.md#5"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#5",
+            "late-delivery-compensation.md#1",
+            "seller-onboarding.md#1",
+            "shipping-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 91,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#5",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#2",
+            "shipping-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "contact for a specific order"
+          ],
+          "latency_ms": 996,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#5",
+            "late-delivery-compensation.md#1",
+            "seller-onboarding.md#1",
+            "shipping-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 68,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#5",
+            "late-delivery-compensation.md#1",
+            "seller-onboarding.md#1",
+            "shipping-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 107,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1262,
+      "runner_latency_ms": 1263,
+      "input_tokens": 131,
+      "cached_input_tokens": 0,
+      "output_tokens": 5,
+      "error": null
+    },
+    {
+      "case_id": "rag008",
+      "query": "Do I need the original packaging to return something?",
+      "tags": [
+        "returns"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "returns-policy.md#0"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#3",
+            "returns-policy.md#4",
+            "payments.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 72,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#3",
+            "returns-policy.md#4",
+            "returns-policy.md#1",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "original packaging requirement for return"
+          ],
+          "latency_ms": 995,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#3",
+            "returns-policy.md#4",
+            "payments.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 93,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#3",
+            "returns-policy.md#4",
+            "payments.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 106,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1266,
+      "runner_latency_ms": 1268,
+      "input_tokens": 132,
+      "cached_input_tokens": 0,
+      "output_tokens": 5,
+      "error": null
+    },
+    {
+      "case_id": "rag009",
+      "query": "Are return shipping fees refunded?",
+      "tags": [
+        "returns",
+        "refunds"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "returns-policy.md#3"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#0",
+            "returns-policy.md#2",
+            "returns-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 87,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#0",
+            "seller-onboarding.md#3",
+            "shipping-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "return shipping fee refund policy"
+          ],
+          "latency_ms": 692,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#0",
+            "returns-policy.md#2",
+            "returns-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 68,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#0",
+            "returns-policy.md#2",
+            "returns-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 107,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 954,
+      "runner_latency_ms": 956,
+      "input_tokens": 129,
+      "cached_input_tokens": 0,
+      "output_tokens": 5,
+      "error": null
+    },
+    {
+      "case_id": "rag010",
+      "query": "What happens if I return an item without opening a request?",
+      "tags": [
+        "returns"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "returns-policy.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#2",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 100,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#3",
+            "returns-policy.md#1",
+            "returns-policy.md#4",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.25,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "return without return request policy"
+          ],
+          "latency_ms": 751,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#2",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 87,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#2",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 108,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1046,
+      "runner_latency_ms": 1048,
+      "input_tokens": 134,
+      "cached_input_tokens": 0,
+      "output_tokens": 5,
+      "error": null
+    },
+    {
+      "case_id": "rag011",
+      "query": "How long does standard delivery take in the southeast?",
+      "tags": [
+        "shipping"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "shipping-policy.md#2"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "shipping-policy.md#2",
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 59,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#2",
+            "late-delivery-compensation.md#0",
+            "returns-policy.md#1",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "standard delivery time in the southeast"
+          ],
+          "latency_ms": 1328,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#2",
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 96,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "shipping-policy.md#2",
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 111,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1594,
+      "runner_latency_ms": 1595,
+      "input_tokens": 132,
+      "cached_input_tokens": 0,
+      "output_tokens": 6,
+      "error": null
+    },
+    {
+      "case_id": "rag012",
+      "query": "How fast is express delivery?",
+      "tags": [
+        "shipping"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "shipping-policy.md#2"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "shipping-policy.md#2",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 83,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#2",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#0",
+            "returns-policy.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "express delivery timeframe"
+          ],
+          "latency_ms": 1059,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#2",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 83,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "shipping-policy.md#2",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 120,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1345,
+      "runner_latency_ms": 1347,
+      "input_tokens": 128,
+      "cached_input_tokens": 0,
+      "output_tokens": 3,
+      "error": null
+    },
+    {
+      "case_id": "rag013",
+      "query": "When must a seller hand the parcel to the carrier?",
+      "tags": [
+        "shipping"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "shipping-policy.md#1"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "shipping-policy.md#5",
+            "shipping-policy.md#3",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 67,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "shipping-policy.md#5",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4",
+            "shipping-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "seller shipping handoff deadline to carrier"
+          ],
+          "latency_ms": 672,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "shipping-policy.md#5",
+            "shipping-policy.md#3",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 80,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "shipping-policy.md#5",
+            "shipping-policy.md#3",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 111,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 930,
+      "runner_latency_ms": 932,
+      "input_tokens": 133,
+      "cached_input_tokens": 0,
+      "output_tokens": 7,
+      "error": null
+    },
+    {
+      "case_id": "rag014",
+      "query": "It has not moved for two days, what now?",
+      "tags": [
+        "shipping",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "shipping-policy.md#3"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "seller-onboarding.md#5",
+            "shipping-policy.md#3",
+            "returns-policy.md#3",
+            "shipping-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 96,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#3",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "tracking not updated for two days delivery status"
+          ],
+          "latency_ms": 871,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#3",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "tracking not updated for two days delivery status"
+          ],
+          "latency_ms": 1083,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "shipping-policy.md#3",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "tracking not updated for two days delivery status"
+          ],
+          "latency_ms": 1095,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 3145,
+      "runner_latency_ms": 3147,
+      "input_tokens": 492,
+      "cached_input_tokens": 0,
+      "output_tokens": 27,
+      "error": null
+    },
+    {
+      "case_id": "rag015",
+      "query": "The parcel says delivered but I cannot find it, what should I do?",
+      "tags": [
+        "shipping"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "shipping-policy.md#3"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "shipping-policy.md#3",
+            "late-delivery-compensation.md#4",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 92,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#1",
+            "shipping-policy.md#4"
+          ],
+          "recall_at_5": 0.0,
+          "mrr": 0.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Order status shows delivered but item not received, what should I do?"
+          ],
+          "latency_ms": 1184,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#3",
+            "late-delivery-compensation.md#4",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 94,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "shipping-policy.md#3",
+            "late-delivery-compensation.md#4",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 111,
+          "error": null
+        }
+      },
+      "passed": false,
+      "latency_ms": 1481,
+      "runner_latency_ms": 1483,
+      "input_tokens": 137,
+      "cached_input_tokens": 0,
+      "output_tokens": 14,
+      "error": null
+    },
+    {
+      "case_id": "rag016",
+      "query": "Can I change the delivery address after the seller shipped it?",
+      "tags": [
+        "shipping"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "shipping-policy.md#5"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "shipping-policy.md#5",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#0",
+            "shipping-policy.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 93,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#5",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#4",
+            "shipping-policy.md#0",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "change delivery address after order shipped"
+          ],
+          "latency_ms": 1026,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#5",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#0",
+            "shipping-policy.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 87,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "shipping-policy.md#5",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#0",
+            "shipping-policy.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 111,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1317,
+      "runner_latency_ms": 1320,
+      "input_tokens": 134,
+      "cached_input_tokens": 0,
+      "output_tokens": 6,
+      "error": null
+    },
+    {
+      "case_id": "rag017",
+      "query": "Can I cancel an order that never arrived after 21 days?",
+      "tags": [
+        "shipping",
+        "cancellation"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "shipping-policy.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "returns-policy.md#3",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 89,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "returns-policy.md#3",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "cancel order not received after 21 days"
+          ],
+          "latency_ms": 722,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "returns-policy.md#3",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 91,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "returns-policy.md#3",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 112,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1014,
+      "runner_latency_ms": 1016,
+      "input_tokens": 135,
+      "cached_input_tokens": 0,
+      "output_tokens": 8,
+      "error": null
+    },
+    {
+      "case_id": "rag018",
+      "query": "How is the estimated delivery date calculated?",
+      "tags": [
+        "shipping"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "shipping-policy.md#0"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#0",
+            "shipping-policy.md#2",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 92,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#1",
+            "shipping-policy.md#2",
+            "shipping-policy.md#0",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "estimated delivery date calculation"
+          ],
+          "latency_ms": 887,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#0",
+            "shipping-policy.md#2",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 68,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#0",
+            "shipping-policy.md#2",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 112,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1159,
+      "runner_latency_ms": 1160,
+      "input_tokens": 130,
+      "cached_input_tokens": 0,
+      "output_tokens": 4,
+      "error": null
+    },
+    {
+      "case_id": "rag019",
+      "query": "Does a boleto payment delay handling?",
+      "tags": [
+        "shipping",
+        "payments"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "shipping-policy.md#1",
+        "payments.md#3"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "payments.md#3",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 70,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "payments.md#3",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "boleto payment delay handling policy"
+          ],
+          "latency_ms": 1077,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "payments.md#3",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 74,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "payments.md#3",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 106,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1327,
+      "runner_latency_ms": 1328,
+      "input_tokens": 131,
+      "cached_input_tokens": 0,
+      "output_tokens": 6,
+      "error": null
+    },
+    {
+      "case_id": "rag020",
+      "query": "When is a delivery considered late?",
+      "tags": [
+        "late-delivery"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "late-delivery-compensation.md#0"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 70,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "When is a delivery considered late under the late-delivery compensation policy?"
+          ],
+          "latency_ms": 1200,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 100,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 107,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1477,
+      "runner_latency_ms": 1478,
+      "input_tokens": 129,
+      "cached_input_tokens": 0,
+      "output_tokens": 14,
+      "error": null
+    },
+    {
+      "case_id": "rag021",
+      "query": "延迟送达有补偿吗？",
+      "tags": [
+        "late-delivery",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "late-delivery-compensation.md#1"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 72,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "late-delivery compensation"
+          ],
+          "latency_ms": 1003,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 91,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 107,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1273,
+      "runner_latency_ms": 1275,
+      "input_tokens": 129,
+      "cached_input_tokens": 0,
+      "output_tokens": 4,
+      "error": null
+    },
+    {
+      "case_id": "rag022",
+      "query": "How much is the late delivery voucher worth?",
+      "tags": [
+        "late-delivery"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "late-delivery-compensation.md#2"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#2",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 60,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#4",
+            "seller-onboarding.md#4"
+          ],
+          "recall_at_5": 0.0,
+          "mrr": 0.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "late-delivery compensation amount"
+          ],
+          "latency_ms": 883,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#2",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 91,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#2",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 107,
+          "error": null
+        }
+      },
+      "passed": false,
+      "latency_ms": 1141,
+      "runner_latency_ms": 1143,
+      "input_tokens": 131,
+      "cached_input_tokens": 0,
+      "output_tokens": 5,
+      "error": null
+    },
+    {
+      "case_id": "rag023",
+      "query": "How do I request late delivery compensation?",
+      "tags": [
+        "late-delivery"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "late-delivery-compensation.md#3"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 60,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "How to request late-delivery compensation?"
+          ],
+          "latency_ms": 935,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 92,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 112,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1199,
+      "runner_latency_ms": 1201,
+      "input_tokens": 130,
+      "cached_input_tokens": 0,
+      "output_tokens": 8,
+      "error": null
+    },
+    {
+      "case_id": "rag024",
+      "query": "How many vouchers do I get if an order has several items?",
+      "tags": [
+        "late-delivery"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "late-delivery-compensation.md#3"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#2",
+            "late-delivery-compensation.md#3",
+            "payments.md#2",
+            "seller-onboarding.md#4",
+            "returns-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 91,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#2",
+            "late-delivery-compensation.md#3",
+            "payments.md#2",
+            "returns-policy.md#5",
+            "returns-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "number of vouchers issued for a multi-item order"
+          ],
+          "latency_ms": 964,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#2",
+            "late-delivery-compensation.md#3",
+            "payments.md#2",
+            "seller-onboarding.md#4",
+            "returns-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 84,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "late-delivery-compensation.md#2",
+            "late-delivery-compensation.md#3",
+            "payments.md#2",
+            "seller-onboarding.md#4",
+            "returns-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 112,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1251,
+      "runner_latency_ms": 1251,
+      "input_tokens": 136,
+      "cached_input_tokens": 0,
+      "output_tokens": 10,
+      "error": null
+    },
+    {
+      "case_id": "rag025",
+      "query": "Is a refused parcel eligible for late compensation?",
+      "tags": [
+        "late-delivery"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "late-delivery-compensation.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 67,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#4",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "refused parcel late-delivery compensation eligibility"
+          ],
+          "latency_ms": 919,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 96,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 106,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1188,
+      "runner_latency_ms": 1191,
+      "input_tokens": 131,
+      "cached_input_tokens": 0,
+      "output_tokens": 8,
+      "error": null
+    },
+    {
+      "case_id": "rag026",
+      "query": "What happens if my address was wrong and the parcel was late?",
+      "tags": [
+        "late-delivery",
+        "address"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "late-delivery-compensation.md#4",
+        "late-delivery-compensation.md#1"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 92,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "incorrect shipping address late delivery order status"
+          ],
+          "latency_ms": 999,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 95,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 115,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1301,
+      "runner_latency_ms": 1304,
+      "input_tokens": 135,
+      "cached_input_tokens": 0,
+      "output_tokens": 8,
+      "error": null
+    },
+    {
+      "case_id": "rag027",
+      "query": "Which payment methods can I use?",
+      "tags": [
+        "payments"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "payments.md#0"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#0",
+            "payments.md#5",
+            "payments.md#1",
+            "payments.md#2",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 95,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "payments.md#0",
+            "payments.md#1",
+            "payments.md#4",
+            "payments.md#5",
+            "payments.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "accepted payment methods"
+          ],
+          "latency_ms": 928,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#0",
+            "payments.md#5",
+            "payments.md#1",
+            "payments.md#2",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 80,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#0",
+            "payments.md#5",
+            "payments.md#1",
+            "payments.md#2",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 104,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1207,
+      "runner_latency_ms": 1208,
+      "input_tokens": 129,
+      "cached_input_tokens": 0,
+      "output_tokens": 4,
+      "error": null
+    },
+    {
+      "case_id": "rag028",
+      "query": "Can I split the payment?",
+      "tags": [
+        "payments",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "payments.md#2"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#2",
+            "seller-onboarding.md#4",
+            "late-delivery-compensation.md#2",
+            "payments.md#0",
+            "payments.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 83,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "payments.md#2",
+            "late-delivery-compensation.md#2",
+            "payments.md#0",
+            "payments.md#1",
+            "seller-onboarding.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "installments for a 300 BRL purchase at checkout"
+          ],
+          "latency_ms": 1004,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#2",
+            "late-delivery-compensation.md#2",
+            "payments.md#0",
+            "payments.md#1",
+            "seller-onboarding.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "installments for a 300 BRL purchase at checkout"
+          ],
+          "latency_ms": 1155,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#2",
+            "payments.md#0",
+            "late-delivery-compensation.md#2",
+            "payments.md#1",
+            "seller-onboarding.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Can I pay in installments?"
+          ],
+          "latency_ms": 964,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 3206,
+      "runner_latency_ms": 3207,
+      "input_tokens": 477,
+      "cached_input_tokens": 0,
+      "output_tokens": 27,
+      "error": null
+    },
+    {
+      "case_id": "rag029",
+      "query": "How long does a boleto take to confirm?",
+      "tags": [
+        "payments"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "payments.md#3"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#3",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#3",
+            "seller-onboarding.md#5",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 95,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "payments.md#3",
+            "shipping-policy.md#1",
+            "payments.md#1",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "boleto payment confirmation time"
+          ],
+          "latency_ms": 604,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#3",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#3",
+            "seller-onboarding.md#5",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 87,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#3",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#3",
+            "seller-onboarding.md#5",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 108,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 894,
+      "runner_latency_ms": 895,
+      "input_tokens": 133,
+      "cached_input_tokens": 0,
+      "output_tokens": 5,
+      "error": null
+    },
+    {
+      "case_id": "rag030",
+      "query": "Where does my refund go if I paid with Pix?",
+      "tags": [
+        "payments",
+        "refunds"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "payments.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#4",
+            "payments.md#3",
+            "returns-policy.md#3",
+            "returns-policy.md#0",
+            "late-delivery-compensation.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 92,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "payments.md#4",
+            "payments.md#3",
+            "returns-policy.md#3",
+            "payments.md#0",
+            "returns-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "refund destination for Pix payment"
+          ],
+          "latency_ms": 860,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#4",
+            "payments.md#3",
+            "returns-policy.md#3",
+            "returns-policy.md#0",
+            "late-delivery-compensation.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 66,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#4",
+            "payments.md#3",
+            "returns-policy.md#3",
+            "returns-policy.md#0",
+            "late-delivery-compensation.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 104,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1122,
+      "runner_latency_ms": 1123,
+      "input_tokens": 133,
+      "cached_input_tokens": 0,
+      "output_tokens": 6,
+      "error": null
+    },
+    {
+      "case_id": "rag031",
+      "query": "What happens in a chargeback dispute?",
+      "tags": [
+        "payments"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "payments.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#4",
+            "late-delivery-compensation.md#4",
+            "returns-policy.md#3",
+            "returns-policy.md#2",
+            "payments.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 92,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "payments.md#4",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#4",
+            "payments.md#1",
+            "returns-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "chargeback dispute process"
+          ],
+          "latency_ms": 924,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#4",
+            "late-delivery-compensation.md#4",
+            "returns-policy.md#3",
+            "returns-policy.md#2",
+            "payments.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 96,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#4",
+            "late-delivery-compensation.md#4",
+            "returns-policy.md#3",
+            "returns-policy.md#2",
+            "payments.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 115,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1227,
+      "runner_latency_ms": 1228,
+      "input_tokens": 130,
+      "cached_input_tokens": 0,
+      "output_tokens": 4,
+      "error": null
+    },
+    {
+      "case_id": "rag032",
+      "query": "Will support ever ask for my card password?",
+      "tags": [
+        "payments",
+        "security"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "payments.md#5"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#5",
+            "payments.md#1",
+            "seller-onboarding.md#5",
+            "returns-policy.md#5",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 91,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "payments.md#5",
+            "late-delivery-compensation.md#3",
+            "seller-onboarding.md#5",
+            "payments.md#1",
+            "returns-policy.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "support request card password"
+          ],
+          "latency_ms": 964,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#5",
+            "payments.md#1",
+            "seller-onboarding.md#5",
+            "returns-policy.md#5",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 96,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#5",
+            "payments.md#1",
+            "seller-onboarding.md#5",
+            "returns-policy.md#5",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 107,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1258,
+      "runner_latency_ms": 1260,
+      "input_tokens": 131,
+      "cached_input_tokens": 0,
+      "output_tokens": 4,
+      "error": null
+    },
+    {
+      "case_id": "rag033",
+      "query": "How long does a credit card verification take?",
+      "tags": [
+        "payments"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "payments.md#1"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#1",
+            "seller-onboarding.md#2",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#1",
+            "returns-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 80,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "payments.md#1",
+            "seller-onboarding.md#2",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "credit card verification processing time"
+          ],
+          "latency_ms": 827,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#1",
+            "seller-onboarding.md#2",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#1",
+            "returns-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 92,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#1",
+            "seller-onboarding.md#2",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#1",
+            "returns-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 107,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1106,
+      "runner_latency_ms": 1107,
+      "input_tokens": 131,
+      "cached_input_tokens": 0,
+      "output_tokens": 5,
+      "error": null
+    },
+    {
+      "case_id": "rag034",
+      "query": "Which companies can apply to sell on the marketplace?",
+      "tags": [
+        "seller"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "seller-onboarding.md#0"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "payments.md#0",
+            "returns-policy.md#0",
+            "seller-onboarding.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 61,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#5",
+            "shipping-policy.md#0",
+            "payments.md#0",
+            "returns-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "seller onboarding eligibility for marketplace sellers"
+          ],
+          "latency_ms": 951,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "payments.md#0",
+            "returns-policy.md#0",
+            "seller-onboarding.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 91,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "payments.md#0",
+            "returns-policy.md#0",
+            "seller-onboarding.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 105,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1208,
+      "runner_latency_ms": 1209,
+      "input_tokens": 132,
+      "cached_input_tokens": 0,
+      "output_tokens": 6,
+      "error": null
+    },
+    {
+      "case_id": "rag035",
+      "query": "What documents do I need to become a seller?",
+      "tags": [
+        "seller"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "seller-onboarding.md#2"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 95,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#2",
+            "seller-onboarding.md#5",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "seller onboarding required documents"
+          ],
+          "latency_ms": 951,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 92,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 103,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1241,
+      "runner_latency_ms": 1242,
+      "input_tokens": 132,
+      "cached_input_tokens": 0,
+      "output_tokens": 4,
+      "error": null
+    },
+    {
+      "case_id": "rag036",
+      "query": "What does the platform keep from each sale?",
+      "tags": [
+        "seller",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "seller-onboarding.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#5",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#4",
+            "returns-policy.md#0",
+            "shipping-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 67,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#4",
+            "payments.md#0",
+            "seller-onboarding.md#0",
+            "payments.md#5",
+            "shipping-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "platform commission deducted from each sale"
+          ],
+          "latency_ms": 664,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#5",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#4",
+            "returns-policy.md#0",
+            "shipping-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 104,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#5",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#4",
+            "returns-policy.md#0",
+            "shipping-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 104,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 939,
+      "runner_latency_ms": 940,
+      "input_tokens": 131,
+      "cached_input_tokens": 0,
+      "output_tokens": 6,
+      "error": null
+    },
+    {
+      "case_id": "rag037",
+      "query": "How often are seller payouts made?",
+      "tags": [
+        "seller"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "seller-onboarding.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "seller-onboarding.md#4",
+            "late-delivery-compensation.md#2",
+            "shipping-policy.md#1",
+            "payments.md#2",
+            "shipping-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 91,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#4",
+            "late-delivery-compensation.md#2",
+            "payments.md#2",
+            "shipping-policy.md#1",
+            "shipping-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "seller payout frequency"
+          ],
+          "latency_ms": 831,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#4",
+            "late-delivery-compensation.md#2",
+            "shipping-policy.md#1",
+            "payments.md#2",
+            "shipping-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 84,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "seller-onboarding.md#4",
+            "late-delivery-compensation.md#2",
+            "shipping-policy.md#1",
+            "payments.md#2",
+            "shipping-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 108,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1114,
+      "runner_latency_ms": 1116,
+      "input_tokens": 130,
+      "cached_input_tokens": 0,
+      "output_tokens": 3,
+      "error": null
+    },
+    {
+      "case_id": "rag038",
+      "query": "Can I have more than one seller account?",
+      "tags": [
+        "seller"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "seller-onboarding.md#1"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#5",
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 58,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#3",
+            "shipping-policy.md#0",
+            "returns-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "multiple seller accounts policy"
+          ],
+          "latency_ms": 880,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#5",
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 67,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "seller-onboarding.md#1",
+            "payments.md#4",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#5",
+            "seller-onboarding.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 104,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1109,
+      "runner_latency_ms": 1110,
+      "input_tokens": 131,
+      "cached_input_tokens": 0,
+      "output_tokens": 4,
+      "error": null
+    },
+    {
+      "case_id": "rag039",
+      "query": "What must a listing include before it is published?",
+      "tags": [
+        "seller"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "seller-onboarding.md#3"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "seller-onboarding.md#1",
+            "payments.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 72,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "listing requirements before publication"
+          ],
+          "latency_ms": 716,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "seller-onboarding.md#1",
+            "payments.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 67,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "seller-onboarding.md#1",
+            "payments.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 103,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 958,
+      "runner_latency_ms": 959,
+      "input_tokens": 132,
+      "cached_input_tokens": 0,
+      "output_tokens": 4,
+      "error": null
+    },
+    {
+      "case_id": "rag040",
+      "query": "Who can I ask about it?",
+      "tags": [
+        "seller",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "seller-onboarding.md#5"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#5",
+            "seller-onboarding.md#5",
+            "seller-onboarding.md#1",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 88,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#5",
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#3",
+            "returns-policy.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "seller onboarding listing approval support contact"
+          ],
+          "latency_ms": 772,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#5",
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#3",
+            "returns-policy.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "seller onboarding listing approval support contact"
+          ],
+          "latency_ms": 649,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "seller-onboarding.md#5",
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#3",
+            "returns-policy.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "seller onboarding listing approval support contact"
+          ],
+          "latency_ms": 902,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 2411,
+      "runner_latency_ms": 2412,
+      "input_tokens": 483,
+      "cached_input_tokens": 0,
+      "output_tokens": 18,
+      "error": null
+    }
+  ]
+}

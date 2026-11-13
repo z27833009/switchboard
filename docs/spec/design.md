@@ -549,6 +549,7 @@ providers:
     base_url: https://api.deepseek.com/v1
     api_key: ${DEEPSEEK_API_KEY:-}
     model: deepseek-flash
+    tool_name_pattern: "^[a-zA-Z0-9_-]+$"  # @major would be rejected; mapped to _major
     capabilities: {tools: true, json_schema: false, streaming: true, reasoning: true, context_window: 1000000}
     extra_body: {reasoning_effort: none}   # thinking is on by default; plans stay non-thinking
   mock:
@@ -569,6 +570,8 @@ embedders:
 Prices live in `config/prices.yaml` (12.4), not here.
 
 The DeepSeek rows were verified on 2026-11-12 against the provider's price page and chat-completions reference: `deepseek-flash` and `deepseek-v4-pro` accept tools and streaming, the context window is 1M, thinking is on by default, and `response_format` accepts `json_object` but not a JSON schema, so `json_schema` is false and the adapter uses the forced tool-call strategy. `reasoning_effort: none` keeps the model non-thinking, which the forced tool-call strategy needs because `tool_choice: "required"` is rejected in thinking mode. The key is written as `${DEEPSEEK_API_KEY:-}`: an unset key is an empty value, so all four config files still load for a local or mock run, and only building the `deepseek` provider (a tenant or an eval that selects it, and `--record` through it) fails, with a named `ConfigError`, before any request. A literal placeholder such as LM Studio's `lm-studio` is still written directly.
+
+`tool_name_pattern` is an optional provider-level regex. When set, the adapter maps each wire name to a name that matches the pattern (an invalid character becomes `_`, with a numeric suffix on collision), sends the safe name in the tool definition and in prior assistant tool-call messages, and maps the model's returned name back to the wire name. The tool, audit row, trace and result keep the wire name; a null pattern keeps the previous behavior. DeepSeek needs it because its function-name pattern rejects `@`, which every `name@major` wire name contains.
 
 **Streaming answer tokens (v1).** When `CompletionRequest.stream` is true and the declared capability allows it, `OpenAICompatibleProvider` passes `stream: true` and `stream_options: {include_usage: true}` to the SDK and consumes the async iterator. It forwards each answer text fragment to `CompletionRequest.delta_callback`, accumulates the final text, keeps reasoning fragments (`reasoning_content` and the other fields of 8.3) in `reasoning` and never sends them to the callback, merges tool-call fragments by `index` and parses the arguments exactly as in the non-streamed path, and reads usage from the chunk that carries it. A gateway that sends no usage chunk leaves usage at zero rather than guessing. The returned `CompletionResponse` has the same shape as a non-streamed call, so agents and the gate do not branch on how it was produced. Structured-output calls are never streamed: a request with `stream` and a `response_schema` is rejected, and the supervisor never asks for one. `MockProvider` replays a recorded answer as deterministic fixed-size fragments, so streaming tests need no network. Non-streaming behaviour is unchanged.
 

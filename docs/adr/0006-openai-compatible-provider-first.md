@@ -1,6 +1,6 @@
 # ADR 0006: OpenAI-compatible adapter as the first model provider, local models first
 
-Status: accepted, 2026-11-13. Proposed 2026-11-11, amended 2026-11-12 (prompt layout for provider prefix caching, cached token accounting, reasoning capability). Shipped with LM Studio as the measured provider. DeepSeek is configured and priced but not live-tested: the six DeepSeek rows in `evals/reports/compare.md` are `not run` because no key was used, and the author deferred the provider comparison on 2026-11-13 because local LM Studio is enough for v1.
+Status: accepted, 2026-11-13. Proposed 2026-11-11, amended 2026-11-12 (prompt layout for provider prefix caching, cached token accounting, reasoning capability). Shipped with LM Studio as the first measured provider. DeepSeek was measured on 2026-11-13 for the six comparison rows; the twelve-row table is in `evals/reports/compare.md`. DeepSeek rejects `@` in function names, so the adapter maps sanitised names on the wire and back to the wire name on the response.
 
 ## Context
 

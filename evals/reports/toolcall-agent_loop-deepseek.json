@@ -1,0 +1,1389 @@
+{
+  "suite": "toolcall",
+  "dataset_version": "v1",
+  "dataset_path": "evals/datasets/v1/toolcall.jsonl",
+  "split": "all",
+  "case_count": 40,
+  "dataset_case_count": 40,
+  "split_case_count": 40,
+  "smoke": false,
+  "orchestrator": "agent_loop",
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "generated_at": "2026-11-13T12:52:04.055449+00:00",
+  "wall_time_s": 43.563,
+  "recording": false,
+  "recorded_with": null,
+  "metrics": {
+    "tool_name_accuracy": 0.975,
+    "argument_accuracy": 0.975,
+    "both_accuracy": 0.975,
+    "tool_calls_per_case": 0.975,
+    "redundant_call_rate": 0.0,
+    "cases_with_redundant_calls": 0.0,
+    "case_pass_rate": 0.975
+  },
+  "latency_ms": {
+    "p50": 1067.5,
+    "p95": 1376.4,
+    "min": 754.0,
+    "max": 1840.0,
+    "mean": 1086.925
+  },
+  "runner_latency_ms": {
+    "p50": 1067.5,
+    "p95": 1376.4,
+    "min": 754.0,
+    "max": 1840.0,
+    "mean": 1087.075
+  },
+  "usage": {
+    "input_tokens": 48393,
+    "cached_input_tokens": 40960,
+    "output_tokens": 3539,
+    "total_tokens": 51932
+  },
+  "cost_usd": 0.00672246,
+  "price": {
+    "provider": "deepseek",
+    "model": "deepseek-flash",
+    "input_per_million": 0.3,
+    "cached_input_per_million": 0.006,
+    "output_per_million": 1.2,
+    "verified_on": "2026-11-12",
+    "source": "https://api-docs.deepseek.com/quick_start/pricing",
+    "note": "Peak rate for deepseek-flash (cache miss input, cache hit input, output); off-peak is half."
+  },
+  "no_api_cost": false,
+  "error_count": 0,
+  "error_case_ids": [],
+  "cases": [
+    {
+      "case_id": "t001",
+      "query": "Count the invoiced orders in April 2017.",
+      "tags": [],
+      "split": null,
+      "expected_tool": "orders_summary@1",
+      "expected_args": {
+        "date_from": "2017-04-01",
+        "date_to": "2017-04-30",
+        "status": "invoiced"
+      },
+      "actual_calls": [
+        {
+          "name": "orders_summary@1",
+          "arguments": {
+            "date_from": "2017-04-01",
+            "date_to": "2017-04-30",
+            "status": "invoiced"
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1296,
+      "runner_latency_ms": 1296,
+      "input_tokens": 1206,
+      "cached_input_tokens": 1024,
+      "output_tokens": 86,
+      "error": null
+    },
+    {
+      "case_id": "t002",
+      "query": "How many orders were shipped between 2018-07-10 and 2018-07-19?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "orders_summary@1",
+      "expected_args": {
+        "date_from": "2018-07-10",
+        "date_to": "2018-07-19",
+        "status": "shipped"
+      },
+      "actual_calls": [
+        {
+          "name": "orders_summary@1",
+          "arguments": {
+            "date_from": "2018-07-10",
+            "date_to": "2018-07-19",
+            "status": "shipped"
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 932,
+      "runner_latency_ms": 932,
+      "input_tokens": 1217,
+      "cached_input_tokens": 1024,
+      "output_tokens": 85,
+      "error": null
+    },
+    {
+      "case_id": "t003",
+      "query": "2018年上半年有多少已送达的订单？",
+      "tags": [
+        "zh"
+      ],
+      "split": null,
+      "expected_tool": "orders_summary@1",
+      "expected_args": {
+        "date_from": "2018-01-01",
+        "date_to": "2018-06-30",
+        "status": "delivered"
+      },
+      "actual_calls": [
+        {
+          "name": "orders_summary@1",
+          "arguments": {
+            "date_from": "2018-01-01",
+            "date_to": "2018-06-30",
+            "status": "delivered"
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1038,
+      "runner_latency_ms": 1038,
+      "input_tokens": 1204,
+      "cached_input_tokens": 1024,
+      "output_tokens": 101,
+      "error": null
+    },
+    {
+      "case_id": "t004",
+      "query": "How many orders were canceled in 2017?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "orders_summary@1",
+      "expected_args": {
+        "date_from": "2017-01-01",
+        "date_to": "2017-12-31",
+        "status": "canceled"
+      },
+      "actual_calls": [
+        {
+          "name": "orders_summary@1",
+          "arguments": {
+            "date_from": "2017-01-01",
+            "date_to": "2017-12-31",
+            "status": "canceled"
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 821,
+      "runner_latency_ms": 821,
+      "input_tokens": 1205,
+      "cached_input_tokens": 1024,
+      "output_tokens": 85,
+      "error": null
+    },
+    {
+      "case_id": "t005",
+      "query": "Give me an order summary in Q4 2017.",
+      "tags": [],
+      "split": null,
+      "expected_tool": "orders_summary@1",
+      "expected_args": {
+        "date_from": "2017-10-01",
+        "date_to": "2017-12-31"
+      },
+      "actual_calls": [
+        {
+          "name": "orders_summary@1",
+          "arguments": {
+            "date_from": "2017-10-01",
+            "date_to": "2017-12-31"
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1066,
+      "runner_latency_ms": 1066,
+      "input_tokens": 1207,
+      "cached_input_tokens": 1024,
+      "output_tokens": 79,
+      "error": null
+    },
+    {
+      "case_id": "t006",
+      "query": "统计一下2017年9月的订单情况",
+      "tags": [
+        "zh"
+      ],
+      "split": null,
+      "expected_tool": "orders_summary@1",
+      "expected_args": {
+        "date_from": "2017-09-01",
+        "date_to": "2017-09-30"
+      },
+      "actual_calls": [
+        {
+          "name": "orders_summary@1",
+          "arguments": {
+            "date_from": "2017-09-01",
+            "date_to": "2017-09-30"
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1056,
+      "runner_latency_ms": 1056,
+      "input_tokens": 1204,
+      "cached_input_tokens": 1024,
+      "output_tokens": 78,
+      "error": null
+    },
+    {
+      "case_id": "t007",
+      "query": "What did order volume look like on 2017-04-04?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "orders_summary@1",
+      "expected_args": {
+        "date_from": "2017-04-04",
+        "date_to": "2017-04-04"
+      },
+      "actual_calls": [
+        {
+          "name": "orders_summary@1",
+          "arguments": {
+            "date_from": "2017-04-04",
+            "date_to": "2017-04-04"
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1085,
+      "runner_latency_ms": 1085,
+      "input_tokens": 1210,
+      "cached_input_tokens": 1024,
+      "output_tokens": 78,
+      "error": null
+    },
+    {
+      "case_id": "t008",
+      "query": "How many orders were placed between 2017-04-22 and 2017-05-05?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "orders_summary@1",
+      "expected_args": {
+        "date_from": "2017-04-22",
+        "date_to": "2017-05-05"
+      },
+      "actual_calls": [
+        {
+          "name": "orders_summary@1",
+          "arguments": {
+            "date_from": "2017-04-22",
+            "date_to": "2017-05-05"
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 785,
+      "runner_latency_ms": 785,
+      "input_tokens": 1217,
+      "cached_input_tokens": 1024,
+      "output_tokens": 68,
+      "error": null
+    },
+    {
+      "case_id": "t009",
+      "query": "2017年7月13日一共有多少订单？",
+      "tags": [
+        "zh"
+      ],
+      "split": null,
+      "expected_tool": "orders_summary@1",
+      "expected_args": {
+        "date_from": "2017-07-13",
+        "date_to": "2017-07-13"
+      },
+      "actual_calls": [
+        {
+          "name": "orders_summary@1",
+          "arguments": {
+            "date_from": "2017-07-13",
+            "date_to": "2017-07-13"
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1149,
+      "runner_latency_ms": 1149,
+      "input_tokens": 1206,
+      "cached_input_tokens": 1024,
+      "output_tokens": 68,
+      "error": null
+    },
+    {
+      "case_id": "t010",
+      "query": "Give me an order summary in July 2018.",
+      "tags": [],
+      "split": null,
+      "expected_tool": "orders_summary@1",
+      "expected_args": {
+        "date_from": "2018-07-01",
+        "date_to": "2018-07-31"
+      },
+      "actual_calls": [
+        {
+          "name": "orders_summary@1",
+          "arguments": {
+            "date_from": "2018-07-01",
+            "date_to": "2018-07-31"
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 967,
+      "runner_latency_ms": 967,
+      "input_tokens": 1206,
+      "cached_input_tokens": 1024,
+      "output_tokens": 80,
+      "error": null
+    },
+    {
+      "case_id": "t011",
+      "query": "How many orders were at least 7 days late in July 2017?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "orders_late@1",
+      "expected_args": {
+        "date_from": "2017-07-01",
+        "date_to": "2017-07-31",
+        "min_days_late": 7
+      },
+      "actual_calls": [
+        {
+          "name": "orders_late@1",
+          "arguments": {
+            "date_from": "2017-07-01",
+            "date_to": "2017-07-31",
+            "min_days_late": 7
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1069,
+      "runner_latency_ms": 1069,
+      "input_tokens": 1211,
+      "cached_input_tokens": 1024,
+      "output_tokens": 88,
+      "error": null
+    },
+    {
+      "case_id": "t012",
+      "query": "2018年上半年延迟至少10天的订单有多少？",
+      "tags": [
+        "zh"
+      ],
+      "split": null,
+      "expected_tool": "orders_late@1",
+      "expected_args": {
+        "date_from": "2018-01-01",
+        "date_to": "2018-06-30",
+        "min_days_late": 10
+      },
+      "actual_calls": [
+        {
+          "name": "orders_late@1",
+          "arguments": {
+            "date_from": "2018-01-01",
+            "date_to": "2018-06-30",
+            "min_days_late": 10
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 781,
+      "runner_latency_ms": 782,
+      "input_tokens": 1205,
+      "cached_input_tokens": 1024,
+      "output_tokens": 102,
+      "error": null
+    },
+    {
+      "case_id": "t013",
+      "query": "List deliveries that were 3 or more days late in 2017.",
+      "tags": [],
+      "split": null,
+      "expected_tool": "orders_late@1",
+      "expected_args": {
+        "date_from": "2017-01-01",
+        "date_to": "2017-12-31",
+        "min_days_late": 3
+      },
+      "actual_calls": [
+        {
+          "name": "orders_late@1",
+          "arguments": {
+            "date_from": "2017-01-01",
+            "date_to": "2017-12-31",
+            "min_days_late": 3
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1241,
+      "runner_latency_ms": 1241,
+      "input_tokens": 1210,
+      "cached_input_tokens": 1024,
+      "output_tokens": 88,
+      "error": null
+    },
+    {
+      "case_id": "t014",
+      "query": "How many orders were at least 14 days late in Q2 2017?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "orders_late@1",
+      "expected_args": {
+        "date_from": "2017-04-01",
+        "date_to": "2017-06-30",
+        "min_days_late": 14
+      },
+      "actual_calls": [
+        {
+          "name": "orders_late@1",
+          "arguments": {
+            "date_from": "2017-04-01",
+            "date_to": "2017-06-30",
+            "min_days_late": 14
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 904,
+      "runner_latency_ms": 904,
+      "input_tokens": 1212,
+      "cached_input_tokens": 1024,
+      "output_tokens": 88,
+      "error": null
+    },
+    {
+      "case_id": "t015",
+      "query": "2017年第二季度有多少订单延迟送达？",
+      "tags": [
+        "zh"
+      ],
+      "split": null,
+      "expected_tool": "orders_late@1",
+      "expected_args": {
+        "date_from": "2017-04-01",
+        "date_to": "2017-06-30"
+      },
+      "actual_calls": [
+        {
+          "name": "orders_late@1",
+          "arguments": {
+            "date_from": "2017-04-01",
+            "date_to": "2017-06-30",
+            "min_days_late": 1
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1177,
+      "runner_latency_ms": 1177,
+      "input_tokens": 1205,
+      "cached_input_tokens": 1024,
+      "output_tokens": 100,
+      "error": null
+    },
+    {
+      "case_id": "t016",
+      "query": "Which orders were delivered after the estimated date between 2017-01-04 and 2017-01-10?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "orders_late@1",
+      "expected_args": {
+        "date_from": "2017-01-04",
+        "date_to": "2017-01-10"
+      },
+      "actual_calls": [
+        {
+          "name": "orders_late@1",
+          "arguments": {
+            "date_from": "2017-01-04",
+            "date_to": "2017-01-10",
+            "min_days_late": 1
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 843,
+      "runner_latency_ms": 844,
+      "input_tokens": 1220,
+      "cached_input_tokens": 1024,
+      "output_tokens": 99,
+      "error": null
+    },
+    {
+      "case_id": "t017",
+      "query": "How many orders arrived late in 2017?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "orders_late@1",
+      "expected_args": {
+        "date_from": "2017-01-01",
+        "date_to": "2017-12-31"
+      },
+      "actual_calls": [
+        {
+          "name": "orders_late@1",
+          "arguments": {
+            "date_from": "2017-01-01",
+            "date_to": "2017-12-31",
+            "min_days_late": 1
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 883,
+      "runner_latency_ms": 883,
+      "input_tokens": 1205,
+      "cached_input_tokens": 1024,
+      "output_tokens": 98,
+      "error": null
+    },
+    {
+      "case_id": "t018",
+      "query": "查一下2018年上半年的延迟订单",
+      "tags": [
+        "zh"
+      ],
+      "split": null,
+      "expected_tool": "orders_late@1",
+      "expected_args": {
+        "date_from": "2018-01-01",
+        "date_to": "2018-06-30"
+      },
+      "actual_calls": [
+        {
+          "name": "orders_late@1",
+          "arguments": {
+            "date_from": "2018-01-01",
+            "date_to": "2018-06-30",
+            "min_days_late": 1
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1278,
+      "runner_latency_ms": 1278,
+      "input_tokens": 1204,
+      "cached_input_tokens": 1024,
+      "output_tokens": 102,
+      "error": null
+    },
+    {
+      "case_id": "t019",
+      "query": "Show me late deliveries in August 2018.",
+      "tags": [],
+      "split": null,
+      "expected_tool": "orders_late@1",
+      "expected_args": {
+        "date_from": "2018-08-01",
+        "date_to": "2018-08-31"
+      },
+      "actual_calls": [
+        {
+          "name": "orders_late@1",
+          "arguments": {
+            "date_from": "2018-08-01",
+            "date_to": "2018-08-31",
+            "min_days_late": 1
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 940,
+      "runner_latency_ms": 940,
+      "input_tokens": 1205,
+      "cached_input_tokens": 1024,
+      "output_tokens": 99,
+      "error": null
+    },
+    {
+      "case_id": "t020",
+      "query": "Show me late deliveries in January 2018.",
+      "tags": [],
+      "split": null,
+      "expected_tool": "orders_late@1",
+      "expected_args": {
+        "date_from": "2018-01-01",
+        "date_to": "2018-01-31"
+      },
+      "actual_calls": [
+        {
+          "name": "orders_late@1",
+          "arguments": {
+            "date_from": "2018-01-01",
+            "date_to": "2018-01-31",
+            "min_days_late": 1
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1195,
+      "runner_latency_ms": 1195,
+      "input_tokens": 1205,
+      "cached_input_tokens": 1024,
+      "output_tokens": 99,
+      "error": null
+    },
+    {
+      "case_id": "t021",
+      "query": "2017年10月15日销售额最高的前3个商品是哪些？",
+      "tags": [
+        "zh"
+      ],
+      "split": null,
+      "expected_tool": "top_products@1",
+      "expected_args": {
+        "date_from": "2017-10-15",
+        "date_to": "2017-10-15",
+        "metric": "revenue",
+        "limit": 3
+      },
+      "actual_calls": [
+        {
+          "name": "top_products@1",
+          "arguments": {
+            "date_from": "2017-10-15",
+            "date_to": "2017-10-15",
+            "metric": "revenue",
+            "limit": 3
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 954,
+      "runner_latency_ms": 954,
+      "input_tokens": 1211,
+      "cached_input_tokens": 1024,
+      "output_tokens": 101,
+      "error": null
+    },
+    {
+      "case_id": "t022",
+      "query": "What were the 5 best-selling products by units sold in 2017?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "top_products@1",
+      "expected_args": {
+        "date_from": "2017-01-01",
+        "date_to": "2017-12-31",
+        "metric": "count",
+        "limit": 5
+      },
+      "actual_calls": [
+        {
+          "name": "top_products@1",
+          "arguments": {
+            "date_from": "2017-01-01",
+            "date_to": "2017-12-31",
+            "metric": "count",
+            "limit": 5
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1821,
+      "runner_latency_ms": 1821,
+      "input_tokens": 1211,
+      "cached_input_tokens": 1024,
+      "output_tokens": 100,
+      "error": null
+    },
+    {
+      "case_id": "t023",
+      "query": "Top 3 products by revenue in February 2017?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "top_products@1",
+      "expected_args": {
+        "date_from": "2017-02-01",
+        "date_to": "2017-02-28",
+        "metric": "revenue",
+        "limit": 3
+      },
+      "actual_calls": [
+        {
+          "name": "top_products@1",
+          "arguments": {
+            "date_from": "2017-02-01",
+            "date_to": "2017-02-28",
+            "metric": "revenue",
+            "limit": 3
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1156,
+      "runner_latency_ms": 1156,
+      "input_tokens": 1207,
+      "cached_input_tokens": 1024,
+      "output_tokens": 101,
+      "error": null
+    },
+    {
+      "case_id": "t024",
+      "query": "2018年上半年销量前10的商品有哪些？",
+      "tags": [
+        "zh"
+      ],
+      "split": null,
+      "expected_tool": "top_products@1",
+      "expected_args": {
+        "date_from": "2018-01-01",
+        "date_to": "2018-06-30",
+        "metric": "count",
+        "limit": 10
+      },
+      "actual_calls": [
+        {
+          "name": "top_products@1",
+          "arguments": {
+            "date_from": "2018-01-01",
+            "date_to": "2018-06-30",
+            "metric": "count",
+            "limit": 10
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1144,
+      "runner_latency_ms": 1144,
+      "input_tokens": 1204,
+      "cached_input_tokens": 1024,
+      "output_tokens": 118,
+      "error": null
+    },
+    {
+      "case_id": "t025",
+      "query": "Top 10 products by number of items sold on 2017-11-13",
+      "tags": [],
+      "split": null,
+      "expected_tool": "top_products@1",
+      "expected_args": {
+        "date_from": "2017-11-13",
+        "date_to": "2017-11-13",
+        "metric": "count",
+        "limit": 10
+      },
+      "actual_calls": [
+        {
+          "name": "top_products@1",
+          "arguments": {
+            "date_from": "2017-11-13",
+            "date_to": "2017-11-13",
+            "metric": "count",
+            "limit": 10
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 754,
+      "runner_latency_ms": 754,
+      "input_tokens": 1212,
+      "cached_input_tokens": 1024,
+      "output_tokens": 100,
+      "error": null
+    },
+    {
+      "case_id": "t026",
+      "query": "Which 3 products made the most money in July 2017?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "top_products@1",
+      "expected_args": {
+        "date_from": "2017-07-01",
+        "date_to": "2017-07-31",
+        "metric": "revenue",
+        "limit": 3
+      },
+      "actual_calls": [
+        {
+          "name": "top_products@1",
+          "arguments": {
+            "date_from": "2017-07-01",
+            "date_to": "2017-07-31",
+            "metric": "revenue",
+            "limit": 3
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1353,
+      "runner_latency_ms": 1353,
+      "input_tokens": 1209,
+      "cached_input_tokens": 1024,
+      "output_tokens": 101,
+      "error": null
+    },
+    {
+      "case_id": "t027",
+      "query": "2018-05-23到2018-06-01之间销售额最高的前3个商品是哪些？",
+      "tags": [
+        "zh"
+      ],
+      "split": null,
+      "expected_tool": "top_products@1",
+      "expected_args": {
+        "date_from": "2018-05-23",
+        "date_to": "2018-06-01",
+        "metric": "revenue",
+        "limit": 3
+      },
+      "actual_calls": [
+        {
+          "name": "top_products@1",
+          "arguments": {
+            "date_from": "2018-05-23",
+            "date_to": "2018-06-01",
+            "metric": "revenue",
+            "limit": 3
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1122,
+      "runner_latency_ms": 1122,
+      "input_tokens": 1218,
+      "cached_input_tokens": 1024,
+      "output_tokens": 114,
+      "error": null
+    },
+    {
+      "case_id": "t028",
+      "query": "Top 3 products by number of items sold in Q2 2017",
+      "tags": [],
+      "split": null,
+      "expected_tool": "top_products@1",
+      "expected_args": {
+        "date_from": "2017-04-01",
+        "date_to": "2017-06-30",
+        "metric": "count",
+        "limit": 3
+      },
+      "actual_calls": [
+        {
+          "name": "top_products@1",
+          "arguments": {
+            "date_from": "2017-04-01",
+            "date_to": "2017-06-30",
+            "metric": "count",
+            "limit": 3
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1221,
+      "runner_latency_ms": 1221,
+      "input_tokens": 1210,
+      "cached_input_tokens": 1024,
+      "output_tokens": 116,
+      "error": null
+    },
+    {
+      "case_id": "t029",
+      "query": "Which 3 products made the most money in 2017?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "top_products@1",
+      "expected_args": {
+        "date_from": "2017-01-01",
+        "date_to": "2017-12-31",
+        "metric": "revenue",
+        "limit": 3
+      },
+      "actual_calls": [
+        {
+          "name": "top_products@1",
+          "arguments": {
+            "date_from": "2017-01-01",
+            "date_to": "2017-12-31",
+            "metric": "revenue",
+            "limit": 3
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 970,
+      "runner_latency_ms": 970,
+      "input_tokens": 1208,
+      "cached_input_tokens": 1024,
+      "output_tokens": 101,
+      "error": null
+    },
+    {
+      "case_id": "t030",
+      "query": "2018年上半年销量前5的商品有哪些？",
+      "tags": [
+        "zh"
+      ],
+      "split": null,
+      "expected_tool": "top_products@1",
+      "expected_args": {
+        "date_from": "2018-01-01",
+        "date_to": "2018-06-30",
+        "metric": "count",
+        "limit": 5
+      },
+      "actual_calls": [
+        {
+          "name": "top_products@1",
+          "arguments": {
+            "date_from": "2018-01-01",
+            "date_to": "2018-06-30",
+            "metric": "count",
+            "limit": 5
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 890,
+      "runner_latency_ms": 891,
+      "input_tokens": 1204,
+      "cached_input_tokens": 1024,
+      "output_tokens": 118,
+      "error": null
+    },
+    {
+      "case_id": "t031",
+      "query": "Where is my order bdbcb0e21f0d85538d17911900b26610?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "order_lookup@1",
+      "expected_args": {
+        "order_id": "bdbcb0e21f0d85538d17911900b26610"
+      },
+      "actual_calls": [
+        {
+          "name": "order_lookup@1",
+          "arguments": {
+            "order_id": "bdbcb0e21f0d85538d17911900b26610"
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1031,
+      "runner_latency_ms": 1031,
+      "input_tokens": 1218,
+      "cached_input_tokens": 1024,
+      "output_tokens": 66,
+      "error": null
+    },
+    {
+      "case_id": "t032",
+      "query": "What is the status of order 6f7c4d0e0bfea3787bfa435c00423420?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "order_lookup@1",
+      "expected_args": {
+        "order_id": "6f7c4d0e0bfea3787bfa435c00423420"
+      },
+      "actual_calls": [
+        {
+          "name": "order_lookup@1",
+          "arguments": {
+            "order_id": "6f7c4d0e0bfea3787bfa435c00423420"
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1109,
+      "runner_latency_ms": 1109,
+      "input_tokens": 1223,
+      "cached_input_tokens": 1024,
+      "output_tokens": 60,
+      "error": null
+    },
+    {
+      "case_id": "t033",
+      "query": "帮我查一下订单86bf271e1a69a73159db69b6b820d8e2的情况",
+      "tags": [
+        "zh"
+      ],
+      "split": null,
+      "expected_tool": "order_lookup@1",
+      "expected_args": {
+        "order_id": "86bf271e1a69a73159db69b6b820d8e2"
+      },
+      "actual_calls": [
+        {
+          "name": "order_lookup@1",
+          "arguments": {
+            "order_id": "86bf271e1a69a73159db69b6b820d8e2"
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 943,
+      "runner_latency_ms": 943,
+      "input_tokens": 1220,
+      "cached_input_tokens": 1024,
+      "output_tokens": 68,
+      "error": null
+    },
+    {
+      "case_id": "t034",
+      "query": "Show me the details of order 75de3533485debf7b6eb8014b9c9ab76.",
+      "tags": [],
+      "split": null,
+      "expected_tool": "order_lookup@1",
+      "expected_args": {
+        "order_id": "75de3533485debf7b6eb8014b9c9ab76"
+      },
+      "actual_calls": [
+        {
+          "name": "order_lookup@1",
+          "arguments": {
+            "order_id": "75de3533485debf7b6eb8014b9c9ab76"
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1353,
+      "runner_latency_ms": 1353,
+      "input_tokens": 1222,
+      "cached_input_tokens": 1024,
+      "output_tokens": 59,
+      "error": null
+    },
+    {
+      "case_id": "t035",
+      "query": "What is the status of order 6c8409ca697ac1cdf422adf792fbf759?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "order_lookup@1",
+      "expected_args": {
+        "order_id": "6c8409ca697ac1cdf422adf792fbf759"
+      },
+      "actual_calls": [
+        {
+          "name": "order_lookup@1",
+          "arguments": {
+            "order_id": "6c8409ca697ac1cdf422adf792fbf759"
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1002,
+      "runner_latency_ms": 1002,
+      "input_tokens": 1220,
+      "cached_input_tokens": 1024,
+      "output_tokens": 57,
+      "error": null
+    },
+    {
+      "case_id": "t036",
+      "query": "帮我查一下订单b9499283a775ccfa9da92e6e75e9b4b9的情况",
+      "tags": [
+        "zh"
+      ],
+      "split": null,
+      "expected_tool": "order_lookup@1",
+      "expected_args": {
+        "order_id": "b9499283a775ccfa9da92e6e75e9b4b9"
+      },
+      "actual_calls": [
+        {
+          "name": "order_lookup@1",
+          "arguments": {
+            "order_id": "b9499283a775ccfa9da92e6e75e9b4b9"
+          }
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1070,
+      "runner_latency_ms": 1070,
+      "input_tokens": 1221,
+      "cached_input_tokens": 1024,
+      "output_tokens": 69,
+      "error": null
+    },
+    {
+      "case_id": "t037",
+      "query": "What data can you query?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "describe_schema@1",
+      "expected_args": {},
+      "actual_calls": [
+        {
+          "name": "describe_schema@1",
+          "arguments": {}
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1142,
+      "runner_latency_ms": 1143,
+      "input_tokens": 1201,
+      "cached_input_tokens": 1024,
+      "output_tokens": 35,
+      "error": null
+    },
+    {
+      "case_id": "t038",
+      "query": "Which tables and fields are available in the order database?",
+      "tags": [],
+      "split": null,
+      "expected_tool": "describe_schema@1",
+      "expected_args": {},
+      "actual_calls": [
+        {
+          "name": "describe_schema@1",
+          "arguments": {}
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1089,
+      "runner_latency_ms": 1090,
+      "input_tokens": 1206,
+      "cached_input_tokens": 1024,
+      "output_tokens": 33,
+      "error": null
+    },
+    {
+      "case_id": "t039",
+      "query": "你能查询哪些数据？",
+      "tags": [
+        "zh"
+      ],
+      "split": null,
+      "expected_tool": "describe_schema@1",
+      "expected_args": {},
+      "actual_calls": [],
+      "tool_name_match": 0.0,
+      "argument_match": 0.0,
+      "both": 0.0,
+      "call_count": 0,
+      "redundant": 0.0,
+      "passed": false,
+      "latency_ms": 1840,
+      "runner_latency_ms": 1840,
+      "input_tokens": 1200,
+      "cached_input_tokens": 1024,
+      "output_tokens": 220,
+      "error": null
+    },
+    {
+      "case_id": "t040",
+      "query": "Describe the database schema you have access to.",
+      "tags": [],
+      "split": null,
+      "expected_tool": "describe_schema@1",
+      "expected_args": {},
+      "actual_calls": [
+        {
+          "name": "describe_schema@1",
+          "arguments": {}
+        }
+      ],
+      "tool_name_match": 1.0,
+      "argument_match": 1.0,
+      "both": 1.0,
+      "call_count": 1,
+      "redundant": 0.0,
+      "passed": true,
+      "latency_ms": 1007,
+      "runner_latency_ms": 1008,
+      "input_tokens": 1204,
+      "cached_input_tokens": 1024,
+      "output_tokens": 31,
+      "error": null
+    }
+  ]
+}

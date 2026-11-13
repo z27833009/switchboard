@@ -210,14 +210,16 @@ class MemoryRunStore:
 
     async def latest_feedback(self, *, run_id: str, tenant_id: str) -> dict[str, Any] | None:
         rows = [
-            row
-            for row in self.feedback
+            (index, row)
+            for index, row in enumerate(self.feedback)
             if row["run_id"] == run_id and row["tenant_id"] == tenant_id
         ]
         if not rows:
             return None
-        rows.sort(key=lambda row: (row["created_at"], row["id"]), reverse=True)
-        return dict(rows[0])
+        # Insertion order breaks a same-microsecond tie, so the fake matches
+        # the append-only rule instead of ordering equal timestamps by UUID.
+        rows.sort(key=lambda item: (item[1]["created_at"], item[0]), reverse=True)
+        return dict(rows[0][1])
 
     async def list_audit(self, query: AuditQuery) -> list[dict[str, Any]]:
         """The same tenant filter, ordering and offset as ``LIST_AUDIT_SQL``."""

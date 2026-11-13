@@ -35,6 +35,7 @@ from switchboard.core.models import (
     Message,
     ProviderCapabilities,
     ToolCall,
+    ToolSpec,
     Usage,
 )
 from switchboard.registry import PROVIDERS, Registry
@@ -105,6 +106,7 @@ def make_provider(
     json_schema: bool = False,
     tools: bool = True,
     streaming: bool = True,
+    tool_name_pattern: str | None = None,
 ) -> tuple[OpenAICompatibleProvider, FakeCompletions]:
     completions = FakeCompletions(responses)
     client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
@@ -120,6 +122,7 @@ def make_provider(
             reasoning=False,
             context_window=8192,
         ),
+        tool_name_pattern=tool_name_pattern,
         client=client,
     )
     return provider, completions
@@ -359,6 +362,105 @@ async def test_streamed_tool_call_fragments_normalise_to_one_call() -> None:
         )
     ]
     assert response.usage == Usage(input_tokens=10, output_tokens=4)
+
+
+ORDERS_TOOL = ToolSpec(
+    name="orders_late",
+    version="1",
+    description="Count late deliveries.",
+    input_schema={"type": "object", "properties": {}},
+)
+
+
+def tool_call_payload(name: str, arguments: dict[str, Any]) -> ChatCompletion:
+    raw = payload("tool_call.json")
+    call = raw["choices"][0]["message"]["tool_calls"][0]
+    call["function"]["name"] = name
+    call["function"]["arguments"] = json.dumps(arguments)
+    return ChatCompletion.model_validate(raw)
+
+
+async def test_tool_name_pattern_sanitises_outgoing_names_and_maps_calls_back() -> None:
+    provider, calls = make_provider(
+        [tool_call_payload("orders_late_1", {"date_from": "2018-03-01"})],
+        tool_name_pattern=r"^[a-zA-Z0-9_-]+$",
+    )
+    request = CompletionRequest(
+        messages=[
+            Message(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    ToolCall(
+                        name="orders_late@1",
+                        arguments={"date_from": "2018-03-01"},
+                        call_id="call_1",
+                    )
+                ],
+            ),
+            Message(role="tool", content="{}", tool_call_id="call_1"),
+            Message(role="user", content="And in April?"),
+        ],
+        tools=[ORDERS_TOOL],
+    )
+
+    response = await provider.complete(request)
+
+    assert calls.calls[0]["tools"][0]["function"]["name"] == "orders_late_1"
+    assert calls.calls[0]["messages"][0]["tool_calls"][0]["function"]["name"] == "orders_late_1"
+    assert response.tool_calls[0].name == "orders_late@1"
+    assert response.tool_calls[0].arguments == {"date_from": "2018-03-01"}
+
+
+async def test_without_a_pattern_tool_names_are_sent_unchanged() -> None:
+    provider, calls = make_provider(
+        [tool_call_payload("orders_late@1", {"date_from": "2018-03-01"})]
+    )
+
+    response = await provider.complete(
+        CompletionRequest(
+            messages=[Message(role="user", content="late?")],
+            tools=[ORDERS_TOOL],
+        )
+    )
+
+    assert calls.calls[0]["tools"][0]["function"]["name"] == "orders_late@1"
+    assert response.tool_calls[0].name == "orders_late@1"
+
+
+async def test_streamed_tool_names_are_mapped_back_to_the_wire_name() -> None:
+    stream = [
+        chunk(
+            tool_calls=[
+                {
+                    "index": 0,
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                        "name": "orders_late_1",
+                        "arguments": '{"date_from": "2018-04-01"}',
+                    },
+                }
+            ]
+        )
+    ]
+    provider, _ = make_provider([stream], tool_name_pattern=r"^[a-zA-Z0-9_-]+$")
+
+    response = await provider.complete(
+        CompletionRequest(
+            messages=[Message(role="user", content="April?")],
+            tools=[ORDERS_TOOL],
+            stream=True,
+        )
+    )
+
+    assert response.tool_calls == [
+        ToolCall(
+            name="orders_late@1",
+            arguments={"date_from": "2018-04-01"},
+            call_id="call_1",
+        )
+    ]
 
 
 async def test_streaming_without_a_usage_chunk_leaves_usage_at_zero() -> None:

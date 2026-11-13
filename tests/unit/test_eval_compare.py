@@ -474,7 +474,6 @@ def test_cli_compare_uses_committed_reports(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     assert "measured" in result.output
-    assert "not run" in result.output
     markdown_path = tmp_path / "compare.md"
     json_path = tmp_path / "compare.json"
     assert markdown_path.is_file()
@@ -487,9 +486,13 @@ def test_cli_compare_uses_committed_reports(tmp_path: Path) -> None:
         if row["provider"] == "lmstudio" and row["status"] == "measured"
     ]
     assert measured, "the committed LM Studio reports must be comparable"
-    missing = [row for row in comparison["rows"] if row["provider"] == "deepseek"]
-    assert missing and all(row["status"] == "not run" for row in missing)
-    assert all(row["reason"] == "DEEPSEEK_API_KEY missing" for row in missing)
+    deepseek = [row for row in comparison["rows"] if row["provider"] == "deepseek"]
+    assert deepseek
+    assert all(row["status"] in {"measured", "not run"} for row in deepseek)
+    not_run = [row for row in deepseek if row["status"] == "not run"]
+    assert all(row["reason"] == "DEEPSEEK_API_KEY missing" for row in not_run)
+    if not_run:
+        assert "not run" in result.output
     assert "[routing-lmstudio.md](routing-lmstudio.md)" in markdown_path.read_text(encoding="utf-8")
 
 

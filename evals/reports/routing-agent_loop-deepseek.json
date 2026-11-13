@@ -1,0 +1,1193 @@
+{
+  "suite": "routing",
+  "dataset_version": "v1",
+  "dataset_path": "evals/datasets/v1/routing.jsonl",
+  "split": "test",
+  "case_count": 39,
+  "dataset_case_count": 60,
+  "split_case_count": 39,
+  "smoke": false,
+  "orchestrator": "agent_loop",
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "generated_at": "2026-11-13T12:50:29.256572+00:00",
+  "wall_time_s": 45.4,
+  "recording": false,
+  "recorded_with": null,
+  "metrics": {
+    "plan_accuracy": 0.9487,
+    "plan_jaccard": 0.9615,
+    "case_pass_rate": 0.9487,
+    "unambiguous_plan_accuracy": 1.0,
+    "ambiguous_plan_accuracy": 0.6
+  },
+  "latency_ms": {
+    "p50": 1129.0,
+    "p95": 1798.9,
+    "min": 809.0,
+    "max": 2192.0,
+    "mean": 1161.923
+  },
+  "runner_latency_ms": {
+    "p50": 1130.0,
+    "p95": 1798.9,
+    "min": 810.0,
+    "max": 2192.0,
+    "mean": 1162.026
+  },
+  "usage": {
+    "input_tokens": 47326,
+    "cached_input_tokens": 38912,
+    "output_tokens": 3741,
+    "total_tokens": 51067
+  },
+  "cost_usd": 0.007246872,
+  "price": {
+    "provider": "deepseek",
+    "model": "deepseek-flash",
+    "input_per_million": 0.3,
+    "cached_input_per_million": 0.006,
+    "output_per_million": 1.2,
+    "verified_on": "2026-11-12",
+    "source": "https://api-docs.deepseek.com/quick_start/pricing",
+    "note": "Peak rate for deepseek-flash (cache miss input, cache hit input, output); off-peak is half."
+  },
+  "no_api_cost": false,
+  "error_count": 0,
+  "error_case_ids": [],
+  "confusion_matrix": {
+    "data": {
+      "data": 11,
+      "data+docs": 1
+    },
+    "data+docs": {
+      "data+docs": 10
+    },
+    "direct": {
+      "direct": 5
+    },
+    "docs": {
+      "direct": 1,
+      "docs": 11
+    }
+  },
+  "plan_source": "agent loop first decision, derived plan",
+  "cases": [
+    {
+      "case_id": "r003",
+      "query": "Give me an order summary for September 2017 broken down by status.",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1066,
+      "runner_latency_ms": 1066,
+      "input_tokens": 1210,
+      "cached_input_tokens": 0,
+      "output_tokens": 80,
+      "reason": "Derived from the tools the run called: orders_summary.",
+      "tool_calls": [
+        "orders_summary@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r008",
+      "query": "my packge d24b9ff725ca614bc99aa08a07f8a06c came super late, do i get anything back for that?",
+      "tags": [
+        "typo",
+        "ambiguous"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data",
+        "docs"
+      ],
+      "actual_plan": "data+docs",
+      "exact_match": 0.0,
+      "jaccard": 0.5,
+      "passed": false,
+      "latency_ms": 884,
+      "runner_latency_ms": 884,
+      "input_tokens": 1229,
+      "cached_input_tokens": 1024,
+      "output_tokens": 107,
+      "reason": "Derived from the tools the run called: order_lookup, search_docs.",
+      "tool_calls": [
+        "order_lookup@1",
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r009",
+      "query": "Order dfe367de1f1445f0ea5f00e2f3e04abb arrived late. Am I eligible for compensation?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data",
+        "docs"
+      ],
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1215,
+      "runner_latency_ms": 1215,
+      "input_tokens": 1226,
+      "cached_input_tokens": 1024,
+      "output_tokens": 109,
+      "reason": "Derived from the tools the run called: order_lookup, search_docs.",
+      "tool_calls": [
+        "order_lookup@1",
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r010",
+      "query": "Can you look up orders for me, or do you only answer policy questions?",
+      "tags": [
+        "trap"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "direct"
+      ],
+      "expected_plan": "direct",
+      "actual_agents": [
+        "direct"
+      ],
+      "actual_plan": "direct",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1793,
+      "runner_latency_ms": 1793,
+      "input_tokens": 1211,
+      "cached_input_tokens": 1024,
+      "output_tokens": 170,
+      "reason": "The run called no tool, so it answered directly.",
+      "tool_calls": [],
+      "error": null
+    },
+    {
+      "case_id": "r012",
+      "query": "退货后多久能收到退款？",
+      "tags": [
+        "zh",
+        "ambiguous"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "docs"
+      ],
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 809,
+      "runner_latency_ms": 810,
+      "input_tokens": 1202,
+      "cached_input_tokens": 1024,
+      "output_tokens": 82,
+      "reason": "Derived from the tools the run called: search_docs.",
+      "tool_calls": [
+        "search_docs@1",
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r015",
+      "query": "If my order arrives late, what compensation am I entitled to?",
+      "tags": [
+        "trap",
+        "ambiguous"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "docs"
+      ],
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1007,
+      "runner_latency_ms": 1008,
+      "input_tokens": 1208,
+      "cached_input_tokens": 1024,
+      "output_tokens": 71,
+      "reason": "Derived from the tools the run called: search_docs.",
+      "tool_calls": [
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r016",
+      "query": "Was order 07460fefc54c9c13abb2bc6ca25e0d17 paid in installments, and if so, what are the installment rules?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data",
+        "docs"
+      ],
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1406,
+      "runner_latency_ms": 1406,
+      "input_tokens": 1233,
+      "cached_input_tokens": 1024,
+      "output_tokens": 106,
+      "reason": "Derived from the tools the run called: order_lookup, search_docs.",
+      "tool_calls": [
+        "order_lookup@1",
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r017",
+      "query": "As a seller, I'd like to know which products brought in the most revenue in December 2017.",
+      "tags": [
+        "trap"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1129,
+      "runner_latency_ms": 1129,
+      "input_tokens": 1217,
+      "cached_input_tokens": 1024,
+      "output_tokens": 115,
+      "reason": "Derived from the tools the run called: top_products.",
+      "tool_calls": [
+        "top_products@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r018",
+      "query": "What kinds of questions can you help me with?",
+      "tags": [
+        "ambiguous"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "direct"
+      ],
+      "actual_plan": "direct",
+      "exact_match": 0.0,
+      "jaccard": 0.0,
+      "passed": false,
+      "latency_ms": 2192,
+      "runner_latency_ms": 2192,
+      "input_tokens": 1205,
+      "cached_input_tokens": 1024,
+      "output_tokens": 208,
+      "reason": "The run called no tool, so it answered directly.",
+      "tool_calls": [],
+      "error": null
+    },
+    {
+      "case_id": "r019",
+      "query": "What fees do sellers pay to join the platform?",
+      "tags": [
+        "ambiguous"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "docs"
+      ],
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 866,
+      "runner_latency_ms": 866,
+      "input_tokens": 1205,
+      "cached_input_tokens": 1024,
+      "output_tokens": 70,
+      "reason": "Derived from the tools the run called: search_docs.",
+      "tool_calls": [
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r020",
+      "query": "Show me the top 10 products by revenue between June 1 and June 30, 2018.",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1268,
+      "runner_latency_ms": 1268,
+      "input_tokens": 1217,
+      "cached_input_tokens": 1024,
+      "output_tokens": 101,
+      "reason": "Derived from the tools the run called: top_products.",
+      "tool_calls": [
+        "top_products@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r023",
+      "query": "Which products sold the most units from October through December 2017?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1129,
+      "runner_latency_ms": 1130,
+      "input_tokens": 1209,
+      "cached_input_tokens": 1024,
+      "output_tokens": 100,
+      "reason": "Derived from the tools the run called: top_products.",
+      "tool_calls": [
+        "top_products@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r024",
+      "query": "What is the status of order 66c737db5f67fdd09273a03a6dc911d8?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 841,
+      "runner_latency_ms": 841,
+      "input_tokens": 1222,
+      "cached_input_tokens": 1024,
+      "output_tokens": 59,
+      "reason": "Derived from the tools the run called: order_lookup.",
+      "tool_calls": [
+        "order_lookup@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r025",
+      "query": "2017年12月延迟交付的订单中，有多少符合补偿条件？",
+      "tags": [
+        "zh"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data",
+        "docs"
+      ],
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1400,
+      "runner_latency_ms": 1400,
+      "input_tokens": 1211,
+      "cached_input_tokens": 1024,
+      "output_tokens": 154,
+      "reason": "Derived from the tools the run called: orders_late, search_docs.",
+      "tool_calls": [
+        "search_docs@1",
+        "orders_late@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r026",
+      "query": "Please pull order c975ae74962ebff9c04ea5ab827c90c5 and explain which payment rules apply to the method it used.",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data",
+        "docs"
+      ],
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1143,
+      "runner_latency_ms": 1143,
+      "input_tokens": 1228,
+      "cached_input_tokens": 1024,
+      "output_tokens": 127,
+      "reason": "Derived from the tools the run called: order_lookup, search_docs.",
+      "tool_calls": [
+        "order_lookup@1",
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r027",
+      "query": "Please explain how refunds work when an item arrives damaged.",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "docs"
+      ],
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1180,
+      "runner_latency_ms": 1180,
+      "input_tokens": 1207,
+      "cached_input_tokens": 1024,
+      "output_tokens": 121,
+      "reason": "Derived from the tools the run called: search_docs.",
+      "tool_calls": [
+        "search_docs@1",
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r028",
+      "query": "How many deliveries in July 2018 were late enough to qualify for compensation under the policy?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data",
+        "docs"
+      ],
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1289,
+      "runner_latency_ms": 1289,
+      "input_tokens": 1214,
+      "cached_input_tokens": 1024,
+      "output_tokens": 140,
+      "reason": "Derived from the tools the run called: orders_late, search_docs.",
+      "tool_calls": [
+        "search_docs@1",
+        "orders_late@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r030",
+      "query": "For the top 5 products by units sold in November 2017, what are their return windows?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data",
+        "docs"
+      ],
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1248,
+      "runner_latency_ms": 1248,
+      "input_tokens": 1216,
+      "cached_input_tokens": 1024,
+      "output_tokens": 166,
+      "reason": "Derived from the tools the run called: search_docs, top_products.",
+      "tool_calls": [
+        "top_products@1",
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r031",
+      "query": "Give me a count of late deliveries from 1 to 7 August 2018.",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 902,
+      "runner_latency_ms": 902,
+      "input_tokens": 1213,
+      "cached_input_tokens": 1024,
+      "output_tokens": 88,
+      "reason": "Derived from the tools the run called: orders_late.",
+      "tool_calls": [
+        "orders_late@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r032",
+      "query": "Delivery time question: when was order 32407a9eb4d1f77142ade9ae12f4068f actually delivered?",
+      "tags": [
+        "trap"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1047,
+      "runner_latency_ms": 1047,
+      "input_tokens": 1225,
+      "cached_input_tokens": 1024,
+      "output_tokens": 65,
+      "reason": "Derived from the tools the run called: order_lookup.",
+      "tool_calls": [
+        "order_lookup@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r033",
+      "query": "In February 2018, how many deliveries were at least 3 days late, and how much compensation does each affected customer get?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data",
+        "docs"
+      ],
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 910,
+      "runner_latency_ms": 910,
+      "input_tokens": 1222,
+      "cached_input_tokens": 1024,
+      "output_tokens": 140,
+      "reason": "Derived from the tools the run called: orders_late, search_docs.",
+      "tool_calls": [
+        "orders_late@1",
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r034",
+      "query": "I want to start selling on the marketplace. What are the requirements?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "docs"
+      ],
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1188,
+      "runner_latency_ms": 1188,
+      "input_tokens": 1209,
+      "cached_input_tokens": 1024,
+      "output_tokens": 74,
+      "reason": "Derived from the tools the run called: search_docs.",
+      "tool_calls": [
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r037",
+      "query": "Can I pay with boleto and still split the amount into installments?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "docs"
+      ],
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1530,
+      "runner_latency_ms": 1530,
+      "input_tokens": 1211,
+      "cached_input_tokens": 1024,
+      "output_tokens": 126,
+      "reason": "Derived from the tools the run called: search_docs.",
+      "tool_calls": [
+        "search_docs@1",
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r040",
+      "query": "How many days late does a delivery have to be before the customer gets compensated?",
+      "tags": [
+        "trap"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "docs"
+      ],
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1170,
+      "runner_latency_ms": 1170,
+      "input_tokens": 1211,
+      "cached_input_tokens": 1024,
+      "output_tokens": 58,
+      "reason": "Derived from the tools the run called: search_docs.",
+      "tool_calls": [
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r041",
+      "query": "成为卖家需要提供哪些材料？",
+      "tags": [
+        "zh"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "docs"
+      ],
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1091,
+      "runner_latency_ms": 1091,
+      "input_tokens": 1202,
+      "cached_input_tokens": 1024,
+      "output_tokens": 60,
+      "reason": "Derived from the tools the run called: search_docs.",
+      "tool_calls": [
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r042",
+      "query": "谢谢你的帮助，再见！",
+      "tags": [
+        "zh"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "direct"
+      ],
+      "expected_plan": "direct",
+      "actual_agents": [
+        "direct"
+      ],
+      "actual_plan": "direct",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 923,
+      "runner_latency_ms": 923,
+      "input_tokens": 1201,
+      "cached_input_tokens": 1024,
+      "output_tokens": 27,
+      "reason": "The run called no tool, so it answered directly.",
+      "tool_calls": [],
+      "error": null
+    },
+    {
+      "case_id": "r043",
+      "query": "订单 8109a41bee614af16733370276b23727 晚到了，我能拿到补偿吗？",
+      "tags": [
+        "zh"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data",
+        "docs"
+      ],
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1012,
+      "runner_latency_ms": 1012,
+      "input_tokens": 1220,
+      "cached_input_tokens": 1024,
+      "output_tokens": 100,
+      "reason": "Derived from the tools the run called: order_lookup, search_docs.",
+      "tool_calls": [
+        "order_lookup@1",
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r044",
+      "query": "Sorry, I'm new here. Is it okay to write to you in English instead of Portuguese?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "direct"
+      ],
+      "expected_plan": "direct",
+      "actual_agents": [
+        "direct"
+      ],
+      "actual_plan": "direct",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1184,
+      "runner_latency_ms": 1184,
+      "input_tokens": 1215,
+      "cached_input_tokens": 1024,
+      "output_tokens": 73,
+      "reason": "The run called no tool, so it answered directly.",
+      "tool_calls": [],
+      "error": null
+    },
+    {
+      "case_id": "r045",
+      "query": "Good morning, how are you doing today?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "direct"
+      ],
+      "expected_plan": "direct",
+      "actual_agents": [
+        "direct"
+      ],
+      "actual_plan": "direct",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 887,
+      "runner_latency_ms": 887,
+      "input_tokens": 1204,
+      "cached_input_tokens": 1024,
+      "output_tokens": 64,
+      "reason": "The run called no tool, so it answered directly.",
+      "tool_calls": [],
+      "error": null
+    },
+    {
+      "case_id": "r046",
+      "query": "how many ordres got delivered in oct 2017?",
+      "tags": [
+        "typo"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1006,
+      "runner_latency_ms": 1006,
+      "input_tokens": 1207,
+      "cached_input_tokens": 1024,
+      "output_tokens": 85,
+      "reason": "Derived from the tools the run called: orders_summary.",
+      "tool_calls": [
+        "orders_summary@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r047",
+      "query": "运费是怎么计算的？",
+      "tags": [
+        "zh"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "docs"
+      ],
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1376,
+      "runner_latency_ms": 1376,
+      "input_tokens": 1199,
+      "cached_input_tokens": 1024,
+      "output_tokens": 125,
+      "reason": "Derived from the tools the run called: search_docs.",
+      "tool_calls": [
+        "search_docs@1",
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r049",
+      "query": "How many orders were placed in January 2017?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 894,
+      "runner_latency_ms": 894,
+      "input_tokens": 1206,
+      "cached_input_tokens": 1024,
+      "output_tokens": 68,
+      "reason": "Derived from the tools the run called: orders_summary.",
+      "tool_calls": [
+        "orders_summary@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r050",
+      "query": "I want to return order 7057341a79b7adc56f566fbd7c81211c on 20 August 2018. Is that still within the return window for that product category?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data",
+        "docs"
+      ],
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1194,
+      "runner_latency_ms": 1194,
+      "input_tokens": 1240,
+      "cached_input_tokens": 1024,
+      "output_tokens": 121,
+      "reason": "Derived from the tools the run called: order_lookup, search_docs.",
+      "tool_calls": [
+        "order_lookup@1",
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r051",
+      "query": "How many orders were canceled between 2017-11-01 and 2017-11-30?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1852,
+      "runner_latency_ms": 1852,
+      "input_tokens": 1217,
+      "cached_input_tokens": 1024,
+      "output_tokens": 85,
+      "reason": "Derived from the tools the run called: orders_summary.",
+      "tool_calls": [
+        "orders_summary@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r052",
+      "query": "Does the compensation policy cover order 6a7f35ca0fe2ac17fb1e6088070ab810?",
+      "tags": [
+        "trap"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "data",
+        "docs"
+      ],
+      "expected_plan": "data+docs",
+      "actual_agents": [
+        "data",
+        "docs"
+      ],
+      "actual_plan": "data+docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1220,
+      "runner_latency_ms": 1220,
+      "input_tokens": 1222,
+      "cached_input_tokens": 1024,
+      "output_tokens": 120,
+      "reason": "Derived from the tools the run called: order_lookup, search_docs.",
+      "tool_calls": [
+        "order_lookup@1",
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r053",
+      "query": "订单 9bba41f9513fb6efddaa9b8a851ab873 现在是什么状态？",
+      "tags": [
+        "zh"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "data"
+      ],
+      "expected_plan": "data",
+      "actual_agents": [
+        "data"
+      ],
+      "actual_plan": "data",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1154,
+      "runner_latency_ms": 1155,
+      "input_tokens": 1221,
+      "cached_input_tokens": 1024,
+      "output_tokens": 59,
+      "reason": "Derived from the tools the run called: order_lookup.",
+      "tool_calls": [
+        "order_lookup@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r054",
+      "query": "ok bye, have a gud one",
+      "tags": [
+        "typo"
+      ],
+      "split": "test",
+      "expected_agents": [
+        "direct"
+      ],
+      "expected_plan": "direct",
+      "actual_agents": [
+        "direct"
+      ],
+      "actual_plan": "direct",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 882,
+      "runner_latency_ms": 882,
+      "input_tokens": 1203,
+      "cached_input_tokens": 1024,
+      "output_tokens": 10,
+      "reason": "The run called no tool, so it answered directly.",
+      "tool_calls": [],
+      "error": null
+    },
+    {
+      "case_id": "r055",
+      "query": "How long do I have to return a piece of furniture?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "docs"
+      ],
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 952,
+      "runner_latency_ms": 952,
+      "input_tokens": 1207,
+      "cached_input_tokens": 1024,
+      "output_tokens": 55,
+      "reason": "Derived from the tools the run called: search_docs.",
+      "tool_calls": [
+        "search_docs@1"
+      ],
+      "error": null
+    },
+    {
+      "case_id": "r057",
+      "query": "What payment methods are accepted?",
+      "tags": [],
+      "split": "test",
+      "expected_agents": [
+        "docs"
+      ],
+      "expected_plan": "docs",
+      "actual_agents": [
+        "docs"
+      ],
+      "actual_plan": "docs",
+      "exact_match": 1.0,
+      "jaccard": 1.0,
+      "passed": true,
+      "latency_ms": 1076,
+      "runner_latency_ms": 1076,
+      "input_tokens": 1201,
+      "cached_input_tokens": 1024,
+      "output_tokens": 52,
+      "reason": "Derived from the tools the run called: search_docs.",
+      "tool_calls": [
+        "search_docs@1"
+      ],
+      "error": null
+    }
+  ]
+}

@@ -31,6 +31,10 @@ providers:
     base_url: https://api.deepseek.com/v1
     api_key: ${DEEPSEEK_API_KEY:-}
     model: deepseek-flash
+    # DeepSeek rejects function names outside this pattern, so the @major
+    # suffix of a wire name is sent as _major and mapped back on the response.
+    # The tool, audit row and trace still use the original wire name.
+    tool_name_pattern: "^[a-zA-Z0-9_-]+$"
     capabilities:
       tools: true
       json_schema: false
