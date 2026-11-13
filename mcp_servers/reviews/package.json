@@ -10,7 +10,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsc -p tsconfig.json && node --test dist/test/",
+    "test": "tsc -p tsconfig.json && node --test dist/test/auth.test.js dist/test/config.test.js dist/test/db.test.js dist/test/server.test.js",
     "start": "node dist/src/index.js"
   },
   "dependencies": {
