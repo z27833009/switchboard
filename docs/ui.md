@@ -59,7 +59,7 @@ Seven sections come from the agreed sub-nav list with `Retrieval & Cache` split 
 | `>= 1280 px` | 260 px full sidebar | content padding 32 px |
 | `1024 to 1279 px` | 72 px icon rail | content padding 24 px |
 | `< 1024 px` | off-canvas drawer, menu button in the title row | content padding 16 px |
-| `<= 560 px` | drawer | title 19 px, subtitle hidden, single-column timeline and settings |
+| `<= 560 px` | drawer | title 19 px, subtitle hidden, single-column timeline, settings sections wrap into rows |
 
 Chat and composer content is capped at 860 px and centred. The runs table switches to stacked cards when its own container is narrower than 760 px (`@container`), not at a viewport breakpoint, so the same table is readable in a narrow main area.
 
@@ -110,7 +110,7 @@ Manual checks, at 1440x1200, 768x1200 and 375x900 (Chrome device emulation or a 
 
 1. **375 wide, Chat.** No horizontal scrollbar on the page (`document.documentElement.scrollWidth <= window.innerWidth`); the composer stays above the bottom edge; Enter sends after typing, Shift+Enter adds a line, and an IME composition does not send.
 2. **375 wide, Runs.** The table is one card per run, each cell shows its label, the row header stays visible while the card scrolls, and the page does not scroll sideways.
-3. **375 wide, Settings.** Open from the profile menu (drawer). The section row scrolls horizontally inside the dialog only; the content column scrolls vertically; Escape closes; focus returns to the menu item.
+3. **375 wide, Settings.** Open from the profile menu (drawer). The section row wraps into two or more rows so every section stays visible; the content column scrolls vertically; Escape closes; focus returns to the menu item.
 4. **768 wide, shell.** No static sidebar, the menu button opens the drawer, the drawer closes on Escape and on a backdrop click, and the chat column is centred below 860 px.
 5. **1024 to 1279 wide.** The 72 px rail shows the brand, new chat, recent initials, tenant switch, settings and the status dot; every icon-only control has an accessible name.
 6. **1440 wide, shell.** The 260 px sidebar, independent recent-list scroll, title row and tabs are all visible, and the transcript is capped at 860 px.

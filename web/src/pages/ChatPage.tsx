@@ -333,7 +333,16 @@ function TurnArticle({
           />
         ) : null}
 
-        {result !== null ? <ErrorList errors={result.errors} /> : null}
+        {result !== null && result.errors.length > 0 ? (
+          result.status === "ok" ? (
+            <details className="turn-error-details">
+              <summary>{result.errors.length} corrected error(s)</summary>
+              <ErrorList errors={result.errors} />
+            </details>
+          ) : (
+            <ErrorList errors={result.errors} />
+          )
+        ) : null}
 
         {turn.error !== null ? (
           <div className="error-box" role="alert">

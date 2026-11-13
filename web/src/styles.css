@@ -840,6 +840,18 @@ p {
   padding-left: 18px;
 }
 
+/* A successful run can still carry the gate error that was corrected. Keep it
+   available without painting the whole answer red. */
+.turn-error-details {
+  margin: 8px 0 2px;
+}
+
+.turn-error-details > summary {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  cursor: pointer;
+}
+
 /* --------------------------------------------------------------- badges -- */
 
 .badge {
@@ -2423,6 +2435,13 @@ button.plan-node:hover {
   .read-only-note {
     padding-left: 14px;
     padding-right: 14px;
+  }
+
+  /* Seven sections do not fit one row at 375 px. Wrapping keeps every section
+     visible instead of hiding the last one behind a horizontal scroll. */
+  .settings-nav {
+    flex-wrap: wrap;
+    overflow-x: visible;
   }
 
   .plan-node {
