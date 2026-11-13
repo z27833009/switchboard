@@ -25,6 +25,8 @@ from switchboard.core.models import (
     EvalCase,
     EvalOutcome,
     FitResult,
+    JudgeRequest,
+    JudgeVerdict,
     Message,
     ProviderCapabilities,
     RetrievedChunk,
@@ -43,6 +45,7 @@ __all__ = [
     "Embedder",
     "EvalDeps",
     "EvalSuite",
+    "Judge",
     "ModelProvider",
     "Orchestrator",
     "Retriever",
@@ -113,6 +116,20 @@ class Orchestrator(Protocol):
 
 class ContextPolicy(Protocol):
     def fit(self, messages: list[Message], budget: ContextBudget) -> FitResult: ...
+
+
+class Judge(Protocol):
+    """Answer quality judge (v2 layer 2, design.md section 6.8).
+
+    A judge reads a finished answer and the evidence the agent saw and returns
+    an ``acceptable`` or ``weak`` verdict with a score and a reason. It never
+    changes the answer, runs a tool or writes anything: the orchestrator decides
+    what a weak verdict means, and the rag suite only reads it.
+    """
+
+    name: str
+
+    async def judge(self, request: JudgeRequest) -> JudgeVerdict: ...
 
 
 class EvalSuite(Protocol):

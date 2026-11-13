@@ -36,10 +36,10 @@ from switchboard.core.models import (
     RunStatus,
     Usage,
 )
-from switchboard.core.ports import Agent, AgentDeps, ContextPolicy, Embedder, ModelProvider
+from switchboard.core.ports import Agent, AgentDeps, ContextPolicy, Embedder, Judge, ModelProvider
 from switchboard.core.pricing import add_cost, compute_cost
 from switchboard.core.validation import plan_is_cacheable, validate_plan
-from switchboard.gate import evaluate_gate
+from switchboard.gate import evaluate_gate, run_judge
 from switchboard.registry import Registry
 from switchboard.routing import SUPERVISOR_SYSTEM, plan_schema, supervisor_prompt
 from switchboard.tracing.spans import (
@@ -129,6 +129,7 @@ class LangGraphOrchestrator:
         tracer: Any = None,
         price: PriceEntry | None = None,
         answer_delta: AnswerDeltaSink | None = None,
+        judge: Judge | None = None,
     ) -> None:
         self._provider = provider
         self._context_policy = context_policy
@@ -139,6 +140,7 @@ class LangGraphOrchestrator:
         self._cache = cache
         self._price = price
         self._answer_delta = answer_delta
+        self._judge = judge
         self._tracer = tracer or trace.get_tracer("switchboard.orchestrator.langgraph")
         self._agents = self._load_agents(registry)
         self._graph = self._build_graph()
@@ -541,7 +543,7 @@ class LangGraphOrchestrator:
         answer = MergeAgent().merge(selected, missing)
         return {"answer": answer}
 
-    def _gate(self, state: RunState) -> dict[str, Any]:
+    async def _gate(self, state: RunState) -> dict[str, Any]:
         ctx = state["ctx"]
         plan = state.get("plan")
         answer = state.get("answer")
@@ -581,6 +583,15 @@ class LangGraphOrchestrator:
                             ),
                         }
                     )
+            # Layer 2 runs only after layer 1 passes (design 6.8). Its action is
+            # always ``none``, so it never starts a retry or re-plan.
+            judged = await run_judge(
+                self._judge,
+                query=state["request"].query,
+                answer=answer,
+                verdict=verdict,
+            )
+            verdict = judged.verdict
             set_attributes(
                 span,
                 {
@@ -589,11 +600,21 @@ class LangGraphOrchestrator:
                         ",".join(verdict.failed_checks) if verdict.failed_checks else None
                     ),
                     "switchboard.gate.action": verdict.action,
+                    "switchboard.gate.judge": judged.outcome,
+                    "switchboard.gate.judge_score": judged.score,
                 },
             )
             outputs: dict[str, Any] = {"verdict": verdict}
+            if judged.usage is not None:
+                # The judge call is a real model call: its tokens and cost are
+                # part of the run total (design 12.4).
+                outputs["spent_usage"] = judged.usage
+                outputs["spent_cost"] = judged.cost_usd
+            if judged.errors:
+                outputs["errors"] = list(judged.errors)
             if not verdict.passed:
                 outputs["errors"] = [
+                    *(outputs.get("errors") or []),
                     ErrorRecord(
                         kind="CheckFailed",
                         message=verdict.feedback or verdict.reason,
@@ -603,7 +624,7 @@ class LangGraphOrchestrator:
                             "failed_checks": list(verdict.failed_checks),
                             "action": verdict.action,
                         },
-                    )
+                    ),
                 ]
             if verdict.action == "retry":
                 outputs["attempts"] = attempts + 1

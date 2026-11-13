@@ -1,6 +1,6 @@
 # ADR 0013: Quality gate with deterministic checks first and one corrective action
 
-Status: accepted, 2026-11-13. Proposed 2026-11-12 (v1 feature), replacing the LLM-scored gate of design 0.1. Layer 1 ships and is measured on 30 cases in `evals/reports/gate-mock.md`; layer 2, the LLM judge, is v2 and is not built.
+Status: accepted, 2026-11-13. Proposed 2026-11-12 (v1 feature), replacing the LLM-scored gate of design 0.1. Layer 1 ships and is measured on 30 cases in `evals/reports/gate-mock.md`. Layer 2, the LLM judge, was built in T3.04 and is measured on 12 author-labeled answers in `evals/reports/judge-agreement.md`: raw agreement 0.8333 and Cohen's kappa 0.5556 with one false rejection and one missed weak answer, so the judge stays disabled in `config/platform.yaml` (T3.04 is blocked on judge quality, not on the harness).
 
 ## Context
 
@@ -25,6 +25,8 @@ Switchboard has an external signal available for free: every answer is supposed 
 ## Consequences
 
 - The gate is cheap (no model call unless a corrective action fires) and its verdicts are explainable in the trace (`switchboard.gate.failed_checks`).
+- Layer 2 (T3.04) is a registered `Judge` with a local adapter and a config switch that defaults to off. The measurement is the point: 12 author-labeled answers gave raw agreement 0.8333 and kappa 0.5556, below the declared bar (0.90 raw, 0.70 kappa, no false rejection), so it is not enabled. A judge rejected answer sets action `none` and never starts another model loop, and a judge error leaves the layer 1 result, so the harness is safe to leave in place while its quality is unresolved.
+- The sample is small. Twelve cases cannot separate a 0.83 judge from a 0.92 one, and one disagreement is a rubric-following failure on an honest partial (`g022`) rather than a random miss. The next step is a larger author-labeled sample, not a prompt tuned against these 12 labels.
 - The `gate` suite labels are constructed and read through by the implementation session, not by an independent human annotator; the report states this, so the precision and recall are read as a regression measurement rather than a human agreement study.
 - `numbers_grounded` will reject some correct answers with derived numbers (percentages, differences). This is measured, and the planned fix is an allowance for numbers computable from evidence numbers, not removing the check (review R12).
 - Small local models that ignore citation markers will fail `citations_valid` often; the rate is reported per model (review R11).

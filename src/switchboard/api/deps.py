@@ -19,6 +19,7 @@ from typing import Any, Protocol, cast
 import asyncpg
 
 from switchboard.adapters.embedders.factory import create_embedder
+from switchboard.adapters.judges.factory import create_judge
 from switchboard.adapters.providers.factory import create_provider
 from switchboard.api.audit import AuditStore, PgAuditStore, load_sensitive_args
 from switchboard.api.run_tokens import require_run_token_secret
@@ -29,7 +30,7 @@ from switchboard.config import load_settings
 from switchboard.core.config import PriceEntry, Settings, TenantsConfig
 from switchboard.core.context import ClearOldestToolResults
 from switchboard.core.errors import ConfigError
-from switchboard.core.ports import ContextPolicy, Orchestrator
+from switchboard.core.ports import ContextPolicy, Judge, Orchestrator
 from switchboard.core.pricing import lookup_price
 from switchboard.registry import (
     CACHES,
@@ -225,6 +226,13 @@ def build_orchestrator_set(
             prices[provider_name] = price
         return providers[provider_name], prices[provider_name]
 
+    # Layer 2 of the gate (design 6.8). Off by default, and built once so both
+    # orchestrators and the replay targets share one judge instance.
+    judge: Judge | None = None
+    if settings.platform.judge.enabled:
+        judge_provider, _judge_price = provider_and_price(settings.platform.judge.provider)
+        judge = create_judge(registry, provider=judge_provider, settings=settings.platform.judge)
+
     def instantiate(orchestrator_class: Any, provider_name: str) -> Orchestrator:
         provider, price = provider_and_price(provider_name)
         return cast(
@@ -240,6 +248,7 @@ def build_orchestrator_set(
                 cache=cache,
                 price=price,
                 answer_delta=answer_delta,
+                judge=judge,
             ),
         )
 

@@ -21,6 +21,7 @@ RETRIEVERS = "switchboard.retrievers"
 EMBEDDERS = "switchboard.embedders"
 CACHES = "switchboard.caches"
 EVAL_SUITES = "switchboard.eval_suites"
+JUDGES = "switchboard.judges"
 
 
 class EntryPointLike(Protocol):

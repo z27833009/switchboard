@@ -27,6 +27,20 @@ tracing:
 # One eval run against a paid provider must estimate at or below this (USD) and
 # carry --confirm-cost; see design 20.2.
 cost_cap_usd: 5.0
+# Layer 2 of the quality gate (design 6.8): one local model call per answer that
+# layers 1 passed. Off by default, because whether the judge agrees with a human
+# enough to be trusted is a measurement, not an assumption. The run that decides
+# it is `switchboard eval judge-agreement` over evals/judge/agreement.jsonl; its
+# report is evals/reports/judge-agreement.md. The same judge scores rag answers
+# when `switchboard eval run --suite rag --judge` is passed.
+judge:
+  enabled: false
+  provider: lmstudio
+  # An "acceptable" verdict counts only when the model's own score also clears
+  # this, so a low-confidence pass is a rejection.
+  threshold: 0.5
+  # Evidence text one judge call sees per item.
+  max_evidence_chars: 2000
 limits:
   run_timeout_s: 60
   max_tool_steps: 4

@@ -1,0 +1,4048 @@
+{
+  "suite": "rag",
+  "dataset_version": "v3",
+  "dataset_path": "evals/datasets/v3/rag.jsonl",
+  "split": "test",
+  "case_count": 40,
+  "dataset_case_count": 40,
+  "split_case_count": 40,
+  "smoke": false,
+  "orchestrator": "langgraph",
+  "provider": "lmstudio",
+  "model": "qwen3-8b",
+  "generated_at": "2026-11-13T19:07:14.366135+00:00",
+  "wall_time_s": 182.265,
+  "recording": false,
+  "recorded_with": null,
+  "metrics": {
+    "recall_at_5_query_as_written": 1.0,
+    "mrr_query_as_written": 0.825,
+    "recall_at_5_always_rewrite": 0.975,
+    "mrr_always_rewrite": 0.8229,
+    "recall_at_5_conditional_rewrite": 1.0,
+    "mrr_conditional_rewrite": 0.8354,
+    "recall_at_5_conditional_hybrid": 1.0,
+    "mrr_conditional_hybrid": 0.8354,
+    "judge_accept_rate": 0.975
+  },
+  "latency_ms": {
+    "p50": 1760.0,
+    "p95": 7136.1,
+    "min": 802.0,
+    "max": 9667.0,
+    "mean": 2515.025
+  },
+  "runner_latency_ms": {
+    "p50": 7881.5,
+    "p95": 14892.55,
+    "min": 4604.0,
+    "max": 18777.0,
+    "mean": 9009.3
+  },
+  "usage": {
+    "input_tokens": 70470,
+    "cached_input_tokens": 0,
+    "output_tokens": 5258,
+    "total_tokens": 75728
+  },
+  "cost_usd": 0.0,
+  "price": {
+    "provider": "lmstudio",
+    "model": null,
+    "input_per_million": 0.0,
+    "cached_input_per_million": 0.0,
+    "output_per_million": 0.0,
+    "verified_on": "2026-11-12",
+    "source": null,
+    "note": "Local model on LM Studio, no API cost. The zero rows exist so a local run records cost 0.0 rather than looking unpriced."
+  },
+  "no_api_cost": true,
+  "error_count": 0,
+  "error_case_ids": [],
+  "strategies": {
+    "query_as_written": {
+      "recall_at_5": 1.0,
+      "mrr": 0.825,
+      "cases": 40,
+      "rewrite_rounds": 0,
+      "retrieval_rounds": 40,
+      "cases_with_rewrite": 0,
+      "latency_ms": {
+        "p50": 94.0,
+        "p95": 436.8,
+        "min": 58.0,
+        "max": 526.0,
+        "mean": 169.225
+      },
+      "errors": 0,
+      "needs_rewrite_cases": 9,
+      "needs_rewrite_recall_at_5": 1.0,
+      "needs_rewrite_mrr": 0.6667
+    },
+    "always_rewrite": {
+      "recall_at_5": 0.975,
+      "mrr": 0.8229,
+      "cases": 40,
+      "rewrite_rounds": 40,
+      "retrieval_rounds": 40,
+      "cases_with_rewrite": 40,
+      "latency_ms": {
+        "p50": 1395.5,
+        "p95": 6833.85,
+        "min": 331.0,
+        "max": 7354.0,
+        "mean": 1865.625
+      },
+      "errors": 0,
+      "needs_rewrite_cases": 9,
+      "needs_rewrite_recall_at_5": 1.0,
+      "needs_rewrite_mrr": 0.713
+    },
+    "conditional_rewrite": {
+      "recall_at_5": 1.0,
+      "mrr": 0.8354,
+      "cases": 40,
+      "rewrite_rounds": 4,
+      "retrieval_rounds": 40,
+      "cases_with_rewrite": 4,
+      "latency_ms": {
+        "p50": 101.0,
+        "p95": 725.05,
+        "min": 58.0,
+        "max": 2841.0,
+        "mean": 244.225
+      },
+      "errors": 0,
+      "needs_rewrite_cases": 9,
+      "needs_rewrite_recall_at_5": 1.0,
+      "needs_rewrite_mrr": 0.713
+    },
+    "conditional_hybrid": {
+      "recall_at_5": 1.0,
+      "mrr": 0.8354,
+      "cases": 40,
+      "rewrite_rounds": 4,
+      "retrieval_rounds": 40,
+      "cases_with_rewrite": 4,
+      "latency_ms": {
+        "p50": 116.0,
+        "p95": 908.3,
+        "min": 103.0,
+        "max": 1948.0,
+        "mean": 235.95
+      },
+      "errors": 0,
+      "needs_rewrite_cases": 9,
+      "needs_rewrite_recall_at_5": 1.0,
+      "needs_rewrite_mrr": 0.713
+    }
+  },
+  "retrieval_k": 5,
+  "rrf_k": 60,
+  "judge": {
+    "judge": "llm (lmstudio/qwen3-8b)",
+    "strategy": "conditional_hybrid",
+    "cases": 40,
+    "acceptable": 39,
+    "weak": 1,
+    "errors": 0,
+    "accept_rate": 0.975,
+    "weak_case_ids": [
+      "rag008"
+    ],
+    "error_case_ids": [],
+    "generation_latency_ms": {
+      "p50": 2695.5,
+      "p95": 7918.25,
+      "min": 1294.0,
+      "max": 8602.0,
+      "mean": 2988.925
+    },
+    "judge_latency_ms": {
+      "p50": 2861.5,
+      "p95": 7320.9,
+      "min": 1885.0,
+      "max": 8635.0,
+      "mean": 3499.25
+    }
+  },
+  "cases": [
+    {
+      "case_id": "rag001",
+      "query": "I changed my mind, how long do I have to send it back?",
+      "tags": [
+        "returns",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "returns-policy.md#1"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#1",
+            "returns-policy.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 526,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "returns-policy.md#0",
+            "returns-policy.md#1",
+            "returns-policy.md#2",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Return window for refund"
+          ],
+          "latency_ms": 1030,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#1",
+            "returns-policy.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 80,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#1",
+            "returns-policy.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 111,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1747,
+      "runner_latency_ms": 9052,
+      "input_tokens": 1768,
+      "cached_input_tokens": 0,
+      "output_tokens": 116,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer correctly cites the evidence (d1 and d2) to support the claims about the return window and refund processing time.",
+        "answer": "If you changed your mind, you have 30 calendar days from the delivery date to send the item back [d2]. The refund is issued within five business days after inspection once the returned item arrives at the warehouse [d1].",
+        "generation_latency_ms": 2667,
+        "judge_latency_ms": 4612,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag002",
+      "query": "电子产品可以退货吗？",
+      "tags": [
+        "returns",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "returns-policy.md#2"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#2",
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 452,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#2",
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Can electronics be returned?"
+          ],
+          "latency_ms": 952,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#2",
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 103,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#2",
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 128,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1635,
+      "runner_latency_ms": 7254,
+      "input_tokens": 1722,
+      "cached_input_tokens": 0,
+      "output_tokens": 119,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully reflects the information provided in the evidence [d1], which specifies the return policy for electronics.",
+        "answer": "电子产品可以退货，但有一定的限制。未开封的电子产品可以在交付后的15个日历日内凭任何原因退货，而已开封的电子产品仅在存在缺陷的情况下才能退货，并且客户需在退货请求中描述缺陷 [d1]。",
+        "generation_latency_ms": 1432,
+        "judge_latency_ms": 4161,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag003",
+      "query": "Can I still return it?",
+      "tags": [
+        "returns",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "returns-policy.md#2"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#2",
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 392,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#1",
+            "returns-policy.md#2",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Can I return it within the return window?"
+          ],
+          "latency_ms": 1903,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#1",
+            "returns-policy.md#2",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Can I return it within the return window?"
+          ],
+          "latency_ms": 579,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#1",
+            "returns-policy.md#2",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Can I return it within the return window?"
+          ],
+          "latency_ms": 1948,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 4822,
+      "runner_latency_ms": 9809,
+      "input_tokens": 2123,
+      "cached_input_tokens": 0,
+      "output_tokens": 149,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer correctly cites the return policies for electronic and non-electronic items based on the provided evidence.",
+        "answer": "Whether you can return the item depends on its type and when you request the return. If it is an electronic product, you can return it within 15 calendar days from delivery [d3]. For non-electronic items, the standard return window is 30 calendar days from delivery [d2].",
+        "generation_latency_ms": 3073,
+        "judge_latency_ms": 1909,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag004",
+      "query": "Can I get my cash back after returning something?",
+      "tags": [
+        "returns",
+        "refunds",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "returns-policy.md#3",
+        "payments.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#4",
+            "returns-policy.md#3",
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 95,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "returns-policy.md#0",
+            "payments.md#4",
+            "returns-policy.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Can I get a refund after returning an item?"
+          ],
+          "latency_ms": 695,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#4",
+            "returns-policy.md#3",
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 76,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#4",
+            "returns-policy.md#3",
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 108,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 974,
+      "runner_latency_ms": 4604,
+      "input_tokens": 1752,
+      "cached_input_tokens": 0,
+      "output_tokens": 141,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully reflects the information from the evidence [d2], including the refund process and conditions for shipping fees.",
+        "answer": "Yes, you can get your cash back after returning something, provided the refund is issued to the original payment method within five business days after inspection [d2]. However, shipping fees are refunded only if the return is caused by a defect or a wrong item, and the original delivery time is not refunded for a change of mind [d2].",
+        "generation_latency_ms": 1659,
+        "judge_latency_ms": 1966,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag005",
+      "query": "Can I return a personalized gift?",
+      "tags": [
+        "returns"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "returns-policy.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#4",
+            "returns-policy.md#0",
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 87,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#3",
+            "payments.md#4",
+            "seller-onboarding.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Return policy for personalized gifts"
+          ],
+          "latency_ms": 1743,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#4",
+            "returns-policy.md#0",
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 198,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#4",
+            "returns-policy.md#0",
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 116,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 2144,
+      "runner_latency_ms": 6407,
+      "input_tokens": 1708,
+      "cached_input_tokens": 0,
+      "output_tokens": 100,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully states that personalized items cannot be returned unless damaged or defective based on the evidence provided.",
+        "answer": "According to the returns policy, personalized items cannot be returned unless they arrive damaged or defective [d1]. The documents do not specify whether a personalized gift is considered a personalized item.",
+        "generation_latency_ms": 2179,
+        "judge_latency_ms": 2080,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag006",
+      "query": "How quickly must I report an item that arrived damaged?",
+      "tags": [
+        "returns",
+        "damaged"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "returns-policy.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#4",
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#3",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 94,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#4",
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#3",
+            "shipping-policy.md#1",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "How quickly must a buyer report a damaged item upon arrival?"
+          ],
+          "latency_ms": 1320,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#4",
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#3",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 172,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#4",
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#3",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 119,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1705,
+      "runner_latency_ms": 6327,
+      "input_tokens": 1731,
+      "cached_input_tokens": 0,
+      "output_tokens": 127,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer correctly cites the evidence (d1) and states that damaged items must be reported within 48 hours of delivery with a photo, which is supported by the provided document.",
+        "answer": "You must report a damaged item within 48 hours of delivery with a photo [d1]. If you do not report it within this timeframe, the warehouse may refuse the return [d1].",
+        "generation_latency_ms": 2359,
+        "judge_latency_ms": 2257,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag007",
+      "query": "Who do I contact about a specific order?",
+      "tags": [
+        "returns",
+        "support"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "returns-policy.md#5"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#5",
+            "late-delivery-compensation.md#1",
+            "seller-onboarding.md#1",
+            "shipping-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 94,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#5",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#1",
+            "seller-onboarding.md#1",
+            "shipping-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Contact information for a specific order"
+          ],
+          "latency_ms": 1279,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#5",
+            "late-delivery-compensation.md#1",
+            "seller-onboarding.md#1",
+            "shipping-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 87,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#5",
+            "late-delivery-compensation.md#1",
+            "seller-onboarding.md#1",
+            "shipping-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 115,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1575,
+      "runner_latency_ms": 6931,
+      "input_tokens": 1734,
+      "cached_input_tokens": 0,
+      "output_tokens": 133,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully addresses the question by citing relevant evidence (d1 and d2) and provides accurate information about contacting support for an order.",
+        "answer": "To contact about a specific order, customers can ask questions in the order page, and the support team answers within one business day [d2]. For late delivery compensation requests, customers open the order page and choose \"Request late delivery compensation,\" providing the order ID and a short description [d1].",
+        "generation_latency_ms": 3207,
+        "judge_latency_ms": 2143,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag008",
+      "query": "Do I need the original packaging to return something?",
+      "tags": [
+        "returns"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "returns-policy.md#0"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#3",
+            "returns-policy.md#4",
+            "payments.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 91,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#3",
+            "returns-policy.md#4",
+            "returns-policy.md#2",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Do I need the original packaging to return an item?"
+          ],
+          "latency_ms": 1812,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#3",
+            "returns-policy.md#4",
+            "payments.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 188,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#3",
+            "returns-policy.md#4",
+            "payments.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 119,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 2210,
+      "runner_latency_ms": 7580,
+      "input_tokens": 1762,
+      "cached_input_tokens": 0,
+      "output_tokens": 153,
+      "error": null,
+      "judge": {
+        "verdict": "weak",
+        "score": 0.5,
+        "reason": "The answer claims that original packaging is required for returns and mentions electronics needing to be unopened unless defective, but the evidence does not explicitly state that original packaging is always required. The evidence only states that items must be unused and in their original packaging, which may not apply universally.",
+        "answer": "Yes, you need the original packaging to return an item, as the item must be unused and in its original packaging [d1]. If the item is electronics, it also needs to be unopened unless it is defective [d5].",
+        "generation_latency_ms": 2605,
+        "judge_latency_ms": 2762,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag009",
+      "query": "Are return shipping fees refunded?",
+      "tags": [
+        "returns",
+        "refunds"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "returns-policy.md#3"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#0",
+            "returns-policy.md#2",
+            "returns-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 94,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#0",
+            "late-delivery-compensation.md#1",
+            "returns-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Refund of return shipping fees"
+          ],
+          "latency_ms": 1481,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#0",
+            "returns-policy.md#2",
+            "returns-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 94,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#0",
+            "returns-policy.md#2",
+            "returns-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 124,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1793,
+      "runner_latency_ms": 7949,
+      "input_tokens": 1729,
+      "cached_input_tokens": 0,
+      "output_tokens": 145,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully reflects the information from the evidence, stating that return shipping fees are refunded when the return is caused by a defect or a wrong item and noting the lack of explicit mention for change of mind returns.",
+        "answer": "Return shipping fees are refunded when the return is caused by a defect or a wrong item [d1]. If the return is due to a change of mind, the original delivery time is not refunded, but it does not explicitly mention whether shipping fees are refunded in this case [d1].",
+        "generation_latency_ms": 3605,
+        "judge_latency_ms": 2547,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag010",
+      "query": "What happens if I return an item without opening a request?",
+      "tags": [
+        "returns"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "returns-policy.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#2",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 90,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#3",
+            "returns-policy.md#4",
+            "returns-policy.md#0",
+            "payments.md#4",
+            "returns-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "What happens if I return an item without initiating a return request?"
+          ],
+          "latency_ms": 1832,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#2",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 99,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#0",
+            "returns-policy.md#4",
+            "returns-policy.md#2",
+            "returns-policy.md#3",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 117,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 2138,
+      "runner_latency_ms": 12072,
+      "input_tokens": 1763,
+      "cached_input_tokens": 0,
+      "output_tokens": 117,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully reflects the information from the evidence, citing relevant documents d1 and d2.",
+        "answer": "If you return an item without opening a return request, the item may be refused at the warehouse [d2]. The return policy requires that a return request be opened in the order page before proceeding with the return [d1].",
+        "generation_latency_ms": 7980,
+        "judge_latency_ms": 1948,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag011",
+      "query": "How long does standard delivery take in the southeast?",
+      "tags": [
+        "shipping"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "shipping-policy.md#2"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "shipping-policy.md#2",
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 58,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#2",
+            "returns-policy.md#1",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Standard delivery time window in the southeast region"
+          ],
+          "latency_ms": 6830,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#2",
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 111,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "shipping-policy.md#2",
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 112,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 7111,
+      "runner_latency_ms": 11447,
+      "input_tokens": 1651,
+      "cached_input_tokens": 0,
+      "output_tokens": 102,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully cites the evidence from document d1 and provides a clear response based on the information provided.",
+        "answer": "Standard delivery in the southeast region takes three to seven business days [d1]. The exact time may vary depending on the carrier and the specific location within the southeast region.",
+        "generation_latency_ms": 2130,
+        "judge_latency_ms": 2202,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag012",
+      "query": "How fast is express delivery?",
+      "tags": [
+        "shipping"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "shipping-policy.md#2"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "shipping-policy.md#2",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 90,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#2",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Express delivery speed"
+          ],
+          "latency_ms": 1331,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#2",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 88,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "shipping-policy.md#2",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 120,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1629,
+      "runner_latency_ms": 6524,
+      "input_tokens": 1723,
+      "cached_input_tokens": 0,
+      "output_tokens": 103,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer accurately reflects the information provided in the evidence document d1, which states that express delivery takes one to three business days.",
+        "answer": "Express delivery takes one to three business days [d1]. The exact speed may vary depending on the seller and location, as these ranges are estimates, not guarantees [d1].",
+        "generation_latency_ms": 2733,
+        "judge_latency_ms": 2156,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag013",
+      "query": "When must a seller hand the parcel to the carrier?",
+      "tags": [
+        "shipping"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "shipping-policy.md#1"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "shipping-policy.md#5",
+            "shipping-policy.md#3",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 93,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "shipping-policy.md#5",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#3",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "When must a seller deliver the package to the carrier?"
+          ],
+          "latency_ms": 1360,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "shipping-policy.md#5",
+            "shipping-policy.md#3",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 64,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "shipping-policy.md#5",
+            "shipping-policy.md#3",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 115,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1632,
+      "runner_latency_ms": 11493,
+      "input_tokens": 1677,
+      "cached_input_tokens": 0,
+      "output_tokens": 114,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer correctly cites the evidence [d1] and accurately reflects the information provided about the handling time for sellers.",
+        "answer": "A seller must hand the parcel to the carrier within two business days after payment approval [d1]. If the order is paid by boleto, the handling clock starts only after bank confirmation [d1].",
+        "generation_latency_ms": 2803,
+        "judge_latency_ms": 7054,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag014",
+      "query": "It has not moved for two days, what now?",
+      "tags": [
+        "shipping",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "shipping-policy.md#3"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "seller-onboarding.md#5",
+            "shipping-policy.md#3",
+            "returns-policy.md#3",
+            "shipping-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 77,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#3",
+            "shipping-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.25,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "What should I do if the package hasn't moved in two days?"
+          ],
+          "latency_ms": 6907,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#3",
+            "shipping-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.25,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "What should I do if the package hasn't moved in two days?"
+          ],
+          "latency_ms": 1828,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#3",
+            "shipping-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.25,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "What should I do if the package hasn't moved in two days?"
+          ],
+          "latency_ms": 855,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 9667,
+      "runner_latency_ms": 16860,
+      "input_tokens": 2258,
+      "cached_input_tokens": 0,
+      "output_tokens": 202,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully addresses the question based on the provided evidence, explaining that a two-day delay is within allowed handling time and outlining next steps if the parcel remains delayed.",
+        "answer": "The parcel has not moved for two days, which is within the allowed handling time [d1]. If it still hasn't moved after the estimated delivery date, it may be considered late, and you can request compensation if it arrives at least three calendar days past the estimated date [d2][d3]. Check the tracking code for updates, as delays can occur due to various factors like weather or customs checks [d4].",
+        "generation_latency_ms": 3337,
+        "judge_latency_ms": 3849,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag015",
+      "query": "The parcel says delivered but I cannot find it, what should I do?",
+      "tags": [
+        "shipping"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "shipping-policy.md#3"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "shipping-policy.md#3",
+            "late-delivery-compensation.md#4",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 72,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#4",
+            "shipping-policy.md#3",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "How do I handle a situation where the package shows as delivered but is not found?"
+          ],
+          "latency_ms": 931,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#3",
+            "late-delivery-compensation.md#4",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 95,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "shipping-policy.md#3",
+            "late-delivery-compensation.md#4",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 111,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1209,
+      "runner_latency_ms": 6575,
+      "input_tokens": 1774,
+      "cached_input_tokens": 0,
+      "output_tokens": 142,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully addresses the question by citing relevant evidence (d1 and d3) and provides appropriate steps for the customer to take.",
+        "answer": "If your parcel shows as delivered but you cannot find it, contact the carrier first, as they may have information about the delivery status [d1]. If the issue persists, check if there were any delays due to weather, strikes, or customs checks that might affect the delivery [d3].",
+        "generation_latency_ms": 1466,
+        "judge_latency_ms": 3895,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag016",
+      "query": "Can I change the delivery address after the seller shipped it?",
+      "tags": [
+        "shipping"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "shipping-policy.md#5"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "shipping-policy.md#5",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#0",
+            "shipping-policy.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 436,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#5",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#0",
+            "shipping-policy.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Can I change the delivery address after the seller shipped it?"
+          ],
+          "latency_ms": 2092,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#5",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#0",
+            "shipping-policy.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 76,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "shipping-policy.md#5",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#0",
+            "shipping-policy.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 114,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 2718,
+      "runner_latency_ms": 7890,
+      "input_tokens": 1752,
+      "cached_input_tokens": 0,
+      "output_tokens": 130,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully references the evidence to explain that address changes are possible until the seller hands the parcel to the carrier and outlines conditions under which late-delivery compensation may not apply.",
+        "answer": "You can change the delivery address until the seller hands the parcel to the carrier [d1]. If the address is incorrect and causes a delay, the customer may not be eligible for late-delivery compensation [d2].",
+        "generation_latency_ms": 1342,
+        "judge_latency_ms": 3827,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag017",
+      "query": "Can I cancel an order that never arrived after 21 days?",
+      "tags": [
+        "shipping",
+        "cancellation"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "shipping-policy.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "returns-policy.md#3",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 93,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "returns-policy.md#3",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Can I cancel an order that was not delivered within 21 days?"
+          ],
+          "latency_ms": 843,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "returns-policy.md#3",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 96,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "returns-policy.md#3",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 119,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1151,
+      "runner_latency_ms": 7750,
+      "input_tokens": 1845,
+      "cached_input_tokens": 0,
+      "output_tokens": 152,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully reflects the information in the evidence, explaining that cancellation is possible after 21 days and outlining conditions for late delivery compensation.",
+        "answer": "Yes, you can request cancellation of an order that never arrived after 21 days from the estimated delivery date [d1]. However, if you wish to claim compensation for late delivery, the parcel must arrive at least three calendar days after the estimated date and the request must be made within 60 calendar days of the delivery [d2].",
+        "generation_latency_ms": 2724,
+        "judge_latency_ms": 3869,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag018",
+      "query": "How is the estimated delivery date calculated?",
+      "tags": [
+        "shipping"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "shipping-policy.md#0"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#0",
+            "shipping-policy.md#2",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 77,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "returns-policy.md#1",
+            "shipping-policy.md#0",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#2",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "estimated delivery date calculation method"
+          ],
+          "latency_ms": 2196,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#0",
+            "shipping-policy.md#2",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 91,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "returns-policy.md#1",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#0",
+            "shipping-policy.md#2",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 111,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 2475,
+      "runner_latency_ms": 8290,
+      "input_tokens": 1792,
+      "cached_input_tokens": 0,
+      "output_tokens": 175,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully explains how the estimated delivery date is calculated based on the destination region, seller's handling time, and carrier's service level, which is supported by the evidence [d3]. It also correctly notes that the actual delivery date is determined by the carrier's timestamp, as stated in [d2].",
+        "answer": "The estimated delivery date is calculated based on the destination region, the seller's handling time, and the carrier's service level [d3]. It is displayed on the order page as an estimate, not a guarantee [d4]. The actual delivery date is determined by the timestamp recorded by the carrier when the customer receives the parcel [d2].",
+        "generation_latency_ms": 1642,
+        "judge_latency_ms": 4167,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag019",
+      "query": "Does a boleto payment delay handling?",
+      "tags": [
+        "shipping",
+        "payments"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "shipping-policy.md#1",
+        "payments.md#3"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "payments.md#3",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 94,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "payments.md#3",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "boleto payment delay handling policy"
+          ],
+          "latency_ms": 816,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "payments.md#3",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 95,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "shipping-policy.md#1",
+            "payments.md#3",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 116,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1121,
+      "runner_latency_ms": 8578,
+      "input_tokens": 1786,
+      "cached_input_tokens": 0,
+      "output_tokens": 138,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer correctly references the evidence to explain that boleto payment delay handling starts after bank confirmation and mentions the late shipment warning if the seller does not process the order within two business days.",
+        "answer": "A boleto payment delay handling starts only after the bank confirms the payment, which may take up to the next business day [d2]. If the seller does not process the order within two business days of this confirmation, they may receive a late shipment warning [d1].",
+        "generation_latency_ms": 2599,
+        "judge_latency_ms": 4852,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag020",
+      "query": "When is a delivery considered late?",
+      "tags": [
+        "late-delivery"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "late-delivery-compensation.md#0"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 435,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "When is a delivery considered late?"
+          ],
+          "latency_ms": 2156,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 75,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 376,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 3042,
+      "runner_latency_ms": 14789,
+      "input_tokens": 1786,
+      "cached_input_tokens": 0,
+      "output_tokens": 155,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer accurately reflects the information from the provided evidence [d1] and [d2], correctly stating that a delivery is considered late if it arrives after the estimated date and is eligible for compensation if it arrives at least three calendar days late.",
+        "answer": "A delivery is considered late when the parcel reaches the customer after the estimated delivery date shown on the order page [d1]. The delivery is eligible for compensation if it arrives at least three calendar days after the estimated date, provided the order is not canceled and the account is in good standing [d2].",
+        "generation_latency_ms": 3104,
+        "judge_latency_ms": 8635,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag021",
+      "query": "延迟送达有补偿吗？",
+      "tags": [
+        "late-delivery",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "late-delivery-compensation.md#1"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 95,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Late delivery compensation policy"
+          ],
+          "latency_ms": 507,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 89,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 111,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 802,
+      "runner_latency_ms": 5819,
+      "input_tokens": 1817,
+      "cached_input_tokens": 0,
+      "output_tokens": 135,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully reflects the information in the evidence, including the conditions for compensation and examples of eligible delays.",
+        "answer": "延迟送达有补偿，但需满足一定条件。例如，如果包裹在预计送达日期后至少三天到达，并且订单未被取消、账户状态良好，客户可在60天内申请补偿 [d1]。此外，若因天气、罢工或海关检查导致的延误，也可能符合补偿政策 [d3]。",
+        "generation_latency_ms": 1728,
+        "judge_latency_ms": 3283,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag022",
+      "query": "How much is the late delivery voucher worth?",
+      "tags": [
+        "late-delivery"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "late-delivery-compensation.md#2"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#2",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 97,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#4",
+            "shipping-policy.md#2"
+          ],
+          "recall_at_5": 0.0,
+          "mrr": 0.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Late delivery compensation value"
+          ],
+          "latency_ms": 7354,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#2",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 59,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#2",
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 103,
+          "error": null
+        }
+      },
+      "passed": false,
+      "latency_ms": 7613,
+      "runner_latency_ms": 13980,
+      "input_tokens": 1744,
+      "cached_input_tokens": 0,
+      "output_tokens": 113,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer correctly cites evidence [d2] which explicitly states the late delivery voucher is worth ten percent of the item value, with a minimum of five reais and a maximum of fifty reais.",
+        "answer": "The late delivery voucher is worth ten percent of the item value, with a minimum of five reais and a maximum of fifty reais [d2].",
+        "generation_latency_ms": 2644,
+        "judge_latency_ms": 3718,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag023",
+      "query": "How do I request late delivery compensation?",
+      "tags": [
+        "late-delivery"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "late-delivery-compensation.md#3"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 323,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "How do I request late delivery compensation?"
+          ],
+          "latency_ms": 331,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 58,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 105,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 817,
+      "runner_latency_ms": 8711,
+      "input_tokens": 1816,
+      "cached_input_tokens": 0,
+      "output_tokens": 132,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully summarizes the process and requirements for requesting late delivery compensation based on the provided evidence.",
+        "answer": "To request late delivery compensation, the customer opens the order page and chooses \"Request late delivery compensation,\" providing the order ID and a short description [d1]. The request must be made within 60 calendar days of the delivery, and the delivery must arrive at least three calendar days after the estimated delivery date [d2].",
+        "generation_latency_ms": 4295,
+        "judge_latency_ms": 3594,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag024",
+      "query": "How many vouchers do I get if an order has several items?",
+      "tags": [
+        "late-delivery"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "late-delivery-compensation.md#3"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#2",
+            "late-delivery-compensation.md#3",
+            "payments.md#2",
+            "seller-onboarding.md#4",
+            "returns-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 431,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#2",
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#3",
+            "payments.md#4",
+            "returns-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "How many refund vouchers are issued for an order with multiple items?"
+          ],
+          "latency_ms": 1748,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#2",
+            "late-delivery-compensation.md#3",
+            "payments.md#2",
+            "seller-onboarding.md#4",
+            "returns-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 113,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "late-delivery-compensation.md#2",
+            "late-delivery-compensation.md#3",
+            "payments.md#2",
+            "seller-onboarding.md#4",
+            "returns-policy.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 118,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 2410,
+      "runner_latency_ms": 6697,
+      "input_tokens": 1733,
+      "cached_input_tokens": 0,
+      "output_tokens": 134,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully states that one voucher is received per order regardless of the number of items, and correctly cites evidence d2 for this claim.",
+        "answer": "If an order has several items, you receive one voucher per order, regardless of the number of items [d2]. The voucher is equal to ten percent of the item value, with a minimum of five reais and a maximum of fifty reais [d1].",
+        "generation_latency_ms": 1434,
+        "judge_latency_ms": 2849,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag025",
+      "query": "Is a refused parcel eligible for late compensation?",
+      "tags": [
+        "late-delivery"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "late-delivery-compensation.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 90,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#4",
+            "shipping-policy.md#4",
+            "returns-policy.md#3",
+            "late-delivery-compensation.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Refund eligibility for refused parcels and late-delivery compensation"
+          ],
+          "latency_ms": 827,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 104,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 115,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1136,
+      "runner_latency_ms": 6974,
+      "input_tokens": 1754,
+      "cached_input_tokens": 0,
+      "output_tokens": 116,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer correctly cites evidence [d3] which explicitly states that a delivery is not eligible if the customer refused the parcel, directly answering the question.",
+        "answer": "A refused parcel is not eligible for late compensation, as stated in the exclusions section [d3]. The policy specifies that a delivery is not eligible if the customer refused the parcel.",
+        "generation_latency_ms": 2118,
+        "judge_latency_ms": 3715,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag026",
+      "query": "What happens if my address was wrong and the parcel was late?",
+      "tags": [
+        "late-delivery",
+        "address"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "late-delivery-compensation.md#4",
+        "late-delivery-compensation.md#1"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 94,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "late-delivery-compensation.md#4",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#0",
+            "shipping-policy.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "What happens if the delivery address was incorrect and the parcel arrived late?"
+          ],
+          "latency_ms": 2452,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 87,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "late-delivery-compensation.md#1",
+            "shipping-policy.md#4",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#0",
+            "late-delivery-compensation.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 107,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 2740,
+      "runner_latency_ms": 7873,
+      "input_tokens": 1836,
+      "cached_input_tokens": 0,
+      "output_tokens": 149,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer correctly references the evidence to explain that incorrect customer addresses disqualify late-delivery compensation and outlines the steps for requesting compensation.",
+        "answer": "If your address was wrong and caused a delay, the delivery is not eligible for late-delivery compensation because delays caused by an incorrect address supplied by the customer are excluded [d3]. You should check if the parcel arrived at least three calendar days after the estimated delivery date and request compensation within 60 calendar days of the delivery [d1].",
+        "generation_latency_ms": 1816,
+        "judge_latency_ms": 3312,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag027",
+      "query": "Which payment methods can I use?",
+      "tags": [
+        "payments"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "payments.md#0"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#0",
+            "payments.md#5",
+            "payments.md#1",
+            "payments.md#2",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 70,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "payments.md#0",
+            "payments.md#1",
+            "payments.md#4",
+            "payments.md#5",
+            "payments.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Accepted payment methods"
+          ],
+          "latency_ms": 1010,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#0",
+            "payments.md#5",
+            "payments.md#1",
+            "payments.md#2",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 119,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#0",
+            "payments.md#5",
+            "payments.md#1",
+            "payments.md#2",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 115,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1314,
+      "runner_latency_ms": 7756,
+      "input_tokens": 1667,
+      "cached_input_tokens": 0,
+      "output_tokens": 115,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully cites the available payment methods from the evidence and correctly notes that availability may depend on the seller and order value.",
+        "answer": "You can use credit cards, boleto, and Pix as payment methods [d1]. The available methods may depend on the seller and the order value [d1]. Credit card payments are approved immediately in most cases [d3].",
+        "generation_latency_ms": 2782,
+        "judge_latency_ms": 3656,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag028",
+      "query": "Can I split the payment?",
+      "tags": [
+        "payments",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "payments.md#2"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#2",
+            "seller-onboarding.md#4",
+            "late-delivery-compensation.md#2",
+            "payments.md#0",
+            "payments.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 88,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "payments.md#2",
+            "payments.md#0",
+            "late-delivery-compensation.md#2",
+            "payments.md#1",
+            "seller-onboarding.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Can I use installments for payment?"
+          ],
+          "latency_ms": 2187,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#2",
+            "payments.md#0",
+            "late-delivery-compensation.md#2",
+            "payments.md#1",
+            "seller-onboarding.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Can I use installments for payment?"
+          ],
+          "latency_ms": 667,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#2",
+            "payments.md#0",
+            "late-delivery-compensation.md#2",
+            "payments.md#1",
+            "seller-onboarding.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Can I use installments for payment?"
+          ],
+          "latency_ms": 1921,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 4863,
+      "runner_latency_ms": 10456,
+      "input_tokens": 2050,
+      "cached_input_tokens": 0,
+      "output_tokens": 155,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully reflects the information provided in the evidence [d1], which confirms that orders above 50 reais can be split into installments with the number depending on the seller.",
+        "answer": "Yes, you can split the payment into installments if the order amount is above 50 reais, with up to 12 interest-free installments depending on the seller [d1]. The checkout will show the monthly amount and total before confirmation.",
+        "generation_latency_ms": 3283,
+        "judge_latency_ms": 2304,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag029",
+      "query": "How long does a boleto take to confirm?",
+      "tags": [
+        "payments"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "payments.md#3"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#3",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#3",
+            "seller-onboarding.md#5",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 116,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "payments.md#3",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#3",
+            "payments.md#1",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "How long does it take for a boleto payment to be confirmed?"
+          ],
+          "latency_ms": 838,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#3",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#3",
+            "seller-onboarding.md#5",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 114,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#3",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#3",
+            "seller-onboarding.md#5",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 116,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1184,
+      "runner_latency_ms": 5087,
+      "input_tokens": 1749,
+      "cached_input_tokens": 0,
+      "output_tokens": 154,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer correctly states that a boleto takes one business day to confirm based on the evidence from d1, and it accurately mentions that handling time starts after bank confirmation as per d2.",
+        "answer": "A boleto takes one business day to confirm, as it must be paid before its due date, usually the next business day [d1]. The order is released to the seller after the payment is confirmed. The handling time for orders paid by boleto starts only after bank confirmation [d2].",
+        "generation_latency_ms": 1536,
+        "judge_latency_ms": 2361,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag030",
+      "query": "Where does my refund go if I paid with Pix?",
+      "tags": [
+        "payments",
+        "refunds"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "payments.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#4",
+            "payments.md#3",
+            "returns-policy.md#3",
+            "returns-policy.md#0",
+            "late-delivery-compensation.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 94,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "payments.md#4",
+            "payments.md#3",
+            "returns-policy.md#3",
+            "payments.md#0",
+            "seller-onboarding.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Refund payout location for Pix payment method"
+          ],
+          "latency_ms": 1640,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#4",
+            "payments.md#3",
+            "returns-policy.md#3",
+            "returns-policy.md#0",
+            "late-delivery-compensation.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 172,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#4",
+            "payments.md#3",
+            "returns-policy.md#3",
+            "returns-policy.md#0",
+            "late-delivery-compensation.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 116,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 2022,
+      "runner_latency_ms": 6851,
+      "input_tokens": 1803,
+      "cached_input_tokens": 0,
+      "output_tokens": 120,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully cites the evidence that refunds for Pix payments are returned to the original account and mentions the typical refund processing time based on document d3.",
+        "answer": "If you paid with Pix, your refund is returned to the account that made the payment [d1]. The refund process typically takes up to five business days after the item has been inspected upon return [d3].",
+        "generation_latency_ms": 2727,
+        "judge_latency_ms": 2097,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag031",
+      "query": "What happens in a chargeback dispute?",
+      "tags": [
+        "payments"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "payments.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#4",
+            "late-delivery-compensation.md#4",
+            "returns-policy.md#3",
+            "returns-policy.md#2",
+            "payments.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 101,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "payments.md#4",
+            "late-delivery-compensation.md#4",
+            "late-delivery-compensation.md#3",
+            "late-delivery-compensation.md#1",
+            "returns-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Chargeback dispute process"
+          ],
+          "latency_ms": 1310,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#4",
+            "late-delivery-compensation.md#4",
+            "returns-policy.md#3",
+            "returns-policy.md#2",
+            "payments.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 152,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#4",
+            "late-delivery-compensation.md#4",
+            "returns-policy.md#3",
+            "returns-policy.md#2",
+            "payments.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 116,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1679,
+      "runner_latency_ms": 6404,
+      "input_tokens": 1718,
+      "cached_input_tokens": 0,
+      "output_tokens": 108,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully reflects the information provided in the evidence [d1], which explains that a chargeback opens a dispute and the seller is asked for evidence with the amount held until resolved.",
+        "answer": "A chargeback opens a dispute, and the seller is asked for evidence. The amount is held until the dispute is resolved [d1].",
+        "generation_latency_ms": 2320,
+        "judge_latency_ms": 2400,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag032",
+      "query": "Will support ever ask for my card password?",
+      "tags": [
+        "payments",
+        "security"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "payments.md#5"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#5",
+            "payments.md#1",
+            "seller-onboarding.md#5",
+            "returns-policy.md#5",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 102,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "payments.md#5",
+            "payments.md#1",
+            "payments.md#0",
+            "returns-policy.md#0",
+            "seller-onboarding.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Will the marketplace ever request my card password?"
+          ],
+          "latency_ms": 1076,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#5",
+            "payments.md#1",
+            "seller-onboarding.md#5",
+            "returns-policy.md#5",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 60,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#5",
+            "payments.md#1",
+            "seller-onboarding.md#5",
+            "returns-policy.md#5",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 111,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1349,
+      "runner_latency_ms": 6194,
+      "input_tokens": 1556,
+      "cached_input_tokens": 0,
+      "output_tokens": 102,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully states that support will never ask for a card password, supported by the evidence provided.",
+        "answer": "Support will never ask for your card password by email or chat [d1]. The payment page uses the marketplace checkout and does not request card passwords through any communication channels.",
+        "generation_latency_ms": 2956,
+        "judge_latency_ms": 1885,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag033",
+      "query": "How long does a credit card verification take?",
+      "tags": [
+        "payments"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "payments.md#1"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#1",
+            "seller-onboarding.md#2",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#1",
+            "returns-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 99,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "payments.md#1",
+            "seller-onboarding.md#2",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#1",
+            "late-delivery-compensation.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Credit card verification processing time"
+          ],
+          "latency_ms": 1384,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#1",
+            "seller-onboarding.md#2",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#1",
+            "returns-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 170,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#1",
+            "seller-onboarding.md#2",
+            "late-delivery-compensation.md#3",
+            "shipping-policy.md#1",
+            "returns-policy.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 120,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1773,
+      "runner_latency_ms": 6160,
+      "input_tokens": 1620,
+      "cached_input_tokens": 0,
+      "output_tokens": 100,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully reflects the information in the evidence [d1], which states that additional verification can take up to one business day.",
+        "answer": "A credit card verification typically takes up to one business day if additional verification is required [d1]. The payment itself is approved immediately in most cases.",
+        "generation_latency_ms": 2278,
+        "judge_latency_ms": 2104,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag034",
+      "query": "Which companies can apply to sell on the marketplace?",
+      "tags": [
+        "seller"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "seller-onboarding.md#0"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "payments.md#0",
+            "returns-policy.md#0",
+            "seller-onboarding.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 65,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#0",
+            "payments.md#0",
+            "shipping-policy.md#0",
+            "seller-onboarding.md#4",
+            "seller-onboarding.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Eligible companies to join the marketplace seller program"
+          ],
+          "latency_ms": 1407,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "payments.md#0",
+            "returns-policy.md#0",
+            "seller-onboarding.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 132,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "payments.md#0",
+            "returns-policy.md#0",
+            "seller-onboarding.md#1"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 116,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1720,
+      "runner_latency_ms": 11756,
+      "input_tokens": 1667,
+      "cached_input_tokens": 0,
+      "output_tokens": 133,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully states that any registered company with a valid tax ID can apply to sell on the marketplace and mentions the required information for creating a seller account, both supported by the provided evidence.",
+        "answer": "Any registered company with a valid tax ID can apply to sell on the marketplace [d1]. The application process requires providing the company's legal name, tax ID, and contact phone number to create a seller account [d5].",
+        "generation_latency_ms": 2760,
+        "judge_latency_ms": 7272,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag035",
+      "query": "What documents do I need to become a seller?",
+      "tags": [
+        "seller"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "seller-onboarding.md#2"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 70,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#5",
+            "seller-onboarding.md#2",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "seller onboarding required documentation"
+          ],
+          "latency_ms": 1581,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 151,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#5"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 118,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1920,
+      "runner_latency_ms": 18777,
+      "input_tokens": 1660,
+      "cached_input_tokens": 0,
+      "output_tokens": 130,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully cites the required documents and policies based on the provided evidence.",
+        "answer": "To become a seller, you need to provide your company legal name, tax ID, and contact phone number [d1], along with a company registration document, proof of address, and bank account details that match the tax ID [d3]. Additionally, you must accept the product listing rules, returns policy, and shipping policy before publishing [d4].",
+        "generation_latency_ms": 8602,
+        "judge_latency_ms": 8250,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag036",
+      "query": "What does the platform keep from each sale?",
+      "tags": [
+        "seller",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "seller-onboarding.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "payments.md#5",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#4",
+            "returns-policy.md#0",
+            "shipping-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 366,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#4",
+            "returns-policy.md#0",
+            "payments.md#5",
+            "payments.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.5,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "platform retention of proceeds from each sale"
+          ],
+          "latency_ms": 3981,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "payments.md#5",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#4",
+            "returns-policy.md#0",
+            "shipping-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 63,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "payments.md#5",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#4",
+            "returns-policy.md#0",
+            "shipping-policy.md#0"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 115,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 4525,
+      "runner_latency_ms": 13567,
+      "input_tokens": 1627,
+      "cached_input_tokens": 0,
+      "output_tokens": 120,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully states that the platform keeps the marketplace commission (twelve percent of the item value) based on evidence [d3], and correctly notes that no other information is specified.",
+        "answer": "The platform keeps the marketplace commission, which is twelve percent of the item value, deducted before the payout [d3]. It does not specify what else the platform retains from each sale.",
+        "generation_latency_ms": 6776,
+        "judge_latency_ms": 2260,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag037",
+      "query": "How often are seller payouts made?",
+      "tags": [
+        "seller"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "seller-onboarding.md#4"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "seller-onboarding.md#4",
+            "late-delivery-compensation.md#2",
+            "shipping-policy.md#1",
+            "payments.md#2",
+            "shipping-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 355,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#4",
+            "shipping-policy.md#1",
+            "seller-onboarding.md#2",
+            "payments.md#1",
+            "late-delivery-compensation.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "How frequently are seller payouts processed?"
+          ],
+          "latency_ms": 1133,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#4",
+            "late-delivery-compensation.md#2",
+            "shipping-policy.md#1",
+            "payments.md#2",
+            "shipping-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 136,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "seller-onboarding.md#4",
+            "late-delivery-compensation.md#2",
+            "shipping-policy.md#1",
+            "payments.md#2",
+            "shipping-policy.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 120,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1744,
+      "runner_latency_ms": 6867,
+      "input_tokens": 1643,
+      "cached_input_tokens": 0,
+      "output_tokens": 120,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer correctly states that payouts are made every two weeks for delivered orders whose return window has closed, and mentions the longer hold period for new sellers based on the provided evidence.",
+        "answer": "Payouts are made every two weeks for delivered orders whose return window has closed [d1]. A new seller may experience a longer hold period until the first ten orders are delivered [d1].",
+        "generation_latency_ms": 2885,
+        "judge_latency_ms": 2235,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag038",
+      "query": "Can I have more than one seller account?",
+      "tags": [
+        "seller"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "seller-onboarding.md#1"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#5",
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 63,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#5",
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "Can a user have multiple seller accounts?"
+          ],
+          "latency_ms": 1532,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#1",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#5",
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#2"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 67,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "seller-onboarding.md#1",
+            "payments.md#4",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#5",
+            "seller-onboarding.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 115,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1777,
+      "runner_latency_ms": 11442,
+      "input_tokens": 1581,
+      "cached_input_tokens": 0,
+      "output_tokens": 110,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully states that a person can hold more than one seller account with written approval, citing the correct evidence (d1).",
+        "answer": "Yes, a person can hold more than one seller account, but only with written approval [d1]. The documents do not specify any additional conditions or restrictions regarding having multiple seller accounts.",
+        "generation_latency_ms": 2762,
+        "judge_latency_ms": 6899,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag039",
+      "query": "What must a listing include before it is published?",
+      "tags": [
+        "seller"
+      ],
+      "split": "test",
+      "needs_rewrite": false,
+      "relevant": [
+        "seller-onboarding.md#3"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "seller-onboarding.md#1",
+            "payments.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 97,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#2",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#1",
+            "late-delivery-compensation.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "listing requirements for publication"
+          ],
+          "latency_ms": 1283,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "seller-onboarding.md#1",
+            "payments.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 120,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "seller-onboarding.md#3",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "seller-onboarding.md#1",
+            "payments.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 117,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 1617,
+      "runner_latency_ms": 12412,
+      "input_tokens": 1625,
+      "cached_input_tokens": 0,
+      "output_tokens": 156,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully reflects the information provided in the evidence [d1], which explicitly states that a listing must include a clear title, at least one photo, product dimensions, warranty terms, and comply with the product listing rules, returns policy, and shipping policy. It also mentions prohibited items cannot be listed.",
+        "answer": "Before a listing is published, it must include a clear title, at least one photo, product dimensions, warranty terms, and comply with the product listing rules, returns policy, and shipping policy [d1]. Prohibited items cannot be listed [d1].",
+        "generation_latency_ms": 7915,
+        "judge_latency_ms": 2874,
+        "error": null
+      }
+    },
+    {
+      "case_id": "rag040",
+      "query": "Who can I ask about it?",
+      "tags": [
+        "seller",
+        "needs_rewrite"
+      ],
+      "split": "test",
+      "needs_rewrite": true,
+      "relevant": [
+        "seller-onboarding.md#5"
+      ],
+      "strategies": {
+        "query_as_written": {
+          "retrieved": [
+            "late-delivery-compensation.md#3",
+            "returns-policy.md#5",
+            "seller-onboarding.md#5",
+            "seller-onboarding.md#1",
+            "payments.md#4"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 0.3333333333333333,
+          "rewrite_rounds": 0,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [],
+          "latency_ms": 413,
+          "error": null
+        },
+        "always_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#5",
+            "returns-policy.md#5",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "late-delivery-compensation.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "onboarding team contact for listing approval inquiries"
+          ],
+          "latency_ms": 1535,
+          "error": null
+        },
+        "conditional_rewrite": {
+          "retrieved": [
+            "seller-onboarding.md#5",
+            "returns-policy.md#5",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "late-delivery-compensation.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "onboarding team contact for listing approval inquiries"
+          ],
+          "latency_ms": 2841,
+          "error": null
+        },
+        "conditional_hybrid": {
+          "retrieved": [
+            "seller-onboarding.md#5",
+            "returns-policy.md#5",
+            "seller-onboarding.md#0",
+            "seller-onboarding.md#2",
+            "late-delivery-compensation.md#3"
+          ],
+          "recall_at_5": 1.0,
+          "mrr": 1.0,
+          "rewrite_rounds": 1,
+          "retrieval_rounds": 1,
+          "rewritten_queries": [
+            "onboarding team contact for listing approval inquiries"
+          ],
+          "latency_ms": 309,
+          "error": null
+        }
+      },
+      "passed": true,
+      "latency_ms": 5098,
+      "runner_latency_ms": 8408,
+      "input_tokens": 1968,
+      "cached_input_tokens": 0,
+      "output_tokens": 143,
+      "error": null,
+      "judge": {
+        "verdict": "acceptable",
+        "score": 1.0,
+        "reason": "The answer truthfully cites the onboarding team and support team based on the provided evidence and correctly states that other inquiries are not specified in the documents.",
+        "answer": "You can ask the onboarding team if you have questions about seller onboarding [d1], or the support team if you have questions about a specific order [d2]. The documents do not specify who to contact for other types of inquiries.",
+        "generation_latency_ms": 1294,
+        "judge_latency_ms": 2011,
+        "error": null
+      }
+    }
+  ]
+}

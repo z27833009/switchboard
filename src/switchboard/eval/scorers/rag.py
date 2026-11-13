@@ -12,6 +12,7 @@ from collections.abc import Sequence
 
 from switchboard.core.errors import ConfigError
 from switchboard.core.models import EvalCase, EvalOutcome, Score
+from switchboard.eval.scorers.judge import judge_metric
 
 
 def chunk_key(source: str, ordinal: int) -> str:
@@ -78,6 +79,14 @@ def score_rag(case: EvalCase, outcome: EvalOutcome) -> Score:
         metrics[f"recall_at_5_{name}"] = float(recall)
         metrics[f"mrr_{name}"] = float(mrr)
         passed = passed and float(recall) > 0.0
+    # Judge mode (T3.04) adds one answer-quality signal per case. It never
+    # changes the retrieval scores or ``passed``: the default rag measurement
+    # stays retrieval only and a judge rejection is a separate number.
+    judged = outcome.details.get("judge")
+    if isinstance(judged, dict):
+        metric = judge_metric(judged.get("verdict"))
+        if metric is not None:
+            metrics["judge_acceptable"] = metric
     return Score(case_id=case.id, metrics=metrics, passed=passed)
 
 

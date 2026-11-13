@@ -22,6 +22,7 @@ from switchboard.api.deps import (
 from switchboard.api.step_events import StepEventPublisher
 from switchboard.core.config import (
     EmbedderConfig,
+    JudgeSettings,
     Limits,
     PlatformConfig,
     PriceEntry,
@@ -41,6 +42,7 @@ from switchboard.core.ports import Orchestrator
 from switchboard.registry import (
     CACHES,
     EMBEDDERS,
+    JUDGES,
     ORCHESTRATORS,
     PROVIDERS,
     RETRIEVERS,
@@ -97,6 +99,13 @@ class FakeOrchestratorClass:
 
 class SecondOrchestratorClass:
     name = "second"
+
+    def __init__(self, **kwargs: Any) -> None:
+        self.kwargs = kwargs
+
+
+class FakeJudgeClass:
+    name = "llm"
 
     def __init__(self, **kwargs: Any) -> None:
         self.kwargs = kwargs
@@ -207,6 +216,57 @@ def test_orchestrators_receive_the_answer_delta_sink() -> None:
 def test_unknown_context_policy_is_a_config_error() -> None:
     with pytest.raises(ConfigError, match="unknown context policy"):
         context_policy_for("summarise_everything")
+
+
+def judge_registry() -> Registry:
+    return Registry(
+        entries=[
+            Entry(name="fake", group=PROVIDERS, value=FakeProvider),
+            Entry(name="fake", group=ORCHESTRATORS, value=FakeOrchestratorClass),
+            Entry(name="second", group=ORCHESTRATORS, value=SecondOrchestratorClass),
+            Entry(name="fake", group=RETRIEVERS, value=FakeRetriever),
+            Entry(name="fake", group=TOOL_SOURCES, value=FakeToolSource),
+            Entry(name="mock", group=EMBEDDERS, value=None),
+            Entry(name="none", group=CACHES, value=NoCache),
+            Entry(name="llm", group=JUDGES, value=FakeJudgeClass),
+        ]
+    )
+
+
+def test_the_judge_is_not_built_when_it_is_disabled() -> None:
+    pool = cast(asyncpg.Pool, object())
+    built = build_orchestrator_set(settings_for(), judge_registry(), pool)
+
+    default = cast(FakeOrchestratorClass, built.default["fake"])
+    assert default.kwargs["judge"] is None
+
+
+def test_an_enabled_judge_is_built_once_and_shared_by_every_orchestrator() -> None:
+    pool = cast(asyncpg.Pool, object())
+    settings = settings_for()
+    settings = settings.model_copy(
+        update={
+            "platform": settings.platform.model_copy(
+                update={
+                    "judge": JudgeSettings(
+                        enabled=True, provider="fake", threshold=0.7, max_evidence_chars=300
+                    )
+                }
+            )
+        }
+    )
+
+    built = build_orchestrator_set(settings, judge_registry(), pool)
+
+    default = cast(FakeOrchestratorClass, built.default["fake"])
+    replay = cast(SecondOrchestratorClass, built.replay[("fake", "second")])
+    judge = default.kwargs["judge"]
+    assert isinstance(judge, FakeJudgeClass)
+    assert judge is replay.kwargs["judge"]
+    assert judge.kwargs["threshold"] == 0.7
+    assert judge.kwargs["max_evidence_chars"] == 300
+    # The judge runs on its own provider, resolved from the judge settings.
+    assert judge.kwargs["provider"].name == "fake"
 
 
 def agent_loop_settings() -> Settings:

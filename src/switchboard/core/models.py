@@ -337,6 +337,46 @@ class GateVerdict(BaseModel):
     feedback: str | None = None
 
 
+class JudgeEvidence(BaseModel):
+    """One piece of evidence the judge is shown, as untrusted data (6.8)."""
+
+    kind: Literal["document", "tool"]
+    ref: str
+    text: str = ""
+
+
+class JudgeRequest(BaseModel):
+    """What a ``Judge`` is asked to assess.
+
+    The answer, its citations and the evidence snippets are untrusted content:
+    an adapter wraps them in data blocks and never treats them as instructions
+    (design.md section 13.1).
+    """
+
+    query: str
+    answer: str
+    evidence: list[JudgeEvidence] = Field(default_factory=list)
+    citations: list[Citation] = Field(default_factory=list)
+
+
+class JudgeVerdict(BaseModel):
+    """One judge decision.
+
+    ``score`` is the model's own confidence that the answer is acceptable, in
+    [0, 1], and ``verdict`` is its label. The caller decides acceptance from
+    both plus its configured threshold, so a low-confidence pass is not an
+    accept. ``reason`` is untrusted model text: a report escapes it before
+    rendering.
+    """
+
+    verdict: Literal["acceptable", "weak"]
+    score: float = Field(ge=0.0, le=1.0)
+    reason: str = ""
+    usage: Usage | None = None
+    latency_ms: int = Field(default=0, ge=0)
+    cost_usd: float | None = Field(default=None, ge=0)
+
+
 class RunResult(BaseModel):
     run_id: str
     tenant_id: str

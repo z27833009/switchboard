@@ -14,7 +14,7 @@ from typing import Any, cast
 from switchboard.core.config import Settings
 from switchboard.core.errors import ConfigError
 from switchboard.core.models import AgentSpec, ToolSpec
-from switchboard.core.ports import EvalSuite
+from switchboard.core.ports import EvalSuite, Judge
 from switchboard.eval.datasets import DEFAULT_DATASET_ROOT
 from switchboard.registry import EVAL_SUITES, Registry
 
@@ -45,6 +45,9 @@ class SuiteContext:
     # search_docs@1 is a platform tool that only exists when a retriever is
     # configured, so the agent-loop prompt must not offer it otherwise.
     retriever_configured: bool = True
+    # The answer judge, built only when the caller asks for it (the rag suite in
+    # judge mode, design 20.2). None keeps every suite's behaviour unchanged.
+    judge: Judge | None = None
 
 
 def create_suite(registry: Registry, name: str, context: SuiteContext) -> EvalSuite:

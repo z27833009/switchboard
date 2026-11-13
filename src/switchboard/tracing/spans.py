@@ -180,6 +180,19 @@ def gate_span(tracer: trace.Tracer, *, run_id: str) -> Iterator[Span]:
 
 
 @contextmanager
+def judge_span(tracer: trace.Tracer, *, threshold: float) -> Iterator[Span]:
+    """One judge call: the untrusted review that follows a passed layer 1."""
+    with tracer.start_as_current_span(
+        "judge",
+        kind=SpanKind.INTERNAL,
+        record_exception=False,
+        set_status_on_exception=False,
+        attributes={"switchboard.judge.threshold": threshold},
+    ) as span:
+        yield span
+
+
+@contextmanager
 def agent_span(tracer: trace.Tracer, *, agent: str, run_id: str) -> Iterator[Span]:
     with tracer.start_as_current_span(
         agent_span_name(agent),
@@ -265,6 +278,7 @@ __all__ = [
     "extract_traceparent",
     "gate_span",
     "inject_traceparent",
+    "judge_span",
     "record_error",
     "retrieve_span",
     "run_span",

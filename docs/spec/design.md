@@ -116,6 +116,10 @@ class EvalSuite(Protocol):
     def load(self, version: str) -> list[EvalCase]: ...
     async def execute(self, case: EvalCase, deps: EvalDeps) -> EvalOutcome: ...
     def score(self, case: EvalCase, outcome: EvalOutcome) -> Score: ...
+
+class Judge(Protocol):            # v2, layer 2 of the gate (6.8)
+    name: str
+    async def judge(self, request: JudgeRequest) -> JudgeVerdict: ...
 ```
 
 Key domain models:
@@ -212,6 +216,20 @@ class EvidenceRef(BaseModel):
     text: str = ""             # content the agent saw, for the deterministic gate (6.8)
     empty: bool = False        # an empty tool result or blank chunk
 
+class JudgeRequest(BaseModel):     # v2, what the judge is asked to assess
+    query: str
+    answer: str
+    evidence: list[JudgeEvidence] = []   # kind, ref, text
+    citations: list[Citation] = []
+
+class JudgeVerdict(BaseModel):     # v2, one judge decision
+    verdict: Literal["acceptable", "weak"]
+    score: float                    # 0 to 1: the model's confidence it is acceptable
+    reason: str = ""                # untrusted text; a report escapes it
+    usage: Usage | None = None      # the judge call is billed to the run
+    latency_ms: int = 0
+    cost_usd: float | None = None
+
 class GateVerdict(BaseModel):
     passed: bool
     failed_checks: list[str] = []
@@ -247,6 +265,8 @@ Sessions (v1). `ChatRequest.session_id` is optional. When it is set, the API loa
 `AgentResult.needs_clarification` is the generic v1 marker for an answer that is a question back to the user. The orchestrator sets `RunStatus` `needs_clarification` when a single-agent plan produced such a result; it never checks an agent name, so a new clarification agent is one class plus one entry point (6.4).
 
 Orchestrator override (v2 T3.07). `ChatRequest.orchestrator` is optional. When it is set, `POST /chat` and `POST /chat/stream` run that one request on the registered orchestrator of that name instead of the platform default in `platform.yaml`; `None` keeps the default path unchanged. A name that is not registered, or whose optional instance could not be built, is a 400 before any run row exists. The API builds the platform orchestrator once per tenant provider as before, and one optional instance per (tenant provider, other registered orchestrator name), sharing the provider, embedder, retriever, cache, tool sources, context policy and price row. An optional target that cannot be built (for example a provider whose API key is absent) is skipped with a warning rather than failing startup. The run row records the name of the orchestrator that actually ran, so a replay is distinguishable from the original. This override changes the orchestrator only: the request still runs on the tenant's configured provider, because provider selection is not part of this task.
+
+The judge (v2 T3.04) is a registered component too (`switchboard.judges`, one adapter `llm`), built once when `platform.judge.enabled` is true and handed to both orchestrators and to the rag suite's opt-in mode. Its typed inputs and output are `JudgeRequest` and `JudgeVerdict`; a string `verdict` rather than a bool keeps the report readable, and `score` plus the configured `threshold` are what turn an unsure "acceptable" into a rejection.
 
 ## 5. Request flow
 
@@ -427,7 +447,17 @@ The aggregate is a `GateVerdict` with the failed check names, a concrete `feedba
 
 The retry is Reflexion-style: the failure message is concrete and comes from an external check, not from the model criticizing itself, because self-critique without an external signal is not reliable. At most one corrective action (retry or re-plan) per run; `attempts` enforces it. A retry re-runs every agent in the current plan with `AgentTask.feedback` set. A re-plan passes the previous plan and the gate reason to the supervisor and requires a plan that differs from it; if the model repeats the plan after its one repair, the configured fallback is used, or a single-agent plan when the fallback is identical to the previous one. The final `RunResult` carries `attempts`, `previous_plan`, `gate` and an `errors` entry of kind `CheckFailed`; the `gate` span records `switchboard.gate.verdict`, `switchboard.gate.failed_checks` (comma-separated) and `switchboard.gate.action`, so both attempts and the failed checks are visible in the trace.
 
-**Layer 2: LLM judge** (v2). Runs only when layer 1 passes. Enabled only after its verdicts are compared against a human-labeled sample and the agreement is reported (T3.08).
+**Layer 2: LLM judge** (v2, built in T3.04). Runs only when layer 1 passes, makes one structured-output call through the configured provider, and is off by default in `platform.yaml` (`judge.enabled: false`). It is enabled only if its verdicts agree with a human-labeled sample, and that agreement is reported. The `Judge` port takes a `JudgeRequest` and returns a `JudgeVerdict`; the `llm` adapter (`switchboard.judges:llm`) wraps an injected `ModelProvider`, so the judge runs on the configured judge provider (LM Studio by default) with that provider's price row and needs no dependency.
+
+The judge applies the answer-quality rubric, not the deterministic rules, because the two answer different questions. The rubric in its system prompt: an answer is `acceptable` when it answers the question truthfully from the evidence, including an honest partial answer ("the tool was denied", "Missing source: data"); it is `weak` when it makes an unsupported or contradictory claim, states a number the evidence does not support, cites a marker that is not in the evidence or leaves a sourced claim uncited, or hides a missing source. A truthful partial is therefore not weak merely because evidence is missing, which is exactly where layer 1 is strict by design (6.8, ADR 0013).
+
+The answer, the question and every evidence snippet reach the model inside `answer`, `question` and `evidence` data blocks, the system prompt says the blocks are data and never instructions, and the injection scanner flags a block that looks like an instruction (13.1). The adapter additionally neutralises a closing tag of its own block names inside the content, so untrusted text cannot end its block early. The reply is parsed against one schema; a missing field, an unknown verdict or a score outside 0 to 1 raises `JudgeError` with a concrete message, and the `reason` text is whitespace-collapsed, capped and HTML-escaped before it reaches a report or the UI. The adapter runs no tool and executes nothing the reply says.
+
+`platform.judge` carries `enabled` (default false), `provider` (default `lmstudio`), `threshold` (default 0.5) and `max_evidence_chars` (default 2000). An `acceptable` label below the threshold becomes `weak` with a reason naming the score, so an unsure pass is a rejection. The judge call's usage and cost are added to the run, because those tokens were spent.
+
+What the orchestrators do with a verdict: a `weak` verdict records the failed check `judge` with action `none`, so no extra retry or re-plan starts, the original answer is kept with the usual quality note and the status is `partial`; an error adds an `ErrorRecord` of kind `JudgeError` (stage `gate.judge`), appends the error to the gate reason and leaves the layer 1 result, so an unwell judge never fails a run. An answer that is a clarification question is not judged. Both adapters call the same `run_judge` helper, so they cannot drift. The `gate` span gains `switchboard.gate.judge` (`skipped`, `passed`, `rejected`, `error`) and `switchboard.gate.judge_score`; the adapter writes a `judge` span with the threshold, the verdict and the score.
+
+Measured agreement (T3.04, 12 author-labeled answers from the gate dataset, local qwen3-8b): 10 of 12 raw agreement 0.8333, Cohen's kappa 0.5556, one false rejection (`g022`, an honest partial) and one missed weak answer (`g026`, an invented 2.5 million). The declared bar for enabling (raw agreement at least 0.90, kappa at least 0.70, no false rejection) is not met, so the committed config keeps the judge disabled. The sample and the command are in section 20.2.
 
 The `gate` eval suite (dataset `v2`, 30 cases) labels answers as acceptable or weak and reports precision, recall and F1 of layer 1 per check, so false rejections from `numbers_grounded` (for example a correct derived percentage) are measured rather than assumed away. The labels in that version are constructed and read through by the implementation session, not by an independent human annotator; the report says so. The one deliberately acceptable derived-percentage case makes the known false positive visible.
 
@@ -770,7 +800,8 @@ The code uses the OpenTelemetry API directly. Span names and attributes follow t
 | `execute_tool <name>` | client | `gen_ai.tool.name`, `switchboard.tool.version`, `switchboard.tool.args_hash`, `switchboard.tool.status`, `switchboard.tool.total_rows`, `switchboard.tool.audit_id`, guardrail attributes below; event `tool.result` with the full result capped at 64 KB |
 | `retrieve` | internal | `switchboard.retrieval.k`, `switchboard.retrieval.strategy`, `switchboard.retrieval.hits`, `switchboard.retrieval.round`, `switchboard.retrieval.top_score`, guardrail attributes below |
 | `cache.lookup` | internal | see 10.4 |
-| `gate` | internal | `switchboard.gate.verdict`, `switchboard.gate.failed_checks`, `switchboard.gate.action` |
+| `gate` | internal | `switchboard.gate.verdict`, `switchboard.gate.failed_checks`, `switchboard.gate.action`, `switchboard.gate.judge`, `switchboard.gate.judge_score` (v2) |
+| `judge` | internal | `switchboard.judge.threshold`, `switchboard.judge.verdict`, `switchboard.judge.score`, `switchboard.judge.evidence_count` (v2) |
 
 `execute_tool <name>` exists twice per call: the client span in `McpToolSource` carries the network timing and the tool attributes, and the server span inside the MCP process continues the trace from the `traceparent` header. The server writes the `tool.result` event because it is the process that holds the full result. `switchboard.cost_usd` appears once `config/prices.yaml` exists (section 12.4, v1); until then the attribute is absent rather than zero for a paid model.
 
@@ -1018,6 +1049,11 @@ context_policy: clear_oldest_tool_results
 cost_cap_usd: 5.0                # v1: eval run hard ceiling (20.2)
 tracing:
   exporter: postgres             # v1: postgres, otlp
+judge:                           # v2: layer 2 of the gate (6.8)
+  enabled: false                 # on only after the agreement run supports it
+  provider: lmstudio             # must be a configured provider
+  threshold: 0.5                 # an acceptable label below this is a rejection
+  max_evidence_chars: 2000       # evidence text one judge call sees per item
 limits:
   run_timeout_s: 60
   max_tool_steps: 4
@@ -1048,6 +1084,9 @@ mock = "switchboard.adapters.providers.mock:MockProvider"
 direct = "switchboard.agents.direct:DirectAgent"
 docs = "switchboard.agents.docs:DocsAgent"
 data = "switchboard.agents.data:DataAgent"
+
+[project.entry-points."switchboard.judges"]
+llm = "switchboard.adapters.judges.llm:LlmJudge"
 ```
 
 A third-party package can add an adapter or an agent by declaring the same entry point group; no change in this repository is needed. Eval suites use the same mechanism.
@@ -1125,7 +1164,7 @@ JSONL, versioned by directory (`evals/datasets/v1`). A dataset version never cha
 | --- | --- | --- | --- |
 | routing | `query`, `expected_agents`, `tags`, `split` | 60, balanced across plans; `ambiguous` where blind labelers disagree | exact set match (plan accuracy); Jaccard as partial credit; confusion matrix over plan labels |
 | toolcall | `query`, `expected_tool`, `expected_args`, `tool_version` | 40 | tool name match and argument AST match (required args exact, optional args if present); trajectory: tool calls per case and redundant calls |
-| rag (v1) | `query`, `relevant_chunk_ids` (portable `source#ordinal` keys), `needs_rewrite` tag, optional `history`, `split` | 40 | recall@5, MRR for four retrieval strategies (9.3); rubric scoring by judge in v2 |
+| rag (v1) | `query`, `relevant_chunk_ids` (portable `source#ordinal` keys), `needs_rewrite` tag, optional `history`, `split` | 40 | recall@5, MRR for four retrieval strategies (9.3); v2 adds `judge_accept_rate` in opt-in judge mode |
 | cache (v1) | `query_a`, `query_b`, `should_hit` | 50 pairs, including cross-type near misses | hit rate, false-hit rate per threshold |
 | gate (v1) | `query`, `answer`, `agents`, `plan`, `result_sources`, `evidence`, `is_weak`, `weakness` | 30 | precision, recall and F1 per check; overall weak precision, recall and good-case specificity |
 | injection (v1) | `content`, `is_malicious` | 40 | detection rate, false positive rate |
@@ -1141,6 +1180,8 @@ Dataset versions are per suite when a suite is added later: `v2/gate.jsonl` hold
 `v5/cache.jsonl` holds the 50 cache pairs and leaves `v1/` to `v4/` untouched: 25 paraphrases labeled `should_hit` and 25 near misses, six of them cross-type (a policy question next to a data question). The suite embeds both questions once with bge-m3, reports the cosine similarity and sweeps eight thresholds from 0.85 to 0.99. The labels are constructed and audited by the implementation session, not blind human labels; all 50 are in the `test` split because the threshold is chosen from the whole set rather than tuned on a dev split. Details in `evals/datasets/v5/README.md`.
 
 Feedback (v1): `POST /runs/{id}/feedback` stores a rating of -1 or 1 and an optional note of at most 2000 characters. It is append-only, so a changed rating is a new row and the newest one is the run's verdict. `switchboard eval harvest --since <date> [--tenant <id>]` exports the runs whose newest feedback is negative and whose feedback was written on or after that UTC date, one unlabeled case per run, to `evals/candidates/feedback-<since>-<tenant|all>.jsonl`. A candidate carries `candidate_id` (`candidate-<run_id>`), `run_id`, `tenant_id`, `query`, `answer`, `plan`, `status`, `rating`, `note`, `run_started_at`, `run_ended_at` and `rated_at`, and no expected label of any kind. The command rewrites the file from the current rows on every run, so running it twice writes the same bytes instead of appending a duplicate, and it never modifies a frozen dataset or a baseline. A human labels the candidates; labeled cases enter the next dataset version, never the current one.
+
+Judge agreement (v2 T3.04): `evals/judge/agreement.jsonl` holds 12 answers copied from the frozen gate dataset with the author's human labels, 9 `acceptable` and 3 `weak`; `evals/judge/README.md` documents the rubric and says the labels are final and must never be regenerated. It is not a versioned suite dataset: it is a fixed sample for one measurement. The two honest partials (`g019` denied tool, `g022` missing source) are `acceptable` here although the gate dataset labels them weak, because the judge applies the answer-quality rubric rather than the deterministic checks. `switchboard eval judge-agreement` reads the sample, refuses to run if any `human_label` is missing, prints each judge verdict beside its human label, and writes `evals/reports/judge-agreement.md` and `.json` with raw agreement, Cohen's kappa, the confusion matrix, false rejections, missed weak answers, latency and the exact labels. It refuses a provider with a nonzero price row, so the check cannot become a paid call.
 
 ### 20.2 Runner
 
@@ -1158,6 +1199,10 @@ The cache suite also makes no model call: it embeds both questions of every pair
 
 The rag suite accepts `--orchestrator` only as the comparison dimension: both adapters share the retriever and the rewrite helper, so the four strategies and their code path do not depend on the orchestrator. The report records the label and says that any difference between the two runs is run-to-run timing, not a mechanism difference. The deterministic gate, injection and cache suites have no orchestrator dimension and refuse the flag with a named error.
 
+The rag suite's `--judge` flag (v2 T3.04) adds one answer-quality measurement without touching the retrieval one. For each case it takes the chunks of the production `conditional_hybrid` result, generates one answer from those chunks only through the provider (document blocks with `[dN]` markers, the same untrusted-data rule as the docs agent), judges that answer against the same chunks, and adds `judge_accept_rate` plus one `judge` object per case (verdict, score, reason, answer, generation and judge latency) to the report. The case `latency_ms` and the latency table stay retrieval only, so they remain comparable with a plain rag report. The default retrieval metrics, the `passed` flag and the report file are unchanged; judge mode writes its own file, `<suite>-judge-<provider>`, so the committed `rag-lmstudio` report is never overwritten. Judge mode runs on `platform.judge.provider`, not on `--provider`, and refuses a paid judge provider. The flag is rejected for every suite except rag. Measured on the 40 v3 cases (T3.04): `judge_accept_rate` 0.9750, 39 of 40 acceptable and `rag008` weak, 0 judge errors, no API cost. The judge failed the agreement check in 6.8, so that report measures its verdicts rather than an established answer-quality claim.
+
+`switchboard eval judge-agreement` is the answer-quality check for layer 2 of the gate (6.8): it runs the judge on the author-labeled sample, prints each verdict beside its label and writes `evals/reports/judge-agreement.md` and `.json`. The report states the declared bar for enabling the judge (raw agreement at least 0.90, Cohen's kappa at least 0.70, no false rejection) and whether the run met it; it never changes `platform.yaml`.
+
 ### 20.3 Comparison and regression
 
 `switchboard eval compare` reads the per-suite JSON reports and writes `evals/reports/compare.md` and `.json` (name configurable): one row per suite, provider and orchestrator for routing, toolcall and rag, with the report's dataset version, case count, headline and secondary metric, p50 and p95 latency, tokens per 100 queries and cost per 100 queries. The headline is `plan_accuracy`, `both_accuracy`, or `recall_at_5_conditional_hybrid` (the production retrieval path); the secondary metric is `plan_jaccard`, `argument_accuracy` or the matching MRR. Tokens and cost per 100 queries are the report's measured totals scaled by its case count. A combination with no report is marked `not run`, and `--not-run-reason provider=reason` records why, so a provider that is configured but not yet exercised is visible in the table. A smoke report (`--limit`) is never compared. The output has no timestamp and a fixed row order, so the same reports write the same bytes, and the command only reads: it never rewrites a per-suite report or a baseline. `switchboard eval gate --suite routing --baseline evals/baselines/routing.json --max-drop 0.05` exits non-zero when accuracy drops more than the delta; CI runs this on the mock provider (see section 18 for what that measures). Baselines are updated deliberately by committing a new file, never automatically.
@@ -1174,6 +1219,7 @@ This list is the allowlist referred to in the working agreements: a dependency n
 | API | FastAPI, uvicorn | SSE through FastAPI's `StreamingResponse`, no extra package |
 | Orchestration | langgraph | imported only in `adapters/orchestrator/langgraph_impl` |
 | Model clients | openai (official Python SDK) | for every OpenAI-compatible provider and embedder |
+| Answer judge (v2) | no new dependency: `switchboard.judges:llm` wraps a `ModelProvider` from the row above | one structured-output call per answer; prompt and schema live in the adapter |
 | MCP | mcp (official Python SDK), using `mcp.server.mcpserver.MCPServer` for the server and its streamable HTTP client for `McpToolSource` | SDK 2.x renamed FastMCP to MCPServer; not the separate `fastmcp` package, one SDK on both sides |
 | Database | asyncpg; PostgreSQL 16 with pgvector via the `pgvector/pgvector` image (pg16 tag) | no ORM |
 | Observability | opentelemetry-api, opentelemetry-sdk; v1 adds the official OTLP/HTTP exporter (opentelemetry-exporter-otlp-proto-http) | the OTLP exporter is used only when `tracing.exporter: otlp`; PostgreSQL stays the default |

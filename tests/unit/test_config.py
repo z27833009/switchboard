@@ -167,6 +167,56 @@ def test_unknown_keys_are_rejected(tmp_path: Path) -> None:
         load_settings(write_config(tmp_path, platform=platform), ENV)
 
 
+JUDGE_PLATFORM = (
+    PLATFORM
+    + """
+judge:
+  enabled: true
+  provider: lmstudio
+  threshold: 0.6
+  max_evidence_chars: 500
+"""
+)
+
+CONFIG_ENV = {
+    "MCP_OLIST_URL": "http://localhost:8001",
+    "LMSTUDIO_BASE_URL": "http://localhost:18080/v1",
+    "LMSTUDIO_MODEL": "qwen3-8b",
+    "LMSTUDIO_EMBEDDING_MODEL": "bge-m3",
+}
+
+
+def test_the_committed_platform_config_keeps_the_judge_disabled() -> None:
+    """Layer 2 is off in the repository config until the agreement run says so."""
+    settings = load_settings(REPO / "config", CONFIG_ENV)
+
+    assert settings.platform.judge.enabled is False
+    assert settings.platform.judge.provider == "lmstudio"
+    assert settings.platform.judge.threshold == 0.5
+    assert settings.platform.judge.max_evidence_chars == 2000
+
+
+def test_judge_settings_load_from_platform_yaml(tmp_path: Path) -> None:
+    settings = load_settings(write_config(tmp_path, platform=JUDGE_PLATFORM), ENV)
+
+    assert settings.platform.judge.enabled is True
+    assert settings.platform.judge.provider == "lmstudio"
+    assert settings.platform.judge.threshold == 0.6
+    assert settings.platform.judge.max_evidence_chars == 500
+
+
+def test_an_enabled_judge_must_name_a_configured_provider(tmp_path: Path) -> None:
+    platform = JUDGE_PLATFORM.replace("provider: lmstudio", "provider: ghost")
+    with pytest.raises(ConfigError, match="judge is enabled with unknown provider"):
+        load_settings(write_config(tmp_path, platform=platform), ENV)
+
+
+def test_an_unknown_judge_key_is_rejected(tmp_path: Path) -> None:
+    platform = JUDGE_PLATFORM + "  temperature: 0.2\n"
+    with pytest.raises(ConfigError, match="temperature"):
+        load_settings(write_config(tmp_path, platform=platform), ENV)
+
+
 def test_unknown_agent_name_is_named(tmp_path: Path) -> None:
     tenants = TENANTS.replace('allow: ["direct", "docs"]', 'allow: ["direct", "ghost_agent"]')
     with pytest.raises(ConfigError, match=r"unknown agents.*ghost_agent"):

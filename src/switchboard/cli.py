@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import time
 from datetime import UTC, datetime
@@ -13,6 +14,7 @@ import asyncpg
 import typer
 
 from switchboard.adapters.embedders.factory import create_embedder
+from switchboard.adapters.judges.factory import create_judge, require_unpriced_provider
 from switchboard.adapters.providers.factory import create_provider
 from switchboard.adapters.providers.mock import MockProvider
 from switchboard.adapters.retrievers.ingest import IngestResult, ingest_directory
@@ -20,7 +22,7 @@ from switchboard.config import load_settings
 from switchboard.core.config import PriceEntry, ProviderConfig, Settings
 from switchboard.core.errors import ConfigError, SwitchboardError
 from switchboard.core.models import AgentSpec, EvalCase, ToolSpec
-from switchboard.core.ports import EvalDeps, EvalSuite, ModelProvider
+from switchboard.core.ports import EvalDeps, EvalSuite, Judge, ModelProvider
 from switchboard.core.pricing import lookup_price
 from switchboard.data.olist import (
     DEFAULT_EXPECTED_COUNTS,
@@ -50,6 +52,14 @@ from switchboard.eval.harvest import (
 )
 from switchboard.eval.harvest import (
     harvest as harvest_feedback,
+)
+from switchboard.eval.judge_agreement import (
+    DEFAULT_AGREEMENT_NAME,
+    DEFAULT_AGREEMENT_PATH,
+    build_agreement_report,
+    load_agreement,
+    run_agreement_sync,
+    write_agreement_report,
 )
 from switchboard.eval.manifest import DEFAULT_TOOL_MANIFEST, load_tool_specs
 from switchboard.eval.report import ReportMeta, build_report, write_report
@@ -365,6 +375,16 @@ def eval_run(
             help="Override platform.yaml cost_cap_usd for this run.",
         ),
     ] = None,
+    judge_mode: Annotated[
+        bool,
+        typer.Option(
+            "--judge",
+            help=(
+                "rag only: answer each case from the conditional_hybrid retrieval result, "
+                "judge the answer, and add judge_accept_rate to the report."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Run one eval suite and write markdown and JSON reports."""
     started = time.perf_counter()
@@ -376,6 +396,8 @@ def eval_run(
             raise ConfigError(
                 f"unknown eval suite {suite!r}; registered: {', '.join(available) or 'none'}"
             )
+        if judge_mode and suite != "rag":
+            raise ConfigError("--judge is only supported for the rag suite")
         orchestrators = registry.names(ORCHESTRATORS)
         if orchestrator not in orchestrators:
             raise ConfigError(
@@ -389,6 +411,9 @@ def eval_run(
             )
 
         manifest_tools = load_tool_specs(manifest)
+        # The rag judge mode builds its own provider, which is lazy: no call is
+        # made here, and a paid judge provider is refused before the suite runs.
+        judge, judge_label = _rag_judge(settings, registry, judge_mode)
         eval_suite: EvalSuite = create_suite(
             registry,
             suite,
@@ -402,6 +427,7 @@ def eval_run(
                 tenant_tools=_tenant_tool_specs(settings, manifest_tools),
                 retriever_configured=settings.platform.retriever != "none",
                 provider=provider,
+                judge=judge,
             ),
         )
         cases: list[EvalCase] = eval_suite.load(dataset_version)
@@ -490,6 +516,7 @@ def eval_run(
                 price=price,
                 price_verified_on=settings.prices.verified_on if price is not None else None,
                 chosen_threshold=chosen_threshold,
+                judge_label=judge_label,
             ),
             results,
         )
@@ -510,6 +537,8 @@ def eval_run(
         typer.echo("SMOKE RUN: --limit was used, this is not a full-suite result")
     if recording:
         typer.echo(f"recorded missing fixtures with {recorded_with}")
+    if judge_label:
+        typer.echo(f"judge: {judge_label} (answer quality mode)")
     for name, value in report["metrics"].items():
         typer.echo(f"{name}: {value}")
     if report["cost_usd"] is None:
@@ -668,6 +697,145 @@ def eval_gate(
         )
         raise typer.Exit(1)
     typer.echo("gate passed")
+
+
+def _rag_judge(
+    settings: Settings, registry: Registry, enabled: bool
+) -> tuple[Judge | None, str | None]:
+    """The judge for the rag suite's opt-in answer-quality mode (T3.04).
+
+    The judge always runs on ``platform.judge.provider``, never on the suite's
+    ``--provider``: the answer being judged is the suite's, the judging call is
+    the platform's. A paid judge provider is refused rather than billed.
+    """
+    if not enabled:
+        return None, None
+    judge_settings = settings.platform.judge
+    name = judge_settings.provider
+    try:
+        config = settings.providers.providers[name]
+    except KeyError as exc:
+        raise ConfigError(f"the judge provider {name!r} is not configured") from exc
+    price = lookup_price(settings.prices, name, config.model)
+    require_unpriced_provider(name, price)
+    provider = create_provider(registry, name, config, price, use_fallback=False)
+    judge = create_judge(registry, provider=provider, settings=judge_settings)
+    return judge, f"llm ({name}/{config.model or 'unknown'})"
+
+
+@eval_app.command("judge-agreement")
+def eval_judge_agreement(
+    dataset: Annotated[
+        Path,
+        typer.Option("--dataset", help="Human-labeled agreement sample in JSONL."),
+    ] = DEFAULT_AGREEMENT_PATH,
+    provider: Annotated[
+        str | None,
+        typer.Option(
+            "--provider",
+            help="Provider for the judge; defaults to platform.judge.provider.",
+        ),
+    ] = None,
+    config_dir: Annotated[
+        Path, typer.Option("--config-dir", help="Directory with the YAML config.")
+    ] = Path("config"),
+    output_dir: Annotated[
+        Path, typer.Option("--output-dir", help="Directory for the markdown and JSON report.")
+    ] = Path("evals/reports"),
+    name: Annotated[
+        str, typer.Option("--name", help="File name stem for the report.")
+    ] = DEFAULT_AGREEMENT_NAME,
+) -> None:
+    """Compare the judge with the author's human labels (design.md 6.8).
+
+    The labels in the sample are author-provided and final; this command reads
+    them and never regenerates one. A missing or unknown label refuses the run
+    before any model call. The report carries raw agreement, Cohen's kappa, the
+    confusion matrix and the exact labels per case. It only reports: enabling
+    the judge is a config change that follows the report.
+    """
+    started = time.perf_counter()
+    try:
+        # The labels are the precondition: refuse before reading any config or
+        # building a provider, so a missing label can never spend a model call.
+        cases = load_agreement(dataset)
+        settings = load_settings(config_dir)
+        registry = Registry()
+        judge_settings = settings.platform.judge
+        name_provider = provider or judge_settings.provider
+        try:
+            config = settings.providers.providers[name_provider]
+        except KeyError as exc:
+            raise ConfigError(f"unknown provider {name_provider!r}") from exc
+        price = lookup_price(settings.prices, name_provider, config.model)
+        require_unpriced_provider(name_provider, price)
+        chosen_provider = create_provider(
+            registry, name_provider, config, price, use_fallback=False
+        )
+        judge = create_judge(registry, provider=chosen_provider, settings=judge_settings)
+        runs = run_agreement_sync(judge, cases)
+        report = build_agreement_report(
+            cases=cases,
+            runs=runs,
+            dataset_path=Path(dataset).as_posix(),
+            provider=name_provider,
+            model=config.model or "unknown",
+            judge_name=judge.name,
+            threshold=judge_settings.threshold,
+            price=price,
+            judge_enabled=judge_settings.enabled,
+            generated_at=datetime.now(UTC),
+            wall_time_s=time.perf_counter() - started,
+        )
+        markdown_path, json_path = write_agreement_report(report, output_dir, name=name)
+    except SwitchboardError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    typer.echo(
+        f"judge {report['judge']} on {report['provider']}/{report['model']}, "
+        f"{report['case_count']} human-labeled cases, threshold {report['threshold']}"
+    )
+    for case in report["cases"]:
+        score = "" if case["judge_score"] is None else f" {case['judge_score']:.2f}"
+        verdict = case["judge_label"] or f"error ({case['error']})"
+        typer.echo(
+            f"{case['case_id']}: human {case['human_label']}, judge {verdict}{score} "
+            f"{'agree' if case['agree'] else 'DISAGREE'} "
+            f"({case['latency_ms']} ms) {case['reason']}"
+        )
+    metrics = report["metrics"]
+    typer.echo(
+        f"raw agreement {metrics['raw_agreement']:.4f} "
+        f"({int(metrics['agreements'])} of {int(metrics['cases'])}), "
+        f"Cohen's kappa {metrics['cohen_kappa']:.4f}"
+    )
+    typer.echo(
+        "confusion matrix (human rows, judge columns): " + json.dumps(report["confusion_matrix"])
+    )
+    typer.echo(
+        f"false rejections {report['false_rejection_cases'] or 'none'}; "
+        f"missed weak {report['missed_weak_cases'] or 'none'}; "
+        f"errors {report['error_count']}"
+    )
+    if report["cost_usd"] is None:
+        typer.echo("cost_usd: none (no price entry for this provider)")
+    elif report["no_api_cost"]:
+        typer.echo(f"cost_usd: {report['cost_usd']} (no API cost, local provider)")
+    else:
+        typer.echo(f"cost_usd: {report['cost_usd']}")
+    typer.echo(
+        "decision: the bar is "
+        f"raw agreement >= {report['decision']['raw_agreement_min']}, kappa >= "
+        f"{report['decision']['cohen_kappa_min']}, no false rejection; "
+        + ("met." if report["decision"]["met"] else "not met.")
+    )
+    typer.echo(
+        "judge enabled in config: "
+        + ("yes" if report["decision"]["judge_enabled_in_config"] else "no")
+    )
+    typer.echo(f"wrote {markdown_path}")
+    typer.echo(f"wrote {json_path}")
 
 
 @eval_app.command("harvest")

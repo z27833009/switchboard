@@ -73,6 +73,16 @@ class BudgetExceeded(SwitchboardError):
     retryable = False
 
 
+class JudgeError(SwitchboardError):
+    """The judge returned output the adapter could not use.
+
+    The caller keeps the layer 1 gate result and records the error, so a
+    judge that is unwell never fails a run (design.md section 6.8).
+    """
+
+    retryable = False
+
+
 class CheckFailed(SwitchboardError):
     retryable = True
 

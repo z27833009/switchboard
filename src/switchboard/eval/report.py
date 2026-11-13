@@ -46,6 +46,10 @@ class ReportMeta:
     price_verified_on: date | None = None
     # The tenant's configured cache threshold, marked in the sweep table.
     chosen_threshold: float | None = None
+    # The judge that produced the rag answer-quality metrics (T3.04), such as
+    # "llm (lmstudio/qwen3-8b)". None in every report that ran without it, so
+    # the default rag report is unchanged.
+    judge_label: str | None = None
 
 
 def percentile(values: list[int], percent: float) -> float:
@@ -274,6 +278,13 @@ def _rag_metrics(results: list[CaseRun]) -> dict[str, float]:
     for name in _rag_strategy_names(results):
         metrics[f"recall_at_5_{name}"] = _mean(_metric_values(results, f"recall_at_5_{name}"))
         metrics[f"mrr_{name}"] = _mean(_metric_values(results, f"mrr_{name}"))
+    judged = [result for result in results if "judge_acceptable" in result.score.metrics]
+    if judged:
+        # Over the cases the judge actually returned a verdict for, so a judge
+        # error is visible as a smaller denominator instead of a silent zero.
+        metrics["judge_accept_rate"] = _mean(
+            [float(result.score.metrics["judge_acceptable"]) for result in judged]
+        )
     return metrics
 
 
@@ -318,7 +329,8 @@ def _rag_case_row(result: CaseRun) -> dict[str, Any]:
             "latency_ms": payload.get("latency_ms", 0),
             "error": payload.get("error"),
         }
-    return {
+    judge = result.outcome.details.get("judge")
+    row = {
         "case_id": result.case.id,
         "query": result.case.query,
         "tags": list(result.case.tags),
@@ -334,6 +346,17 @@ def _rag_case_row(result: CaseRun) -> dict[str, Any]:
         "output_tokens": usage.output_tokens,
         "error": result.outcome.error,
     }
+    if isinstance(judge, dict):
+        row["judge"] = {
+            "verdict": judge.get("verdict"),
+            "score": judge.get("score"),
+            "reason": judge.get("reason") or "",
+            "answer": judge.get("answer"),
+            "generation_latency_ms": judge.get("generation_latency_ms", 0),
+            "judge_latency_ms": judge.get("judge_latency_ms", 0),
+            "error": judge.get("error"),
+        }
+    return row
 
 
 def _cache_pairs(results: list[CaseRun]) -> list[tuple[float, bool]]:
@@ -579,6 +602,50 @@ def build_report(meta: ReportMeta, results: list[CaseRun]) -> dict[str, Any]:
         report["strategies"] = {name: _rag_strategy_summary(results, name) for name in names}
         report["retrieval_k"] = 5
         report["rrf_k"] = 60
+        judged = [
+            result for result in results if isinstance(result.outcome.details.get("judge"), dict)
+        ]
+        if judged:
+            verdicts = [
+                str(result.outcome.details["judge"].get("verdict") or "error") for result in judged
+            ]
+            report["judge"] = {
+                "judge": meta.judge_label,
+                "strategy": "conditional_hybrid",
+                "cases": len(judged),
+                "acceptable": sum(1 for verdict in verdicts if verdict == "acceptable"),
+                "weak": sum(1 for verdict in verdicts if verdict == "weak"),
+                "errors": sum(1 for verdict in verdicts if verdict == "error"),
+                "accept_rate": _mean(
+                    [
+                        float(result.score.metrics["judge_acceptable"])
+                        for result in judged
+                        if "judge_acceptable" in result.score.metrics
+                    ]
+                ),
+                "weak_case_ids": [
+                    result.case.id
+                    for result in judged
+                    if result.outcome.details["judge"].get("verdict") == "weak"
+                ],
+                "error_case_ids": [
+                    result.case.id
+                    for result in judged
+                    if result.outcome.details["judge"].get("verdict") is None
+                ],
+                "generation_latency_ms": latency_summary(
+                    [
+                        int(result.outcome.details["judge"].get("generation_latency_ms", 0))
+                        for result in judged
+                    ]
+                ),
+                "judge_latency_ms": latency_summary(
+                    [
+                        int(result.outcome.details["judge"].get("judge_latency_ms", 0))
+                        for result in judged
+                    ]
+                ),
+            }
         report["cases"] = [_rag_case_row(result) for result in results]
     elif meta.suite == "injection":
         report["injection_counts"] = _injection_counts(results)
@@ -1061,6 +1128,65 @@ def render_markdown(report: dict[str, Any]) -> str:
                 "timing, not a mechanism difference."
             )
             lines.append("")
+        if report.get("judge"):
+            judge = report["judge"]
+            lines.append("## Answer judge")
+            lines.append("")
+            lines.append(
+                f"Judge: {judge['judge'] or 'not recorded'}. Each case generated one answer "
+                f"from the `{judge['strategy']}` retrieval result and the judge scored it "
+                "against the evidence. A judge verdict never changes the retrieval metrics "
+                "or the `passed` flag above; judge mode is opt-in with `--judge`."
+            )
+            lines.append("")
+            lines.append("| Cases judged | Acceptable | Weak | Errors | Accept rate |")
+            lines.append("| --- | --- | --- | --- | --- |")
+            lines.append(
+                f"| {judge['cases']} | {judge['acceptable']} | {judge['weak']} | "
+                f"{judge['errors']} | {judge['accept_rate']:.4f} |"
+            )
+            lines.append("")
+            lines.append(
+                "Weak case ids: "
+                + (", ".join(judge["weak_case_ids"]) or "none")
+                + ". Judge error ids: "
+                + (", ".join(judge["error_case_ids"]) or "none")
+                + "."
+            )
+            lines.append("")
+            generation = judge["generation_latency_ms"]
+            judging = judge["judge_latency_ms"]
+            lines.append(
+                f"Answer generation p50 {generation['p50']} ms, judge call p50 "
+                f"{judging['p50']} ms. The latency table below stays retrieval only, "
+                "so it is comparable to a plain rag report. Retrieval numbers in this "
+                "report come from this run: the rewrite calls are model output, so they "
+                "can differ slightly from the committed rag report. The judge metric is "
+                "what judge mode adds."
+            )
+            lines.append("")
+            lines.append("| Case | Verdict | Score | Answer | Reason |")
+            lines.append("| --- | --- | --- | --- | --- |")
+            for case in report["cases"]:
+                payload = case.get("judge") or {}
+                verdict = payload.get("verdict") or "error"
+                score = payload.get("score")
+                score_text = "" if score is None else f"{score:.2f}"
+                note = payload.get("reason") or payload.get("error") or ""
+                lines.append(
+                    "| "
+                    + " | ".join(
+                        [
+                            _cell(case["case_id"]),
+                            _cell(verdict),
+                            score_text,
+                            _cell(payload.get("answer") or ""),
+                            _cell(note),
+                        ]
+                    )
+                    + " |"
+                )
+            lines.append("")
 
     if report["suite"] == "gate":
         lines.append("## Checks")
@@ -1168,6 +1294,17 @@ def report_file_stem(suite: str, provider: str, orchestrator: str | None) -> str
 
 
 def report_stem(report: dict[str, Any]) -> str:
+    """The file stem: ``<suite>-<provider>``, with ``judge`` after the suite.
+
+    Judge mode writes ``<suite>-judge-<provider>`` so the plain report (and any
+    baseline or comparison that reads it) is never overwritten (T3.04).
+    """
+    if report.get("judge"):
+        return report_file_stem(
+            f"{report['suite']}-judge",
+            str(report["provider"]),
+            report.get("orchestrator"),
+        )
     return report_file_stem(
         str(report["suite"]),
         str(report["provider"]),

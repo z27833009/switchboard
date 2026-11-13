@@ -85,12 +85,13 @@ from switchboard.core.ports import (
     AgentDeps,
     ContextPolicy,
     Embedder,
+    Judge,
     ModelProvider,
     ToolSource,
 )
 from switchboard.core.pricing import add_cost, compute_cost
 from switchboard.core.validation import plan_is_cacheable
-from switchboard.gate import evaluate_gate
+from switchboard.gate import evaluate_gate, run_judge
 from switchboard.registry import Registry
 from switchboard.tracing.spans import (
     agent_span,
@@ -163,6 +164,7 @@ class AgentLoopOrchestrator:
         tracer: Any = None,
         price: PriceEntry | None = None,
         answer_delta: AnswerDeltaSink | None = None,
+        judge: Judge | None = None,
     ) -> None:
         self._provider = provider
         self._context_policy = context_policy
@@ -173,6 +175,7 @@ class AgentLoopOrchestrator:
         self._cache = cache
         self._price = price
         self._answer_delta = answer_delta
+        self._judge = judge
         self._tracer = tracer or trace.get_tracer("switchboard.orchestrator.agent_loop")
         self._agents = self._load_agents(registry)
         self._step = _LoopStep()
@@ -590,6 +593,20 @@ class AgentLoopOrchestrator:
                             ),
                         }
                     )
+                # Layer 2 runs only after layer 1 passes (design 6.8). A judge
+                # rejection is action ``none``, so no second loop starts; an
+                # error keeps the layer 1 verdict and is recorded.
+                judged = await run_judge(
+                    self._judge,
+                    query=request.query,
+                    answer=answer,
+                    verdict=verdict,
+                )
+                verdict = judged.verdict
+                if judged.usage is not None:
+                    spent = spent.plus(judged.usage)
+                    spent_cost = add_cost(spent_cost, judged.cost_usd)
+                errors.extend(judged.errors)
                 set_attributes(
                     span,
                     {
@@ -598,6 +615,8 @@ class AgentLoopOrchestrator:
                             ",".join(verdict.failed_checks) if verdict.failed_checks else None
                         ),
                         "switchboard.gate.action": verdict.action,
+                        "switchboard.gate.judge": judged.outcome,
+                        "switchboard.gate.judge_score": judged.score,
                     },
                 )
 

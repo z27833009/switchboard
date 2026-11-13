@@ -82,6 +82,25 @@ class TracingSettings(BaseModel):
     exporter: Literal["none", "postgres", "otlp"] = "postgres"
 
 
+class JudgeSettings(BaseModel):
+    """Layer 2 of the quality gate (design.md section 6.8).
+
+    Disabled by default. It is enabled only if the agreement run on the
+    human-labeled sample supports it, so the production path is the layer 1
+    checks until then. ``threshold`` is the minimum ``score`` the model must
+    also report for an ``acceptable`` verdict to count, so a low-confidence
+    pass is a rejection. ``max_evidence_chars`` caps how much evidence text one
+    judge call sees, per evidence item.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    provider: str = "lmstudio"
+    threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+    max_evidence_chars: int = Field(default=2000, ge=0)
+
+
 class Limits(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -105,6 +124,7 @@ class PlatformConfig(BaseModel):
     embedder: str
     context_policy: str = "clear_oldest_tool_results"
     tracing: TracingSettings = Field(default_factory=TracingSettings)
+    judge: JudgeSettings = Field(default_factory=JudgeSettings)
     # Hard ceiling for one eval run against a paid provider (design.md section
     # 20.2). The CLI refuses an estimate above it even with --confirm-cost; a
     # one-off run may lower or raise it with --cost-cap-usd.
@@ -369,6 +389,11 @@ class Settings(BaseModel):
         embedder_names = set(self.providers.embedders)
         if self.platform.embedder not in embedder_names:
             raise ValueError(f"unknown embedder {self.platform.embedder!r}")
+        if self.platform.judge.enabled and self.platform.judge.provider not in provider_names:
+            raise ValueError(
+                f"the quality gate judge is enabled with unknown provider "
+                f"{self.platform.judge.provider!r}"
+            )
         for tenant_id, tenant in self.tenants.tenants.items():
             if tenant.provider not in provider_names:
                 raise ValueError(f"tenant {tenant_id!r} uses unknown provider {tenant.provider!r}")

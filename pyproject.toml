@@ -73,6 +73,9 @@ rag = "switchboard.eval.suites.rag:RagSuite"
 injection = "switchboard.eval.suites.injection:InjectionSuite"
 cache = "switchboard.eval.suites.cache:CacheSuite"
 
+[project.entry-points."switchboard.judges"]
+llm = "switchboard.adapters.judges.llm:LlmJudge"
+
 [dependency-groups]
 dev = [
   "httpx==0.28.1",
