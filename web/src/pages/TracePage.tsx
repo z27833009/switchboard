@@ -120,12 +120,16 @@ function TreeRow({
 function TimelineRow({
   row,
   window,
+  expanded,
   selectedId,
+  onToggle,
   onSelect,
 }: {
   row: FlatSpan;
   window: { start: number; total: number };
+  expanded: ReadonlySet<string>;
   selectedId: string | null;
+  onToggle: (spanId: string) => void;
   onSelect: (spanId: string) => void;
 }) {
   const { span, depth } = row;
@@ -144,6 +148,7 @@ function TimelineRow({
       className={`timeline-row${selectedId === span.span_id ? " selected" : ""}`}
     >
       <div className="timeline-label" style={{ paddingLeft: `${depth * 14 + 2}px` }}>
+        <SpanToggle span={span} expanded={expanded} onToggle={onToggle} />
         <button
           type="button"
           className="timeline-select"
@@ -395,37 +400,40 @@ function PlanGraphView({
         Built from the run record and the stored spans. Every node is an executed span or a
         graph step this run recorded; a node without a span says so.
       </p>
-      {graph.layers.map((layer, index) => {
-        const from = index === 0 ? [] : graph.layers[index - 1];
-        const layerEdges = graph.edges.filter(
-          (edge) => !edge.corrective && from.includes(edge.from) && layer.includes(edge.to),
-        );
-        return (
-          <div key={`layer-${index}`} className="plan-layer-block">
-            {index > 0 ? (
-              <div className="plan-edge">
-                <span className="plan-edge-label">{edgeLabel(layerEdges)}</span>
+      <div className="plan-flow" role="list" aria-label="Plan flow, left to right">
+        {graph.layers.map((layer, index) => {
+          const from = index === 0 ? [] : graph.layers[index - 1];
+          const layerEdges = graph.edges.filter(
+            (edge) => !edge.corrective && from.includes(edge.from) && layer.includes(edge.to),
+          );
+          return (
+            <div key={`layer-${index}`} className="plan-flow-step">
+              {index > 0 ? (
+                <div className="plan-flow-edge" aria-hidden="true">
+                  <span className="plan-flow-label">{edgeLabel(layerEdges)}</span>
+                  <span className="plan-flow-arrow">›</span>
+                </div>
+              ) : null}
+              <div className="plan-flow-column" role="listitem">
+                {layer.map((id) => {
+                  const node = byId.get(id);
+                  if (node === undefined) {
+                    return null;
+                  }
+                  return (
+                    <PlanNodeCard
+                      key={node.id}
+                      node={node}
+                      selectedId={selectedId}
+                      onSelect={onSelect}
+                    />
+                  );
+                })}
               </div>
-            ) : null}
-            <div className="plan-layer">
-              {layer.map((id) => {
-                const node = byId.get(id);
-                if (node === undefined) {
-                  return null;
-                }
-                return (
-                  <PlanNodeCard
-                    key={node.id}
-                    node={node}
-                    selectedId={selectedId}
-                    onSelect={onSelect}
-                  />
-                );
-              })}
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
       {corrective.length > 0 ? (
         <div className="plan-corrective">
           <strong>Corrective edges</strong>
@@ -727,16 +735,12 @@ export function TracePage({
                 >
                   Timeline
                 </button>
-                {activeView === "tree" ? (
-                  <>
-                    <button type="button" onClick={expandAll}>
-                      Expand all
-                    </button>
-                    <button type="button" onClick={collapseAll}>
-                      Collapse all
-                    </button>
-                  </>
-                ) : null}
+                <button type="button" onClick={expandAll}>
+                  Expand all
+                </button>
+                <button type="button" onClick={collapseAll}>
+                  Collapse all
+                </button>
               </div>
             </div>
 
@@ -788,18 +792,20 @@ export function TracePage({
                       <span className="timeline-offset">start</span>
                       <span className="timeline-duration">duration</span>
                     </div>
-                    {allRows.map((row) => (
+                    {visibleRows.map((row) => (
                       <TimelineRow
                         key={row.span.span_id}
                         row={row}
                         window={window}
+                        expanded={expanded}
                         selectedId={selectedId}
+                        onToggle={handleToggle}
                         onSelect={selectSpan}
                       />
                     ))}
                   </>
                 )}
-                {activeView === "tree" && visibleRows.length < allRows.length ? (
+                {visibleRows.length < allRows.length ? (
                   <p className="muted timeline-hint">
                     {allRows.length - visibleRows.length} span(s) are hidden by a collapsed parent.
                   </p>
