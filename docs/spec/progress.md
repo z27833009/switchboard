@@ -65,3 +65,16 @@ One line per task. Status is `todo`, `doing`, `blocked` (say on what), `deferred
 | T3.02 | blocked on a second model | - | `ModelRouter` policy (design 8.4) is not implemented. The host has 8 GB of VRAM and LM Studio currently exposes `qwen3-8b` plus a 27B abliterated model that does not fit; there is no second local chat model to act as the cheap or strong tier. The provider fallback and retry decorator from v1 exists, but selecting a provider per call by purpose, cost and latency ceilings, and a measured savings report would be inventing numbers without a second model. The author has not authorized a paid provider comparison beyond the completed T2.12 runs. To resume: load a smaller chat model (for example Qwen3-4B) next to `qwen3-8b`, or explicitly authorize a small `deepseek-flash` plan plus `deepseek-v4-pro` answer run; then implement the router as a `ModelProvider` decorator keyed by `CompletionRequest.metadata['purpose']`, enforce cost and latency ceilings, and measure tokens, cost, p50 and p95 against the unrouted path. |
 | T3.10 | deferred | - | Cancelled by the author on 2026-11-13. No Azure Container Apps, PostgreSQL flexible server, Key Vault or Terraform work was done, and no cloud credentials or deployment are expected. |
 | T3.11 | deferred | - | Long-term conversation memory and model-based summarization are not implemented. Design 8.6 and ADR 0012 make layer 5 conditional on an eval showing that layers 1 to 4 lose answers; no multi-session dataset or run has shown that loss, and adding a memory table without that evidence would invent a requirement. To resume: write a frozen multi-session dataset (fact in session one, question in session two), run it with history off and with the current layers, and only then design a tenant-scoped memory table, its retention and isolation rules, and an ADR. |
+
+## v3
+
+| Task | Status | Commit | Notes |
+| --- | --- | --- | --- |
+| V3.01 | todo | - | Database control plane and YAML migration. Not started. |
+| V3.02 | todo | - | Tenant, user, membership and role model, plus connector `data_scope`. Not started. |
+| V3.03 | todo | - | Editable settings API and UI for providers, models, MCP servers, tools and agents. Not started. |
+| V3.04 | todo | - | Composer model selector and agent presets. Not started. |
+| V3.05 | todo | - | RAG knowledge base and document management. Not started. |
+| V3.06 | todo | - | Chat attachments. Not started. |
+| V3.07 | todo | - | Conversation rename, delete, archive and restore. Not started. |
+| V3.08 | todo | - | Generic connector acceptance, the v3 definition of done. Not started. |

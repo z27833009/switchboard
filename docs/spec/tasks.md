@@ -93,6 +93,23 @@ Not estimated in detail. Order reflects interview value per hour.
 | T3.10 | Azure Container Apps plus PostgreSQL flexible server plus Key Vault via Terraform, GitHub Actions deploy on tag | Cloud and IaC story | AC-20a |
 | T3.11 | Long-term conversation memory per tenant, and model-based context summarization if an eval shows layers 1 to 4 lose answers | Product completeness | ADR 0012 |
 
+## v3: platformization
+
+Status: planned, not started. The v1 and v2 work is a working demo. This phase turns it into a configurable multi-tenant product.
+
+Definition of done: a new tenant with a non-Olist business scenario can be created, configured with its own users, model, MCP servers, agents, knowledge base and conversations from the UI, with no code or YAML edit. The Olist demo must keep working as one seeded example.
+
+| ID | Task | Est. h | Verification | AC |
+| --- | --- | --- | --- | --- |
+| V3.01 | Database control plane and YAML migration: tables for providers, models, encrypted provider credentials, MCP servers, MCP tools, agents, agent versions, tenant bindings, settings revisions and config audit; seed the current YAML; runtime reads the database, YAML remains import/export only | - | A config change survives an API restart; deleting the seed YAML does not remove the runtime config; every change writes a revision and audit row | v3 acceptance |
+| V3.02 | Tenant, user, membership and role model: a tenant is an organization, users belong through memberships, roles control admin and chat access; connector bindings carry `data_scope` such as `seller_ids`; remove `seller_ids` from the core tenant model | - | Two users in one tenant and a user in two tenants see the correct data; an Olist seller scope is enforced through the connector binding, not a core tenant field | v3 acceptance |
+| V3.03 | Editable settings API and UI: create, update and disable providers and models, MCP servers and tools, agents and prompt versions; masked secrets, connectivity test, validation, apply and rollback; tools grouped by MCP server with health | - | A provider key can be saved, tested and rotated without returning the secret; an invalid MCP URL fails validation; the settings page shows tools under their server | v3 acceptance |
+| V3.04 | Composer model selector and agent presets: per-tenant provider and model choice, agent preset selection and handoff routing, driven by the control plane and not by YAML | - | Two tenants can use different models in the same deployment; an agent preset change takes effect without a code change; the composer shows the active model | v3 acceptance |
+| V3.05 | RAG knowledge base management: knowledge bases, documents, chunks and ingestion jobs; list, preview, upload, delete and reindex; tenant isolation and revision-aware cache invalidation | - | A non-Olist tenant can upload its own documents from the UI, preview chunks, delete one document and reindex without touching the CLI | v3 acceptance |
+| V3.06 | Chat attachments: upload from the composer, store and parse files, choose ephemeral context or ingestion, cite the attachment in the answer and clean up expired files | - | A user attaches a file, asks about it, gets a cited answer and can delete the attachment; a tenant cannot read another tenant's attachment | v3 acceptance |
+| V3.07 | Conversation management: rename, delete or archive, restore and bulk delete; session metadata stored separately from runs so audit and traces remain intact | - | Rename and delete work from the sidebar; a deleted conversation disappears without deleting its runs or traces; an admin can restore it | v3 acceptance |
+| V3.08 | Generic connector acceptance: add a second non-Olist connector and create a new tenant and business scenario from the UI only; no code or YAML change. This is the v3 definition of done | - | The new tenant uses its own users, model, MCP server, agent preset and knowledge base; the Olist demo still passes its existing tests | v3 acceptance |
+
 ## Dependencies
 
 ```mermaid
