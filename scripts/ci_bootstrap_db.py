@@ -28,6 +28,7 @@ SQL_FILES = (
     "03-documents.sql",
     "04-runs-spans.sql",
     "05-feedback.sql",
+    "06-cache.sql",
 )
 ROLES = (
     ("switchboard_app", "SWITCHBOARD_APP_DB_PASSWORD"),

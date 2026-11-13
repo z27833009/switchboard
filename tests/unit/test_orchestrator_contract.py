@@ -32,10 +32,17 @@ from switchboard.agents.direct import DirectAgent
 from switchboard.agents.docs import DocsAgent
 from switchboard.core.config import Limits
 from switchboard.core.context import ClearOldestToolResults
-from switchboard.core.errors import ToolPermissionError
+from switchboard.core.errors import CacheError, ToolPermissionError
 from switchboard.core.models import (
+    AgentResult,
+    CachedAnswer,
+    CacheHit,
+    CacheKey,
+    CacheSettings,
     ChatRequest,
+    Citation,
     CompletionResponse,
+    EvidenceRef,
     ProviderCapabilities,
     RetrievedChunk,
     RunContext,
@@ -43,6 +50,7 @@ from switchboard.core.models import (
     ToolCall,
     ToolResult,
     ToolSpec,
+    Turn,
     Usage,
 )
 from switchboard.core.ports import Agent, ToolSource
@@ -125,9 +133,19 @@ class WriteToolSource:
 class StubRetriever:
     name = "stub_docs"
 
+    def __init__(self) -> None:
+        self.embeddings: list[list[float] | None] = []
+
     async def retrieve(
-        self, query: str, ctx: RunContext, k: int = 5, *, round: int = 1
+        self,
+        query: str,
+        ctx: RunContext,
+        k: int = 5,
+        *,
+        round: int = 1,
+        embedding: list[float] | None = None,
     ) -> list[RetrievedChunk]:
+        self.embeddings.append(embedding)
         return [
             RetrievedChunk(
                 chunk_id="chunk-1",
@@ -249,6 +267,7 @@ def make_orchestrator(
     agents: list[Agent],
     tool_sources: list[ToolSource] | None = None,
     retriever: Any = None,
+    cache: Any = None,
     limits: Limits | None = None,
     tracer: Any = None,
 ) -> Any:
@@ -260,6 +279,7 @@ def make_orchestrator(
         "limits": limits or Limits(run_timeout_s=5.0, max_loop_steps=4),
         "tool_sources": list(tool_sources or []),
         "retriever": retriever,
+        "cache": cache,
         "tracer": tracer,
     }
     if kind == "agent_loop":
@@ -538,3 +558,231 @@ def test_registry_resolves_the_agent_loop_entry_point() -> None:
     from switchboard.registry import ORCHESTRATORS
 
     assert Registry().load(ORCHESTRATORS, "agent_loop") is AgentLoopOrchestrator
+
+
+# --- Semantic cache wiring (T2.18, design.md section 10) -----------------------
+
+
+class StubCache:
+    """A Cache port implementation that records calls and can return a hit."""
+
+    name = "stub_cache"
+
+    def __init__(self, *, hit: CacheHit | None = None, fail: bool = False) -> None:
+        self.hit = hit
+        self.fail = fail
+        self.keys: list[CacheKey] = []
+        self.lookups: list[float] = []
+        self.stored: list[tuple[CacheKey, CachedAnswer, int]] = []
+
+    async def key_for(self, ctx: RunContext, query: str) -> CacheKey:
+        return CacheKey(
+            tenant_id=ctx.tenant.tenant_id,
+            normalized_query=query.strip().lower(),
+            embedding=[0.1, 0.2, 0.3, 0.4],
+            index_version=7,
+        )
+
+    async def lookup(self, key: CacheKey, *, threshold: float = 0.92) -> Any:
+        self.keys.append(key)
+        self.lookups.append(threshold)
+        if self.fail:
+            raise CacheError("cache is down")
+        return self.hit
+
+    async def store(self, key: CacheKey, answer: CachedAnswer, *, ttl_days: int = 7) -> None:
+        self.stored.append((key, answer, ttl_days))
+
+    async def invalidate(self, tenant_id: str) -> int:
+        del tenant_id
+        return 0
+
+
+def cached_answer() -> CacheHit:
+    return CacheHit(
+        entry=CachedAnswer(
+            plan="docs",
+            answer=AgentResult(
+                answer="Returns are accepted within 15 calendar days [d1].",
+                citations=[
+                    Citation(
+                        kind="document",
+                        ref="d1",
+                        source_id="chunk-1",
+                        snippet="Returns are accepted within 15 calendar days.",
+                    )
+                ],
+                evidence=[
+                    EvidenceRef(
+                        kind="document",
+                        ref="d1",
+                        source_id="chunk-1",
+                        text="Returns are accepted within 15 calendar days.",
+                    )
+                ],
+                usage=Usage(input_tokens=100, output_tokens=20),
+            ),
+        ),
+        similarity=0.97,
+    )
+
+
+def cache_context() -> RunContext:
+    ctx = context()
+    return ctx.model_copy(
+        update={
+            "tenant": ctx.tenant.model_copy(
+                update={"cache": CacheSettings(enabled=True, threshold=0.92, ttl_days=7)}
+            )
+        }
+    )
+
+
+@pytest.mark.parametrize("kind", KINDS)
+async def test_a_cache_hit_makes_no_model_call(kind: str) -> None:
+    provider = ContractProvider(plan=["docs"], answer="this answer must not be generated")
+    cache = StubCache(hit=cached_answer())
+    tracer, store = tracer_and_store()
+    orchestrator = make_orchestrator(
+        kind,
+        provider,
+        agents=[DocsAgent()],
+        retriever=StubRetriever(),
+        cache=cache,
+        tracer=tracer,
+    )
+
+    result = await orchestrator.run(
+        ChatRequest(query="What is the return window?", tenant_id="default"),
+        cache_context(),
+    )
+
+    assert provider.requests == []
+    assert result.cache_hit is True
+    assert result.plan is not None and result.plan.label == "docs"
+    assert result.answer is not None
+    assert result.answer.answer == "Returns are accepted within 15 calendar days [d1]."
+    assert result.usage == Usage(input_tokens=0, cached_input_tokens=0, output_tokens=0)
+    assert result.cost_usd in {None, 0.0}
+    assert len(cache.lookups) == 1
+    assert cache.stored == []
+    lookup_spans = [row for row in store.spans if row["name"] == "cache.lookup"]
+    assert len(lookup_spans) == 1
+    assert lookup_spans[0]["attributes"]["switchboard.cache.threshold"] == 0.92
+    run_span_row = next(row for row in store.spans if row["name"] == "run")
+    assert run_span_row["attributes"]["switchboard.cache.hit"] is True
+
+
+@pytest.mark.parametrize("kind", KINDS)
+async def test_a_data_plan_is_never_stored(kind: str) -> None:
+    provider = ContractProvider(
+        plan=["data"],
+        tool_calls=[CALL_ORDERS],
+        answer="There were 6 delivered orders [t1].",
+    )
+    tools = StubToolSource()
+    cache = StubCache()
+    tracer, _store = tracer_and_store()
+    orchestrator = make_orchestrator(
+        kind,
+        provider,
+        agents=[DataAgent()],
+        tool_sources=[tools],
+        cache=cache,
+        tracer=tracer,
+    )
+
+    result = await orchestrator.run(
+        ChatRequest(query="How many delivered orders?", tenant_id="default"),
+        cache_context(),
+    )
+
+    assert result.status == "ok"
+    assert result.cache_hit is False
+    assert cache.stored == []
+    assert provider.requests
+
+
+@pytest.mark.parametrize("kind", KINDS)
+async def test_history_skips_the_lookup_and_the_store(kind: str) -> None:
+    provider = ContractProvider(plan=["docs"], answer="Returns take 15 days [d1].")
+    cache = StubCache(hit=cached_answer())
+    tracer, _store = tracer_and_store()
+    orchestrator = make_orchestrator(
+        kind,
+        provider,
+        agents=[DocsAgent()],
+        retriever=StubRetriever(),
+        cache=cache,
+        tracer=tracer,
+    )
+    request = ChatRequest(
+        query="And the return window?",
+        tenant_id="default",
+        history=[Turn(role="user", content="What is the return window?")],
+    )
+
+    result = await orchestrator.run(request, cache_context())
+
+    assert cache.lookups == []
+    assert cache.stored == []
+    assert result.cache_hit is False
+    assert provider.requests
+
+
+@pytest.mark.parametrize("kind", KINDS)
+async def test_a_cache_error_is_a_miss_not_a_failed_run(kind: str) -> None:
+    provider = ContractProvider(plan=["direct"], answer="Hello.")
+    cache = StubCache(fail=True)
+    tracer, _store = tracer_and_store()
+    orchestrator = make_orchestrator(
+        kind, provider, agents=[DirectAgent()], cache=cache, tracer=tracer
+    )
+
+    result = await orchestrator.run(
+        ChatRequest(query="hello", tenant_id="default"), cache_context()
+    )
+
+    assert result.status == "ok"
+    assert result.cache_hit is False
+    assert result.answer is not None and result.answer.answer == "Hello."
+    assert provider.requests
+
+
+@pytest.mark.parametrize("kind", KINDS)
+async def test_a_cacheable_answer_is_stored_with_the_ttl(kind: str) -> None:
+    answer = (
+        "Returns take 15 calendar days [d1]."
+        if kind == "langgraph"
+        else "Returns take 15 calendar days [t1]."
+    )
+    provider = ContractProvider(plan=["docs"], tool_calls=[CALL_DOCS], answer=answer)
+    cache = StubCache()
+    tools = StubToolSource()
+    retriever = StubRetriever()
+    tracer, _store = tracer_and_store()
+    orchestrator = make_orchestrator(
+        kind,
+        provider,
+        agents=[DocsAgent()],
+        tool_sources=[tools],
+        retriever=retriever,
+        cache=cache,
+        tracer=tracer,
+    )
+
+    result = await orchestrator.run(
+        ChatRequest(query="What is the return window?", tenant_id="default"),
+        cache_context(),
+    )
+
+    assert result.status == "ok"
+    assert result.cache_hit is False
+    assert len(cache.stored) == 1
+    key, stored, ttl_days = cache.stored[0]
+    assert stored.plan == "docs"
+    assert ttl_days == 7
+    assert key.index_version == 7
+    if kind == "langgraph":
+        # The docs agent reuses the cache's embedding on a miss (design 10.1).
+        assert retriever.embeddings and retriever.embeddings[0] == [0.1, 0.2, 0.3, 0.4]

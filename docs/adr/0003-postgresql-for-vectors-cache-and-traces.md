@@ -1,6 +1,6 @@
 # ADR 0003: PostgreSQL for vectors, cache and traces; no Redis in Phase 1
 
-Status: accepted, 2026-11-13. Proposed 2026-11-11. Shipped for vectors (HNSW plus full-text with RRF), spans, runs, audit rows and the Olist schema, with no Redis or second vector store. The semantic cache table is not built: the only `Cache` adapter is `NoCache` (T2.15), so ADR 0007 stays proposed and T2.18 is not implemented.
+Status: accepted, 2026-11-13. Proposed 2026-11-11. Shipped for vectors (HNSW plus full-text with RRF), spans, runs, audit rows, the Olist schema and the semantic cache table (`cache_entries`, T2.18), with no Redis or second vector store. The cache threshold measurement is in ADR 0007 and `evals/reports/cache-lmstudio.md`.
 
 ## Context
 

@@ -296,7 +296,10 @@ def _eval_provider(
 def eval_run(
     suite: Annotated[
         str,
-        typer.Option("--suite", help="Suite name: routing, toolcall, gate, rag or injection."),
+        typer.Option(
+            "--suite",
+            help="Suite name: routing, toolcall, gate, rag, injection or cache.",
+        ),
     ],
     provider: Annotated[
         str, typer.Option("--provider", help="Provider name from providers.yaml.")
@@ -396,14 +399,25 @@ def eval_run(
                 orchestrator=orchestrator,
                 tenant_tools=_tenant_tool_specs(settings, manifest_tools),
                 retriever_configured=settings.platform.retriever != "none",
+                provider=provider,
             ),
         )
         cases: list[EvalCase] = eval_suite.load(dataset_version)
         selection = select_cases(cases, split=split, limit=limit)
         if suite in {"gate", "injection"}:
             model = "deterministic"
+        elif suite == "cache":
+            embedder_name = "mock" if provider == "mock" else settings.platform.embedder
+            embedder_config = settings.providers.embedders[embedder_name]
+            model = embedder_config.model or f"{embedder_config.adapter} (deterministic)"
         else:
             model = settings.providers.providers[provider].model or "unknown"
+        chosen_threshold = None
+        if suite == "cache":
+            tenant_config = settings.tenants.tenants.get("default") or next(
+                iter(settings.tenants.tenants.values())
+            )
+            chosen_threshold = tenant_config.cache.threshold
 
         # Print and enforce the cost guard before the provider is built, so a
         # refused run makes no network call and needs no API key.
@@ -413,7 +427,7 @@ def eval_run(
         cap = settings.platform.cost_cap_usd if cost_cap_usd is None else cost_cap_usd
         if cap < 0:
             raise ConfigError("--cost-cap-usd must be zero or positive")
-        if target_config.adapter != "mock" and suite not in {"gate", "injection"}:
+        if target_config.adapter != "mock" and suite not in {"gate", "injection", "cache"}:
             if target_price is None:
                 raise ConfigError(
                     f"provider {target_name!r} has no price entry in config/prices.yaml; "
@@ -473,6 +487,7 @@ def eval_run(
                 recorded_with=recorded_with,
                 price=price,
                 price_verified_on=settings.prices.verified_on if price is not None else None,
+                chosen_threshold=chosen_threshold,
             ),
             results,
         )

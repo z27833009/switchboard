@@ -50,14 +50,18 @@ Runs, traces, feedback and audit are tenant-filtered in SQL. Retrieval fuses pgv
 
 Tool results and chunks reach the model as data blocks, and a versioned pattern set (15 rules, six families) flags instruction-like content and records pattern ids, never the text. On 40 samples detection is 1.0000, false positives 0.1000 and precision 0.9091.
 
-## 13. Known limitations
+## 13. Semantic cache (ADR 0007)
+
+The lookup runs before the supervisor, keyed by tenant, normalized query, embedding and the tenant's document index version; a hit costs one embedding and makes no model call. Only plans whose agents are all cacheable are stored, so data answers never are, and a session with history skips the lookup. On 50 v5 pairs bge-m3 cosine does not separate paraphrases from near misses well: at 0.94 the hit rate is 0.0400 and the false-hit rate 0.0400, and at 0.99 both are 0.0000. The demo therefore keeps the cache wired but disabled, and the sweep is the result.
+
+## 14. Known limitations
 
 - The two routing rows measure different things on one local 7B model.
 - Six DeepSeek combinations are not run (no key).
 - `numbers_grounded` rejects some correct derived numbers; one measured false positive (g013).
 - The UI is functional; the visual pass is v2, and T2.16 was cancelled.
-- T2.18 is not implemented: only NoCache exists, so ADR 0007 stays proposed.
-- Gate and injection labels are constructed, not human.
+- The semantic cache is built, but its measured false-hit rate is above target (0.04 at the chosen 0.94, target 0.02), so the demo tenants keep it off; the report shows the sweep.
+- Gate, injection and cache labels are constructed, not human.
 
 ## What to say in five minutes
 
@@ -69,6 +73,6 @@ Tool results and chunks reach the model as data blocks, and a versioned pattern 
 6. Stable prefix for caching; versioned price table.
 7. Frozen datasets; the mock gate measures the pipeline; 0.05 drop; gate 0.9667.
 8. OTel with PostgreSQL default and a Jaeger switch; hybrid retrieval, recall@5 1.0000, MRR 0.8521.
-9. Limits: DeepSeek pending, one derived-number false positive, v2 visual pass, T2.16 cut, T2.18 not built.
+9. Limits: DeepSeek pending, one derived-number false positive, v2 visual pass, T2.16 cut, cache off because its measured false-hit rate is above target.
 
-Measured: the five reports above. Target, not measured: cache hit and false-hit rate, DeepSeek, p50 under 8 s for data+docs on a cloud model, and startup under 15 minutes. Local targets 0.75 routing and 0.60 tool call are exceeded.
+Measured: the six reports above. Target, not measured: DeepSeek, p50 under 8 s for data+docs on a cloud model, and startup under 15 minutes. Local targets 0.75 routing and 0.60 tool call are exceeded. The cache false-hit target is not met at the chosen threshold; the measured sweep is in the cache report.

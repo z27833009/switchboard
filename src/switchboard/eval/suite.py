@@ -33,6 +33,10 @@ class SuiteContext:
     # because retrieval is shared by both adapters. The deterministic suites have
     # no orchestrator dimension and the CLI rejects the flag for them.
     orchestrator: str = "langgraph"
+    # The eval provider name. The cache suite uses it to choose the embedder:
+    # ``mock`` runs the deterministic fake for CI mechanics, everything else
+    # uses the platform embedder (bge-m3 on LM Studio).
+    provider: str = "mock"
     # The default tenant's read-only tool specs, which the routing and toolcall
     # suites offer in agent-loop mode. The MCP source filters by tenant at run
     # time; the eval has no run context, so the CLI passes the filtered list.

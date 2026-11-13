@@ -146,9 +146,15 @@ class InMemoryRetriever:
         self._chunks = list(chunks)
 
     async def retrieve(
-        self, query: str, ctx: RunContext, k: int = 5, *, round: int = 1
+        self,
+        query: str,
+        ctx: RunContext,
+        k: int = 5,
+        *,
+        round: int = 1,
+        embedding: list[float] | None = None,
     ) -> list[RetrievedChunk]:
-        del query, ctx, round
+        del query, ctx, round, embedding
         if k < 1:
             raise RetrievalError("k must be at least 1")
         return self._chunks[:k]

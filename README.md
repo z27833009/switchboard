@@ -8,11 +8,11 @@ Switchboard takes a user question, lets a supervisor decide whether to answer di
 
 The badge reports the CI gate. That gate replays recorded model output with the mock provider, so it measures the pipeline (parsing, plan validation, tool normalization, scoring), not the model. See [ADR 0008](docs/adr/0008-evaluation-strategy.md).
 
-> Status: **Phase 1 complete, and v1 is built through T2.15.** T2.01 to T2.15 are merged. T2.16 (optional `langgraph-visualizer` integration) was cancelled by the author on 2026-11-12, and T2.18 (semantic cache) is not implemented. T2.12's comparison tool and all six LM Studio rows are committed; the six DeepSeek rows are `not run` because no `DEEPSEEK_API_KEY` is available. Every metric in the docs is a target until a report backs it.
+> Status: **Phase 1 complete, and v1 is built through T2.18.** T2.01 to T2.15 and T2.17 to T2.18 are merged. T2.16 (optional `langgraph-visualizer` integration) was cancelled by the author on 2026-11-12. The semantic cache is implemented and measured; its false-hit rate is above the 2 percent target, so the demo tenants keep it disabled and the report says why. T2.12's comparison tool and all six LM Studio rows are committed; the six DeepSeek rows are `not run` because no `DEEPSEEK_API_KEY` is available. Every metric in the docs is a target until a report backs it.
 
 ## Measured results
 
-All model rows were measured on LM Studio 1.2.0 with qwen3-8b at context 8192 and one parallel slot, on the dates in each report. Routing scores the 39 test cases of dataset v1, tool call all 40 v1 cases, and retrieval the 40 test cases of v3; the gate and injection suites are deterministic and make no model call.
+All model rows were measured on LM Studio 1.2.0 with qwen3-8b at context 8192 and one parallel slot, on the dates in each report. Routing scores the 39 test cases of dataset v1, tool call all 40 v1 cases, retrieval the 40 test cases of v3, and the cache the 50 pairs of v5; the gate and injection suites are deterministic and make no model call, and the cache suite makes no chat call (it embeds with bge-m3).
 
 | Suite | Result | Latency | Report |
 | --- | --- | --- | --- |
@@ -21,6 +21,7 @@ All model rows were measured on LM Studio 1.2.0 with qwen3-8b at context 8192 an
 | Retrieval (rag suite) | Conditional hybrid recall@5 1.0000, MRR 0.8521; query as written 1.0000 and 0.8250; always rewrite 0.9750 and 0.8521; 40 of 40 v3 cases | p50 606.0 ms, p95 1218.8 ms per retrieval case | [rag-lmstudio.md](evals/reports/rag-lmstudio.md) |
 | Quality gate (deterministic, 30 cases v2) | `numbers_grounded` precision 0.9000, recall 1.0000; citations, evidence and merge checks 1.0000/1.0000; case accuracy 0.9667 | no model call | [gate-mock.md](evals/reports/gate-mock.md) |
 | Injection (deterministic, 40 cases v4) | Detection rate 1.0000, false positive rate 0.1000, precision 0.9091 | no model call | [injection-mock.md](evals/reports/injection-mock.md) |
+| Semantic cache (bge-m3, 50 pairs v5) | At the chosen 0.94 threshold: hit rate 0.0400, false-hit rate 0.0400; at 0.99 both 0.0000. The 0.02 false-hit target is not met, so the demo tenants keep the cache off | embedding only, one batch | [cache-lmstudio.md](evals/reports/cache-lmstudio.md) |
 
 Latency is one model call per case for routing and tool call, not an end-to-end run; retrieval latency is the per-case wall time of one strategy. The LM Studio runs have no API cost: `config/prices.yaml` records a zero row for the local provider, so a new run or report computes USD 0.0 and labels it "no API cost". The routing and tool call reports predate the price table and keep a null cost rather than a backfilled number; the newer agent-loop reports record 0.0. The mock reports under [evals/reports/](evals/reports/) replay recorded model output, so the CI gate measures the pipeline, not the model.
 

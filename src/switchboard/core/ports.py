@@ -77,16 +77,24 @@ class Retriever(Protocol):
     name: str
 
     async def retrieve(
-        self, query: str, ctx: RunContext, k: int = 5, *, round: int = 1
+        self,
+        query: str,
+        ctx: RunContext,
+        k: int = 5,
+        *,
+        round: int = 1,
+        embedding: list[float] | None = None,
     ) -> list[RetrievedChunk]: ...
 
 
 class Cache(Protocol):
     name: str
 
-    async def lookup(self, key: CacheKey) -> CacheHit | None: ...
+    async def key_for(self, ctx: RunContext, query: str) -> CacheKey: ...
 
-    async def store(self, key: CacheKey, answer: CachedAnswer) -> None: ...
+    async def lookup(self, key: CacheKey, *, threshold: float = 0.92) -> CacheHit | None: ...
+
+    async def store(self, key: CacheKey, answer: CachedAnswer, *, ttl_days: int = 7) -> None: ...
 
     async def invalidate(self, tenant_id: str) -> int: ...
 

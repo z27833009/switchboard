@@ -49,6 +49,7 @@ from switchboard.agent_loop import (
 from switchboard.agents.base import BaseAgent, zero_usage
 from switchboard.agents.citations import CitationRegistry
 from switchboard.agents.results import ResultPageToolSource, ResultStore, citation_snippet
+from switchboard.core.cache import agents_from_label
 from switchboard.core.config import Limits, PriceEntry
 from switchboard.core.errors import (
     RetrievalError,
@@ -64,6 +65,8 @@ from switchboard.core.models import (
     AgentSpec,
     AgentTask,
     Budget,
+    CachedAnswer,
+    CacheKey,
     ChatRequest,
     Citation,
     ErrorRecord,
@@ -86,10 +89,13 @@ from switchboard.core.ports import (
     ToolSource,
 )
 from switchboard.core.pricing import add_cost, compute_cost
+from switchboard.core.validation import plan_is_cacheable
 from switchboard.gate import evaluate_gate
 from switchboard.registry import Registry
 from switchboard.tracing.spans import (
     agent_span,
+    cache_lookup_span,
+    cache_store_span,
     gate_span,
     record_error,
     run_span,
@@ -456,12 +462,93 @@ class AgentLoopOrchestrator:
             merged=len(plan.agents) > 1,
         )
 
+    async def _cache_lookup(
+        self, request: ChatRequest, ctx: RunContext
+    ) -> tuple[CacheKey | None, RunResult | None]:
+        """Lookup before the loop; a hit returns without any model call (10.1)."""
+        if self._cache is None or not ctx.tenant.cache.enabled or request.history:
+            return None, None
+        threshold = ctx.tenant.cache.threshold
+        with cache_lookup_span(self._tracer, run_id=ctx.run_id, threshold=threshold) as span:
+            try:
+                key = await self._cache.key_for(ctx, request.query)
+                hit = await self._cache.lookup(key, threshold=threshold)
+            except Exception as exc:
+                record_error(span, exc)
+                return None, None
+            if hit is None:
+                return key, None
+            label = hit.entry.plan
+            set_attributes(span, {"switchboard.cache.plan": label})
+            # No chat call was made, so the stored usage is not counted again.
+            answer = hit.entry.answer.model_copy(update={"usage": zero_usage(), "cost_usd": 0.0})
+            started_at = datetime.now(UTC)
+            cost = compute_cost(zero_usage(), self._price) if self._price else None
+            return key, RunResult(
+                run_id=ctx.run_id,
+                tenant_id=ctx.tenant.tenant_id,
+                query=request.query,
+                plan=RoutingDecision(
+                    agents=agents_from_label(label),
+                    reason=f"Cached answer from plan {label}.",
+                ),
+                answer=answer,
+                status="ok",
+                usage=zero_usage(),
+                cost_usd=cost,
+                cache_hit=True,
+                attempts=0,
+                gate=None,
+                errors=[],
+                started_at=started_at,
+                ended_at=datetime.now(UTC),
+            )
+
+    async def _cache_store(
+        self,
+        request: ChatRequest,
+        ctx: RunContext,
+        *,
+        plan: RoutingDecision,
+        answer: AgentResult,
+        verdict: GateVerdict,
+        key: CacheKey | None,
+    ) -> None:
+        """Store only a passed, cacheable, complete answer (design 10.1)."""
+        if (
+            self._cache is None
+            or key is None
+            or not verdict.passed
+            or answer.partial
+            or not ctx.tenant.cache.enabled
+            or request.history
+        ):
+            return
+        specs = {name: agent.spec for name, agent in self._agents.items()}
+        if not plan_is_cacheable(plan, specs):
+            return
+        ttl_days = ctx.tenant.cache.ttl_days
+        with cache_store_span(
+            self._tracer, run_id=ctx.run_id, plan=plan.label, ttl_days=ttl_days
+        ) as span:
+            try:
+                await self._cache.store(
+                    key,
+                    CachedAnswer(plan=plan.label, answer=answer),
+                    ttl_days=ttl_days,
+                )
+            except Exception as exc:
+                record_error(span, exc)
+
     async def _gated(
         self,
         request: ChatRequest,
         ctx: RunContext,
         started_at: datetime,
     ) -> RunResult:
+        cache_key, cached = await self._cache_lookup(request, ctx)
+        if cached is not None:
+            return cached
         attempts = 0
         previous_plan: RoutingDecision | None = None
         feedback: str | None = None
@@ -537,6 +624,14 @@ class AgentLoopOrchestrator:
 
         # The loop body always runs at least once and leaves both values set.
         assert answer is not None and verdict is not None
+        await self._cache_store(
+            request,
+            ctx,
+            plan=plan,
+            answer=answer,
+            verdict=verdict,
+            key=cache_key,
+        )
         status: RunStatus = "ok"
         if answer.partial:
             status = "partial"

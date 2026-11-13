@@ -85,13 +85,19 @@ class ToolSource(Protocol):
 class Retriever(Protocol):
     name: str
     # ``round`` is 1 or 2; the retriever records it on the ``retrieve`` span.
+    # ``embedding`` is the cache's vector for the same query, reused on a miss.
     async def retrieve(self, query: str, ctx: RunContext, k: int = 5, *,
-                       round: int = 1) -> list[RetrievedChunk]: ...
+                       round: int = 1,
+                       embedding: list[float] | None = None) -> list[RetrievedChunk]: ...
 
 class Cache(Protocol):
     name: str
-    async def lookup(self, key: CacheKey) -> CacheHit | None: ...
-    async def store(self, key: CacheKey, answer: CachedAnswer) -> None: ...
+    # Build the lookup key: normalize the query, embed it and read the tenant's
+    # current document index version (v1). A miss reuses the returned embedding.
+    async def key_for(self, ctx: RunContext, query: str) -> CacheKey: ...
+    async def lookup(self, key: CacheKey, *, threshold: float = 0.92) -> CacheHit | None: ...
+    async def store(self, key: CacheKey, answer: CachedAnswer, *,
+                    ttl_days: int = 7) -> None: ...
     async def invalidate(self, tenant_id: str) -> int: ...
 
 class Agent(Protocol):
@@ -187,6 +193,7 @@ class AgentTask(BaseModel):
     history: list[Turn] = []   # v1, last N turns of the session
     feedback: str | None = None  # set on a corrective retry (6.8)
     budget: Budget
+    query_embedding: list[float] | None = None  # v1, cache vector for reuse (10.1)
 
 class AgentResult(BaseModel):
     answer: str
@@ -311,7 +318,7 @@ flowchart TD
   cache_store --> finish
 ```
 
-`dispatch` uses LangGraph's `Send` API to start one `run_agent` branch per agent in the plan, so a plan of one, two or three agents uses the same nodes. Every node ships from the start, so the graph shape does not change between phases. From v1 (T2.01) `gate` runs the deterministic checks and may send work back to `run_agent` (retry) or `supervisor` (re-plan); `cache_lookup` and `cache_store` remain pass-through until the semantic cache (T2.18).
+`dispatch` uses LangGraph's `Send` API to start one `run_agent` branch per agent in the plan, so a plan of one, two or three agents uses the same nodes. Every node ships from the start, so the graph shape does not change between phases. From v1 (T2.01) `gate` runs the deterministic checks and may send work back to `run_agent` (retry) or `supervisor` (re-plan); from T2.18 `cache_lookup` runs before the supervisor and `cache_store` runs after a passing gate, both through the `Cache` port.
 
 ### 6.2 State
 
@@ -426,9 +433,9 @@ The `gate` eval suite (dataset `v2`, 30 cases) labels answers as acceptable or w
 
 `AgentLoopOrchestrator` is the second `Orchestrator` adapter and the control group for the routing design (ADR 0002). It has no supervisor and no fan-out: one model gets every tool the tenant may use plus the platform tools `search_docs@1` (wraps the `Retriever`) and `result_page@1`, and loops up to `limits.max_loop_steps` (default 8). It uses the same providers, tool sources, context policy, gate, cache and tracing.
 
-One loop step is one model call. A response with tool calls runs them and continues; a response without one is the answer. Only tools with `risk: read` are exposed, a tool in the tenant's `ask` list is withheld because approval does not exist before v2, and a call the model names that the loop did not expose is answered with a tool error and never executed, so no write tool can run. The loop numbers tool results in call order and uses the same bounded `ToolResultView`, `result_page@1` paging, guardrail wrapping and citation markers as the data agent. The result store is per attempt, so a `result_id` from a rejected attempt cannot leak into the next one. Every step carries tools, so the loop never streams answer deltas (8.1); the step stream still carries `tool.called`, `agent.started` and `agent.finished` events because each executed call runs inside an `agent.data` or `agent.docs` span. The plan is recorded on a `supervisor.plan` span once it is known, after the loop and before the gate, so the trace and the step stream keep the same `plan.decided` event as the LangGraph path. The semantic cache is a pass-through until T2.18, as in the LangGraph adapter, and a rejected run token ends the run with status `auth_error` (6.6).
+One loop step is one model call. A response with tool calls runs them and continues; a response without one is the answer. Only tools with `risk: read` are exposed, a tool in the tenant's `ask` list is withheld because approval does not exist before v2, and a call the model names that the loop did not expose is answered with a tool error and never executed, so no write tool can run. The loop numbers tool results in call order and uses the same bounded `ToolResultView`, `result_page@1` paging, guardrail wrapping and citation markers as the data agent. The result store is per attempt, so a `result_id` from a rejected attempt cannot leak into the next one. Every step carries tools, so the loop never streams answer deltas (8.1); the step stream still carries `tool.called`, `agent.started` and `agent.finished` events because each executed call runs inside an `agent.data` or `agent.docs` span. The plan is recorded on a `supervisor.plan` span once it is known, after the loop and before the gate, so the trace and the step stream keep the same `plan.decided` event as the LangGraph path. The semantic cache is the same `Cache` port call before the loop and a store after a passing gate (10.1), and a rejected run token ends the run with status `auth_error` (6.6).
 
-The plan does not exist before the run, so it is derived from what the loop actually did: any data tool call adds `data` (including `result_page@1`, which can only page a data result), any `search_docs` call adds `docs`, no tool call gives `direct`, and only tool names the loop exposed count. Because there is no supervisor, a gate corrective action is one more loop with the gate's feedback rather than a re-plan against a previous plan; `attempts` still stops at one, and the run total sums both attempts. Both orchestrators pass the same orchestrator contract tests (answer, citations, plan label, status, errors and run span). The comparison report (T2.12) puts plan accuracy, tool-call accuracy, latency, tokens and cost side by side for both orchestrators on both providers.
+The plan does not exist before the run, so it is derived from what the loop actually did: any data tool call adds `data` (including `result_page@1`, which can only page a data result), any `search_docs` call adds `docs`, no tool call gives `direct`, and only tool names the loop exposed count. Because there is no supervisor, a gate corrective action is one more loop with the gate's feedback rather than a re-plan against a previous plan; `attempts` still stops at one, and the run total sums both attempts. The semantic cache is the same `Cache` port call before the loop and a store after a passing gate; the loop cannot reuse the cache embedding, because the model chooses the search query rather than the user's original wording. Both orchestrators pass the same orchestrator contract tests (answer, citations, plan label, status, errors and run span). The comparison report (T2.12) puts plan accuracy, tool-call accuracy, latency, tokens and cost side by side for both orchestrators on both providers.
 
 ## 7. Tool layer
 
@@ -685,17 +692,17 @@ Only answers produced by cacheable plans are stored: a plan is cacheable when ev
 
 ### 10.2 Key and match
 
-`CacheKey = (tenant_id, normalized_query, embedding, index_version)`. The route is not part of the key: it is produced by a nondeterministic model call that a pre-routing lookup has not made yet. The stored entry records the plan label that produced it, so a hit shows "cached answer from plan docs" in the trace.
+`CacheKey = (tenant_id, normalized_query, embedding, index_version)`. The route is not part of the key: it is produced by a nondeterministic model call that a pre-routing lookup has not made yet. The stored entry records the plan label that produced it, so a hit shows "cached answer from plan docs" in the trace. The adapter's `key_for(ctx, query)` builds the key: it normalizes the query, embeds the raw query with the configured embedder and reads the tenant's current `doc_index_version`. A miss keeps the embedding and the orchestrator passes it to the docs agent in `AgentTask.query_embedding`, so retrieval does not pay for a second embedding. The `none` adapter returns an empty embedding and never embeds.
 
-A hit requires same tenant, same index version, not expired, and cosine similarity at or above the threshold. The threshold default is 0.92 and is tuned on the `cache` suite: paraphrase pairs (should hit) and near-miss pairs (must not hit), including cross-type near misses where one query needs data and the other is a policy question ("late delivery compensation policy" versus "late deliveries in March"). The report shows hit rate and false-hit rate for several thresholds; the chosen value and the report path go into the config comment.
+A hit requires same tenant, same index version, not expired, and cosine similarity at or above the threshold. The threshold default is 0.92 but is tuned on the `cache` suite: paraphrase pairs (should hit) and near-miss pairs (must not hit), including cross-type near misses where one query needs data and the other is a policy question ("late delivery compensation policy" versus "late deliveries in March"). The report shows hit rate and false-hit rate for several thresholds; the chosen value and the report path go into the config comment. Measured on 2026-11-13 with bge-m3 and dataset v5, raw cosine similarity separates the two classes poorly: at 0.94 the cache hits 1 of 25 paraphrases and false-hits 1 of 25 near misses (0.04 each, accuracy 0.50), and at 0.99 it hits neither. The demo tenants therefore use the 0.94 threshold but keep `cache.enabled: false`; the report and the config comments carry the numbers, and turning it on is one config value.
 
 ### 10.3 Invalidation
 
-Entries carry the `index_version` at store time. Ingestion bumps the tenant's version; old entries stop matching and are deleted by a nightly job or on the next store. A TTL (default 7 days) covers `direct` answers that do not depend on documents.
+Entries carry the `index_version` at store time. Ingestion bumps the tenant's version. A lookup compares the entry against both the key's version and the tenant's current version, so every older entry stops matching immediately; the next store for that tenant deletes rows of other versions and expired rows in the same transaction. A TTL (default 7 days) covers `direct` answers that do not depend on documents. `invalidate(tenant_id)` deletes every entry of a tenant and returns the count; the adapter exposes it for an operator or a future night job, while the version check is what makes an ingest safe without a job.
 
 ### 10.4 Measurement
 
-Each lookup creates a span with `switchboard.cache.hit`, `switchboard.cache.similarity` and `switchboard.cache.threshold`. Runs record `cache_hit`.
+Each lookup creates a `cache.lookup` span with `switchboard.cache.hit`, `switchboard.cache.similarity` and `switchboard.cache.threshold`; a store creates `cache.store` with the plan and TTL and `switchboard.cache.stored`. Runs record `cache_hit`. A hit returns the stored answer with zero usage and cost, because no chat call was made; the query embedding is the only cost and the local embedder has no price row.
 
 ## 11. Multi-tenancy
 
@@ -723,7 +730,7 @@ The tenant schema (AC-11a):
 | `tools.ask` | Tool wire names that would need human approval in v2; denied in this phase |
 | `seller_ids` | `null` for every seller (the unrestricted demo tenant) or a non-empty list injected server-side into every tenant-scoped query |
 | `retrieval` | `k` (5), `min_score` (0.35), `rewrite` (false), `rewrite_mode` (`conditional` or `always`), `search` (`vector` keeps the Phase 1 path, `hybrid` adds full text and RRF) |
-| `cache` | `enabled` (false), `threshold` (0.92), `ttl_days` (7); the semantic cache itself is v1 |
+| `cache` | `enabled` (false), `threshold` (0.92 default; the demo uses 0.94 from the cache report), `ttl_days` (7); implemented in v1 (10) |
 
 Unknown keys, malformed or versionless wire names, duplicates, a tool in both `allow` and `ask`, and an empty `seller_ids` list all fail at startup rather than during a run. Agent names are checked against the entry point registry and tool wire names against each tool source's manifest (`platform.yaml`), which the MCP server also reads to validate its own copy of the tenant file.
 
@@ -950,6 +957,8 @@ The Olist tables live in a separate schema `olist` loaded from the public CSV fi
 
 Feedback is append-only. `POST /runs/{id}/feedback?tenant_id=<id>` takes `{"rating": -1 | 1, "note": "optional, at most 2000 characters"}` and stores one row with the run's own tenant; zero, every other rating and a boolean or a string are rejected with 422. The run is read tenant-scoped before the insert, so another tenant's run is a 404 and never receives a rating, and a composite foreign key on `(run_id, tenant_id)` refuses a mismatched pair even outside the route. There is no update and no delete route: 405 is the only answer. The newest row is a run's verdict, `GET /runs/{id}` returns it as `latest_feedback`, and the run list does not load it, so listing stays one query. `switchboard_app` has SELECT and INSERT on `feedback` and nothing else, and `switchboard_tools` has no access.
 
+`cache_entries` (T2.18, `docker/postgres/init/06-cache.sql`) stores one answer per cacheable plan: tenant, plan label, normalized query text, a `vector(1024)` embedding, the serialized `AgentResult`, the index version at store time, a hit counter and the expiry. The HNSW index uses cosine distance, the same operator family as the chunk index; a tenant and version index narrows the lookup and an expiry index supports pruning. The application role has SELECT, INSERT, UPDATE and DELETE, because it increments `hits`, prunes older versions on a store and may invalidate a tenant; the tool role has nothing. The table has a foreign key to `tenants`, so an entry always belongs to a real tenant.
+
 ## 15. Error handling
 
 Error taxonomy in `core/errors.py`:
@@ -965,6 +974,7 @@ Error taxonomy in `core/errors.py`:
 | `ToolPermissionError` | no | tool source | agent continues, audit records denial |
 | `RunTokenError` | no | tool source (server rejected the token) | run fails with status `auth_error` |
 | `RetrievalError` | once | retriever | agent returns partial |
+| `CacheError` | no | cache adapter | orchestrator treats the lookup or store as a miss and continues |
 | `BudgetExceeded` | no | agent | orchestrator finishes with partial answer |
 | `CheckFailed` | once (retry or re-plan) | gate | orchestrator corrective action (6.8) |
 | `RunTimeout` | no | orchestrator | run status `timeout` |
@@ -984,7 +994,7 @@ tool_sources:
     url: ${MCP_OLIST_URL}
     manifest: mcp_servers/olist/manifest.yaml   # optional; enables tenant validation
 retriever: pgvector
-cache: none                      # v1: pg_semantic
+cache: pg_semantic               # none turns every lookup into a miss; tenants opt in
 embedder: lmstudio
 context_policy: clear_oldest_tool_results
 cost_cap_usd: 5.0                # v1: eval run hard ceiling (20.2)
@@ -1108,6 +1118,8 @@ Dataset versions are per suite when a suite is added later: `v2/gate.jsonl` hold
 
 `v4/injection.jsonl` holds the 40 injection samples and leaves `v1/`, `v2/` and `v3/` untouched: 20 malicious samples, each labeled with the pattern id it was written for, and 20 benign near-misses, including two deliberate false-positive traps. The suite runs the deterministic scanner in `core/guardrails.py` and reports detection rate, false positive rate and per-pattern precision and recall; labels are constructed and audited, not blind human labels. All 40 are in the `test` split because there is no prompt to tune. Details in `evals/datasets/v4/README.md`.
 
+`v5/cache.jsonl` holds the 50 cache pairs and leaves `v1/` to `v4/` untouched: 25 paraphrases labeled `should_hit` and 25 near misses, six of them cross-type (a policy question next to a data question). The suite embeds both questions once with bge-m3, reports the cosine similarity and sweeps eight thresholds from 0.85 to 0.99. The labels are constructed and audited by the implementation session, not blind human labels; all 50 are in the `test` split because the threshold is chosen from the whole set rather than tuned on a dev split. Details in `evals/datasets/v5/README.md`.
+
 Feedback (v1): `POST /runs/{id}/feedback` stores a rating of -1 or 1 and an optional note of at most 2000 characters. It is append-only, so a changed rating is a new row and the newest one is the run's verdict. `switchboard eval harvest --since <date> [--tenant <id>]` exports the runs whose newest feedback is negative and whose feedback was written on or after that UTC date, one unlabeled case per run, to `evals/candidates/feedback-<since>-<tenant|all>.jsonl`. A candidate carries `candidate_id` (`candidate-<run_id>`), `run_id`, `tenant_id`, `query`, `answer`, `plan`, `status`, `rating`, `note`, `run_started_at`, `run_ended_at` and `rated_at`, and no expected label of any kind. The command rewrites the file from the current rows on every run, so running it twice writes the same bytes instead of appending a duplicate, and it never modifies a frozen dataset or a baseline. A human labels the candidates; labeled cases enter the next dataset version, never the current one.
 
 ### 20.2 Runner
@@ -1122,7 +1134,9 @@ The rag suite opens the tenant's document index, so it needs `SWITCHBOARD_DATABA
 
 The injection suite is deterministic like the gate suite: it runs `core/guardrails.py` on each case and makes no model call, so the report's model field is `deterministic` and the result depends only on the dataset and the pattern set.
 
-The rag suite accepts `--orchestrator` only as the comparison dimension: both adapters share the retriever and the rewrite helper, so the four strategies and their code path do not depend on the orchestrator. The report records the label and says that any difference between the two runs is run-to-run timing, not a mechanism difference. The deterministic gate and injection suites have no orchestrator dimension and refuse the flag with a named error.
+The cache suite also makes no model call: it embeds both questions of every pair once with the configured embedder and reports the cosine similarity. It needs LM Studio or `--provider mock`; the mock run uses the deterministic hash embedder, which has no semantic similarity, so the report labels it a mechanics check and never treats it as a quality measurement. The JSON report carries `threshold_sweep` (hits, false hits, hit rate, false-hit rate and accuracy per threshold) and the markdown shows the same table with the tenant's configured threshold marked. This is the suite that chooses the threshold in section 10.2. It is not part of the CI mock gate.
+
+The rag suite accepts `--orchestrator` only as the comparison dimension: both adapters share the retriever and the rewrite helper, so the four strategies and their code path do not depend on the orchestrator. The report records the label and says that any difference between the two runs is run-to-run timing, not a mechanism difference. The deterministic gate, injection and cache suites have no orchestrator dimension and refuse the flag with a named error.
 
 ### 20.3 Comparison and regression
 

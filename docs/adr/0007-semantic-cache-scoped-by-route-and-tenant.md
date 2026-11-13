@@ -1,6 +1,6 @@
 # ADR 0007: Semantic cache before routing, scoped by tenant and index version, with measured false-hit rate
 
-Status: proposed, 2026-11-11 (v1 feature). Amended 2026-11-12: lookup moved before the supervisor, route removed from the key. The file name keeps its original slug so links stay stable. Not implemented as of 2026-11-13: the only `Cache` adapter is `NoCache` (T2.15), there is no `cache` dataset or threshold report, and T2.18 has not started, so AC-10a to AC-10d are unproven.
+Status: accepted, 2026-11-13. Proposed 2026-11-11 (v1 feature). Amended 2026-11-12: lookup moved before the supervisor, route removed from the key. The file name keeps its original slug so links stay stable. Implemented in T2.18: `PgSemanticCache` over `public.cache_entries`, wired into both orchestrators through the `Cache` port, with the `cache` suite and `evals/reports/cache-lmstudio.md`. The measured result is a caution: at the chosen 0.94 threshold the cache hits 1 of 25 paraphrases and false-hits 1 of 25 near misses, so the demo tenants keep `cache.enabled: false` and AC-10a to AC-10d are proven by tests and the report while the demo does not accept cache hits.
 
 ## Context
 

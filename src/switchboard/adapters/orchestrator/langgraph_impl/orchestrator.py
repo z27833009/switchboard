@@ -15,6 +15,7 @@ from pydantic import ValidationError
 
 from switchboard.agents.base import zero_usage
 from switchboard.agents.merge import MergeAgent
+from switchboard.core.cache import agents_from_label
 from switchboard.core.config import Limits, PriceEntry
 from switchboard.core.errors import PlanValidationError, SwitchboardError
 from switchboard.core.models import (
@@ -22,6 +23,8 @@ from switchboard.core.models import (
     AgentSpec,
     AgentTask,
     Budget,
+    CachedAnswer,
+    CacheKey,
     ChatRequest,
     CompletionRequest,
     ErrorRecord,
@@ -35,12 +38,14 @@ from switchboard.core.models import (
 )
 from switchboard.core.ports import Agent, AgentDeps, ContextPolicy, Embedder, ModelProvider
 from switchboard.core.pricing import add_cost, compute_cost
-from switchboard.core.validation import validate_plan
+from switchboard.core.validation import plan_is_cacheable, validate_plan
 from switchboard.gate import evaluate_gate
 from switchboard.registry import Registry
 from switchboard.routing import SUPERVISOR_SYSTEM, plan_schema, supervisor_prompt
 from switchboard.tracing.spans import (
     agent_span,
+    cache_lookup_span,
+    cache_store_span,
     gate_span,
     record_error,
     run_span,
@@ -95,6 +100,7 @@ class RunState(TypedDict, total=False):
     spent_usage: Annotated[Usage, add_usage]
     spent_cost: Annotated[float | None, add_cost]
     cache_hit: bool
+    cache_key: CacheKey | None
     result: RunResult | None
 
 
@@ -103,6 +109,7 @@ class BranchState(TypedDict):
     request: ChatRequest
     ctx: RunContext
     feedback: str | None
+    query_embedding: list[float] | None
 
 
 class LangGraphOrchestrator:
@@ -207,8 +214,42 @@ class LangGraphOrchestrator:
         builder.add_edge("finish", END)
         return builder.compile()
 
-    def _cache_lookup(self, state: RunState) -> dict[str, Any]:
-        return {"cache_hit": False}
+    async def _cache_lookup(self, state: RunState) -> dict[str, Any]:
+        """Lookup before the supervisor (design.md section 10.1).
+
+        A hit skips every model call and returns the stored plan and answer. A
+        miss keeps the key so the docs agent can reuse its embedding. A cache
+        error is a miss: the cache can never fail a run.
+        """
+        request = state["request"]
+        ctx = state["ctx"]
+        if self._cache is None or not ctx.tenant.cache.enabled or request.history:
+            return {"cache_hit": False, "cache_key": None}
+        threshold = ctx.tenant.cache.threshold
+        with cache_lookup_span(self._tracer, run_id=ctx.run_id, threshold=threshold) as span:
+            try:
+                key = await self._cache.key_for(ctx, request.query)
+                hit = await self._cache.lookup(key, threshold=threshold)
+            except Exception as exc:
+                record_error(span, exc)
+                return {"cache_hit": False, "cache_key": None}
+            if hit is None:
+                return {"cache_hit": False, "cache_key": key}
+            # A hit made no model call, so its stored usage must not be counted
+            # again (AC-10d). The embedding is the only cost and it is not a
+            # chat token; the local embedder has no price row.
+            answer = hit.entry.answer.model_copy(update={"usage": zero_usage(), "cost_usd": 0.0})
+            label = hit.entry.plan
+            set_attributes(span, {"switchboard.cache.plan": label})
+            return {
+                "cache_hit": True,
+                "cache_key": key,
+                "plan": RoutingDecision(
+                    agents=agents_from_label(label),
+                    reason=f"Cached answer from plan {label}.",
+                ),
+                "answer": answer,
+            }
 
     def _route_cache(self, state: RunState) -> str:
         return "hit" if state.get("cache_hit") else "miss"
@@ -382,6 +423,8 @@ class LangGraphOrchestrator:
             return []
         request = state["request"]
         ctx = state["ctx"]
+        key = state.get("cache_key")
+        embedding = list(key.embedding) if key is not None and key.embedding else None
         return [
             Send(
                 "run_agent",
@@ -390,6 +433,7 @@ class LangGraphOrchestrator:
                     "request": request,
                     "ctx": ctx,
                     "feedback": None,
+                    "query_embedding": embedding,
                 },
             )
             for name in plan.agents
@@ -439,6 +483,7 @@ class LangGraphOrchestrator:
                     history=request.history,
                     feedback=branch.get("feedback"),
                     budget=budget,
+                    query_embedding=branch.get("query_embedding"),
                 ),
                 self._deps(ctx),
             )
@@ -581,6 +626,8 @@ class LangGraphOrchestrator:
         request = state["request"]
         ctx = state["ctx"]
         feedback = state.get("feedback")
+        key = state.get("cache_key")
+        embedding = list(key.embedding) if key is not None and key.embedding else None
         return [
             Send(
                 "run_agent",
@@ -589,12 +636,47 @@ class LangGraphOrchestrator:
                     "request": request,
                     "ctx": ctx,
                     "feedback": feedback,
+                    "query_embedding": embedding,
                 },
             )
             for name in plan.agents
         ]
 
-    def _cache_store(self, state: RunState) -> dict[str, Any]:
+    async def _cache_store(self, state: RunState) -> dict[str, Any]:
+        """Store an answer only when its plan is cacheable and the gate passed."""
+        request = state["request"]
+        ctx = state["ctx"]
+        plan = state.get("plan")
+        answer = state.get("answer")
+        verdict = state.get("verdict")
+        key = state.get("cache_key")
+        if (
+            self._cache is None
+            or key is None
+            or plan is None
+            or answer is None
+            or verdict is None
+            or not verdict.passed
+            or answer.partial
+            or not ctx.tenant.cache.enabled
+            or request.history
+        ):
+            return {}
+        specs = {name: agent.spec for name, agent in self._agents.items()}
+        if not plan_is_cacheable(plan, specs):
+            return {}
+        ttl_days = ctx.tenant.cache.ttl_days
+        with cache_store_span(
+            self._tracer, run_id=ctx.run_id, plan=plan.label, ttl_days=ttl_days
+        ) as span:
+            try:
+                await self._cache.store(
+                    key,
+                    CachedAnswer(plan=plan.label, answer=answer),
+                    ttl_days=ttl_days,
+                )
+            except Exception as exc:
+                record_error(span, exc)
         return {}
 
     def _finish(self, state: RunState) -> dict[str, Any]:
@@ -711,6 +793,7 @@ class LangGraphOrchestrator:
             "supervisor_cost": None,
             "spent_cost": None,
             "cache_hit": False,
+            "cache_key": None,
         }
         try:
             final = await asyncio.wait_for(

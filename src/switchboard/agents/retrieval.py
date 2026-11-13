@@ -138,8 +138,15 @@ async def retrieve_with_strategy(
     strategy: RetrievalStrategy,
     k: int = 5,
     history: list[Turn] | None = None,
+    embedding: list[float] | None = None,
 ) -> RetrievalRun:
-    """Retrieve once or twice, rewriting only when the strategy says so."""
+    """Retrieve once or twice, rewriting only when the strategy says so.
+
+    ``embedding`` is the semantic cache's vector for the original query when the
+    lookup missed. It is used for the first round only when no rewrite replaced
+    that query, so the vector always belongs to the text being searched
+    (design.md section 10.1).
+    """
     turns = list(history or [])
     usage = Usage(input_tokens=0, output_tokens=0)
     cost: float | None = None
@@ -171,7 +178,14 @@ async def retrieve_with_strategy(
             rewritten_queries.append(current)
 
     queries.append(current)
-    chunks = await retriever.retrieve(current, ctx, k, round=1)
+    reused = embedding if embedding is not None and current == query else None
+    chunks = await retriever.retrieve(
+        current,
+        ctx,
+        k,
+        round=1,
+        **({} if reused is None else {"embedding": reused}),
+    )
     retrieval_rounds = 1
 
     if (

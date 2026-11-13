@@ -215,6 +215,39 @@ def retrieve_span(
         yield span
 
 
+@contextmanager
+def cache_lookup_span(tracer: trace.Tracer, *, run_id: str, threshold: float) -> Iterator[Span]:
+    with tracer.start_as_current_span(
+        "cache.lookup",
+        kind=SpanKind.INTERNAL,
+        record_exception=False,
+        set_status_on_exception=False,
+        attributes={
+            "switchboard.run_id": run_id,
+            "switchboard.cache.threshold": threshold,
+        },
+    ) as span:
+        yield span
+
+
+@contextmanager
+def cache_store_span(
+    tracer: trace.Tracer, *, run_id: str, plan: str, ttl_days: int
+) -> Iterator[Span]:
+    with tracer.start_as_current_span(
+        "cache.store",
+        kind=SpanKind.INTERNAL,
+        record_exception=False,
+        set_status_on_exception=False,
+        attributes={
+            "switchboard.run_id": run_id,
+            "switchboard.cache.plan": plan,
+            "switchboard.cache.ttl_days": ttl_days,
+        },
+    ) as span:
+        yield span
+
+
 __all__ = [
     "CONTEXT_METADATA",
     "TOOL_RESULT_ATTRIBUTE",
@@ -225,6 +258,8 @@ __all__ = [
     "apply_request_metadata",
     "apply_usage",
     "args_hash",
+    "cache_lookup_span",
+    "cache_store_span",
     "chat_span_name",
     "embeddings_span_name",
     "extract_traceparent",

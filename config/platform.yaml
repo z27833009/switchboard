@@ -9,7 +9,13 @@ tool_sources:
     # server actually serves (design.md sections 7.2 and 11).
     manifest: mcp_servers/olist/manifest.yaml
 retriever: pgvector
-cache: none
+# The Postgres semantic cache (design 10, ADR 0007). `none` keeps every lookup a
+# miss without dropping the adapter; a tenant only uses the cache when its own
+# `cache.enabled` is true. The demo tenants keep it false: the cache suite
+# measured a false-hit rate of 0.04 at the chosen 0.94 threshold, above the
+# 0.02 target (evals/reports/cache-lmstudio.md). Set enabled true per tenant to
+# turn it on without a code change.
+cache: pg_semantic
 embedder: lmstudio
 context_policy: clear_oldest_tool_results
 tracing:

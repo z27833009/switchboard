@@ -63,6 +63,12 @@ class RetrievalError(SwitchboardError):
     retryable = True
 
 
+class CacheError(SwitchboardError):
+    """A cache lookup or store failed; the run continues as a cache miss."""
+
+    retryable = True
+
+
 class BudgetExceeded(SwitchboardError):
     retryable = False
 

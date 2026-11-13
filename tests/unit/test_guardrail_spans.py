@@ -68,9 +68,14 @@ class StubRetriever(PgVectorRetriever):
         self._chunks = chunks
 
     async def _retrieve(
-        self, query: str, ctx: RunContext, k: int, mode: SearchMode
+        self,
+        query: str,
+        ctx: RunContext,
+        k: int,
+        mode: SearchMode,
+        embedding: list[float] | None = None,
     ) -> list[RetrievedChunk]:
-        del query, ctx, k, mode
+        del query, ctx, k, mode, embedding
         return self._chunks
 
 

@@ -30,6 +30,7 @@ from switchboard.core.errors import ConfigError
 from switchboard.core.ports import ContextPolicy, Orchestrator
 from switchboard.core.pricing import lookup_price
 from switchboard.registry import (
+    CACHES,
     ORCHESTRATORS,
     RETRIEVERS,
     TOOL_SOURCES,
@@ -110,6 +111,15 @@ def build_retriever(
     return component(pool=pool, embedder=embedder)
 
 
+def build_cache(settings: Settings, registry: Registry, pool: asyncpg.Pool, embedder: Any) -> Any:
+    """The configured Cache adapter; ``none`` is a registered adapter too."""
+    component: Any = registry.load(CACHES, settings.platform.cache)
+    factory = getattr(component, "from_deps", None)
+    if factory is None:
+        raise ConfigError(f"cache adapter {settings.platform.cache!r} has no from_deps")
+    return factory(pool=pool, embedder=embedder)
+
+
 def build_orchestrators(
     settings: Settings,
     registry: Registry,
@@ -121,6 +131,7 @@ def build_orchestrators(
     embedder_config = settings.providers.embedders[settings.platform.embedder]
     embedder = create_embedder(settings.platform.embedder, embedder_config)
     retriever = build_retriever(settings, registry, pool, embedder)
+    cache = build_cache(settings, registry, pool, embedder)
     tool_sources = build_tool_sources(settings, registry)
     context_policy = context_policy_for(settings.platform.context_policy)
     orchestrator_class: Any = registry.load(ORCHESTRATORS, settings.platform.orchestrator)
@@ -151,6 +162,7 @@ def build_orchestrators(
                 embedder=embedder,
                 tool_sources=tool_sources,
                 retriever=retriever,
+                cache=cache,
                 price=price,
                 answer_delta=answer_delta,
             ),
@@ -164,11 +176,6 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
     secret = require_run_token_secret(source)
     config_dir = Path(source.get("SWITCHBOARD_CONFIG_DIR", "config"))
     settings = load_settings(config_dir, source)
-    if settings.platform.cache != "none":
-        raise ConfigError(
-            f"cache {settings.platform.cache!r} is not implemented in Phase 1 "
-            "(design.md section 10 is v1)"
-        )
     dsn = source.get("SWITCHBOARD_DATABASE_URL", "")
     if not dsn:
         raise RuntimeError("SWITCHBOARD_DATABASE_URL must be set")
@@ -228,6 +235,7 @@ __all__ = [
     "HealthCheck",
     "PgAuditStore",
     "build_app_deps",
+    "build_cache",
     "build_orchestrators",
     "build_retriever",
     "build_tool_sources",

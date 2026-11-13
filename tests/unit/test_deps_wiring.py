@@ -10,6 +10,7 @@ import asyncpg
 import pytest
 from tests.fakes import MemoryRunStore, tenants_config
 
+from switchboard.adapters.cache.none import NoCache
 from switchboard.adapters.orchestrator.agent_loop import AgentLoopOrchestrator
 from switchboard.adapters.orchestrator.langgraph_impl import LangGraphOrchestrator
 from switchboard.api.deps import AppDeps, build_orchestrators, context_policy_for
@@ -32,6 +33,7 @@ from switchboard.core.config import (
 from switchboard.core.context import ClearOldestToolResults
 from switchboard.core.errors import ConfigError
 from switchboard.registry import (
+    CACHES,
     EMBEDDERS,
     ORCHESTRATORS,
     PROVIDERS,
@@ -135,6 +137,7 @@ def registry() -> Registry:
             Entry(name="fake", group=RETRIEVERS, value=FakeRetriever),
             Entry(name="fake", group=TOOL_SOURCES, value=FakeToolSource),
             Entry(name="mock", group=EMBEDDERS, value=None),
+            Entry(name="none", group=CACHES, value=NoCache),
         ]
     )
 
@@ -156,6 +159,7 @@ def test_orchestrators_are_built_per_provider_with_registered_components() -> No
     assert isinstance(built.kwargs["retriever"], FakeRetriever)
     assert built.kwargs["retriever"].pool is pool
     assert built.kwargs["retriever"].embedder.dimension == 8
+    assert built.kwargs["cache"].name == "none"
     assert [source.name for source in built.kwargs["tool_sources"]] == ["tools"]
     assert built.kwargs["registry"].names(PROVIDERS) == ["fake"]
 

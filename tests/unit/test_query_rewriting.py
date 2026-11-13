@@ -63,8 +63,15 @@ class ScriptedRetriever:
         self.calls: list[tuple[str, int]] = []
 
     async def retrieve(
-        self, query: str, ctx: RunContext, k: int = 5, *, round: int = 1
+        self,
+        query: str,
+        ctx: RunContext,
+        k: int = 5,
+        *,
+        round: int = 1,
+        embedding: list[float] | None = None,
     ) -> list[RetrievedChunk]:
+        del embedding
         self.calls.append((query, round))
         return self._results.get(query, chunks(0.1))
 

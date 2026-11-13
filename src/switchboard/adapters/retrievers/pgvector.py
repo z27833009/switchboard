@@ -114,13 +114,14 @@ class PgVectorRetriever:
         k: int = 5,
         *,
         round: int = 1,
+        embedding: list[float] | None = None,
     ) -> list[RetrievedChunk]:
         if k < 1 or k > MAX_K:
             raise RetrievalError(f"k must be between 1 and {MAX_K}")
         mode: SearchMode = self._search or ctx.tenant.retrieval.search
         with retrieve_span(self._tracer, k=k, strategy=mode, round=round) as span:
             try:
-                chunks = await self._retrieve(query, ctx, k, mode)
+                chunks = await self._retrieve(query, ctx, k, mode, embedding)
             except RetrievalError as exc:
                 record_error(span, exc)
                 raise
@@ -140,11 +141,23 @@ class PgVectorRetriever:
         ctx: RunContext,
         k: int,
         mode: SearchMode,
+        embedding: list[float] | None = None,
     ) -> list[RetrievedChunk]:
-        vector = await self._embed_query(query)
+        vector = await self._query_vector(query, embedding)
         if mode == "hybrid":
             return await self._hybrid(query, vector, ctx, k)
         return await self._vector_only(vector, ctx, k)
+
+    async def _query_vector(self, query: str, embedding: list[float] | None) -> list[float]:
+        """The cache's embedding when it is usable, otherwise a new one (10.1)."""
+        if embedding:
+            if len(embedding) != self._embedder.dimension:
+                raise RetrievalError(
+                    f"reused embedding has dimension {len(embedding)}, "
+                    f"expected {self._embedder.dimension}"
+                )
+            return list(embedding)
+        return await self._embed_query(query)
 
     async def _embed_query(self, query: str) -> list[float]:
         try:

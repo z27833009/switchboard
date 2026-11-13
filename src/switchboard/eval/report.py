@@ -19,6 +19,7 @@ from switchboard.core.guardrails import PATTERN_BY_ID, PATTERN_SET_VERSION
 from switchboard.core.models import Usage
 from switchboard.core.pricing import compute_cost
 from switchboard.eval.runner import CaseRun
+from switchboard.eval.scorers.cache import sweep_thresholds, threshold_label
 from switchboard.eval.scorers.routing import plan_label
 from switchboard.gate import CHECK_NAMES
 
@@ -43,6 +44,8 @@ class ReportMeta:
     # entry. The date comes from the table so the report can cite its source.
     price: PriceEntry | None = None
     price_verified_on: date | None = None
+    # The tenant's configured cache threshold, marked in the sweep table.
+    chosen_threshold: float | None = None
 
 
 def percentile(values: list[int], percent: float) -> float:
@@ -333,6 +336,64 @@ def _rag_case_row(result: CaseRun) -> dict[str, Any]:
     }
 
 
+def _cache_pairs(results: list[CaseRun]) -> list[tuple[float, bool]]:
+    return [
+        (
+            float(result.outcome.details.get("similarity", 0.0)),
+            bool(result.outcome.details.get("should_hit", False)),
+        )
+        for result in results
+    ]
+
+
+def _cache_sweep(results: list[CaseRun]) -> list[dict[str, Any]]:
+    return [
+        {
+            "threshold": row.threshold,
+            "hits": row.hits,
+            "positive_pairs": row.positives,
+            "hit_rate": row.hit_rate,
+            "false_hits": row.false_hits,
+            "negative_pairs": row.negatives,
+            "false_hit_rate": row.false_hit_rate,
+            "accuracy": row.accuracy,
+        }
+        for row in sweep_thresholds(_cache_pairs(results))
+    ]
+
+
+def _cache_metrics(results: list[CaseRun]) -> dict[str, float]:
+    pairs = _cache_pairs(results)
+    metrics: dict[str, float] = {
+        "pair_count": float(len(pairs)),
+        "positive_pairs": float(sum(1 for _similarity, label in pairs if label)),
+        "negative_pairs": float(sum(1 for _similarity, label in pairs if not label)),
+    }
+    for row in sweep_thresholds(pairs):
+        label = threshold_label(row.threshold)
+        metrics[f"hit_rate_at_{label}"] = row.hit_rate
+        metrics[f"false_hit_rate_at_{label}"] = row.false_hit_rate
+        metrics[f"accuracy_at_{label}"] = row.accuracy
+    return metrics
+
+
+def _cache_case_row(result: CaseRun) -> dict[str, Any]:
+    details = result.outcome.details
+    return {
+        "case_id": result.case.id,
+        "query_a": details.get("query_a") or result.case.query,
+        "query_b": details.get("query_b"),
+        "should_hit": bool(details.get("should_hit", False)),
+        "pair_type": details.get("pair_type"),
+        "similarity": float(details.get("similarity", 0.0)),
+        "predicted_hit": result.score.metrics.get("hit_at_chosen_threshold", 0.0) > 0.0,
+        "correct": result.score.passed,
+        "tags": list(result.case.tags),
+        "note": result.case.payload.get("note"),
+        "error": result.outcome.error,
+    }
+
+
 def _usage_totals(results: list[CaseRun]) -> Usage:
     total = Usage(input_tokens=0, output_tokens=0)
     for result in results:
@@ -454,6 +515,8 @@ def build_report(meta: ReportMeta, results: list[CaseRun]) -> dict[str, Any]:
         metrics = _injection_metrics(results)
     elif meta.suite == "rag":
         metrics = _rag_metrics(results)
+    elif meta.suite == "cache":
+        metrics = _cache_metrics(results)
     else:
         metrics = _toolcall_metrics(results)
     report: dict[str, Any] = {
@@ -526,6 +589,21 @@ def build_report(meta: ReportMeta, results: list[CaseRun]) -> dict[str, Any]:
         )
         report["deterministic"] = True
         report["cases"] = [_injection_case_row(result) for result in results]
+    elif meta.suite == "cache":
+        report["threshold_sweep"] = _cache_sweep(results)
+        report["chosen_threshold"] = meta.chosen_threshold
+        sources = {
+            str(result.outcome.details.get("embedding_source", ""))
+            for result in results
+            if result.outcome.details.get("embedding_source")
+        }
+        report["embedding_source"] = ", ".join(sorted(sources)) or None
+        report["deterministic_embeddings"] = meta.provider == "mock"
+        report["label_source"] = (
+            "pairs written and audited by the implementation session, "
+            "not an independent human annotator"
+        )
+        report["cases"] = [_cache_case_row(result) for result in results]
     else:
         report["cases"] = [_toolcall_case_row(result) for result in results]
     return report
@@ -591,7 +669,53 @@ def _rag_strategy_table(report: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _cache_sweep_table(report: dict[str, Any]) -> list[str]:
+    lines = [
+        "| Threshold | Hits | Positive pairs | Hit rate | False hits | Negative pairs "
+        "| False-hit rate | Accuracy |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    chosen = report.get("chosen_threshold")
+    for row in report["threshold_sweep"]:
+        marker = " (chosen)" if chosen is not None and abs(row["threshold"] - chosen) < 1e-9 else ""
+        lines.append(
+            f"| {row['threshold']:.2f}{marker} | {row['hits']} | {row['positive_pairs']} | "
+            f"{row['hit_rate']:.4f} | {row['false_hits']} | {row['negative_pairs']} | "
+            f"{row['false_hit_rate']:.4f} | {row['accuracy']:.4f} |"
+        )
+    return lines
+
+
 def _case_table(report: dict[str, Any]) -> list[str]:
+    if report["suite"] == "cache":
+        lines = [
+            "| Case | Query A | Query B | Should hit | Pair type | Similarity "
+            "| Predicted hit | Correct | Note |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        ]
+        for case in report["cases"]:
+            note = case["error"] or case["note"] or ""
+            if not case["correct"] and not case["error"]:
+                note = (note + "; " if note else "") + "classified wrong at the chosen threshold"
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        _cell(case["case_id"]),
+                        _cell(str(case["query_a"] or "")),
+                        _cell(str(case["query_b"] or "")),
+                        "yes" if case["should_hit"] else "no",
+                        _cell(str(case["pair_type"] or "")),
+                        f"{case['similarity']:.4f}",
+                        "yes" if case["predicted_hit"] else "no",
+                        "yes" if case["correct"] else "no",
+                        _cell(note),
+                    ]
+                )
+                + " |"
+            )
+        return lines
+
     if report["suite"] == "rag":
         names = list(report["strategies"])
         header = (
@@ -794,7 +918,7 @@ def render_markdown(report: dict[str, Any]) -> str:
             "- Deterministic suite: no model call is made; the provider and model fields are "
             "recorded from the runner but unused."
         )
-    elif report["provider"] == "mock":
+    elif report["provider"] == "mock" and report["suite"] != "cache":
         if report["suite"] == "rag":
             lines.append(
                 "- Mock replay: rewrite calls come from fixtures, but retrieval still uses "
@@ -805,6 +929,14 @@ def render_markdown(report: dict[str, Any]) -> str:
             lines.append(
                 "- Mock replay: model latency is recorded as 0 and the CI gate measures "
                 "the pipeline, not the model (design.md section 18)."
+            )
+    if report["suite"] == "cache":
+        lines.append(f"- Embeddings: {report.get('embedding_source') or 'not recorded'}")
+        if report.get("deterministic_embeddings"):
+            lines.append(
+                "- **Deterministic mock embeddings:** this run checks the suite mechanics "
+                "only. A hash-based fake has no semantic similarity, so its hit and "
+                "false-hit rates are not a quality measurement."
             )
     lines.append("")
 
@@ -832,6 +964,28 @@ def render_markdown(report: dict[str, Any]) -> str:
             "default tenant's read-only tools plus `result_page@1` and `search_docs@1`), and "
             "scores the first tool call. The suite does not execute the tool or continue the "
             "loop, so a live loop can choose a different or additional tool on a later step."
+        )
+        lines.append("")
+
+    if report["suite"] == "cache":
+        lines.append("## Threshold sweep")
+        lines.append("")
+        lines.extend(_cache_sweep_table(report))
+        lines.append("")
+        chosen = report.get("chosen_threshold")
+        chosen_text = (
+            f"The configured threshold is {chosen:.2f}."
+            if chosen is not None
+            else "The configured threshold was not recorded."
+        )
+        lines.append(
+            "A pair is a hit when its cosine similarity is at or above the threshold. "
+            "Hit rate is the share of pairs labeled `should_hit` that hit; the "
+            "false-hit rate is the share of near-miss pairs that hit anyway. "
+            f"{chosen_text} The value in `config/tenants.yaml` and the comment in "
+            "`config/platform.yaml` point at this report. Both questions of every pair "
+            "are embedded once before the cases run, so the runner wall maximum is that "
+            "batch and a case's own similarity is immediate."
         )
         lines.append("")
 
@@ -938,6 +1092,8 @@ def render_markdown(report: dict[str, Any]) -> str:
     first_label = "Retrieval" if report["suite"] == "rag" else "Model"
     if report["suite"] == "injection":
         first_label = "Scanner"
+    if report["suite"] == "cache":
+        first_label = "Similarity"
     for name, key in ((first_label, "latency_ms"), ("Runner wall", "runner_latency_ms")):
         summary = report[key]
         lines.append(

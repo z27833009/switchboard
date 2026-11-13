@@ -61,6 +61,7 @@ class DocsAgent(BaseAgent):
                 strategy=strategy,
                 k=TOP_K,
                 history=task.history,
+                embedding=task.query_embedding,
             )
         except RetrievalError as exc:
             return partial_result(f"I could not search the policy documents: {exc}")

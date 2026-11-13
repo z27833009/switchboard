@@ -214,6 +214,11 @@ class AgentTask(BaseModel):
     history: list[Turn] = Field(default_factory=list)
     feedback: str | None = None
     budget: Budget = Field(default_factory=Budget)
+    # The query embedding the semantic cache computed for this run, when one
+    # was. A docs agent passes it to retrieval so a cache miss reuses the vector
+    # instead of paying for a second embedding (design.md section 10.1). It is
+    # None when the cache is off or the entry was skipped.
+    query_embedding: list[float] | None = None
 
 
 class RetrievalSettings(BaseModel):

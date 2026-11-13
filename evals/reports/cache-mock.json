@@ -1,0 +1,960 @@
+{
+  "suite": "cache",
+  "dataset_version": "v5",
+  "dataset_path": "evals/datasets/v5/cache.jsonl",
+  "split": "test",
+  "case_count": 50,
+  "dataset_case_count": 50,
+  "split_case_count": 50,
+  "smoke": false,
+  "orchestrator": "langgraph",
+  "provider": "mock",
+  "model": "mock (deterministic)",
+  "generated_at": "2026-11-13T01:03:34.896242+00:00",
+  "wall_time_s": 0.043,
+  "recording": false,
+  "recorded_with": null,
+  "metrics": {
+    "pair_count": 50.0,
+    "positive_pairs": 25.0,
+    "negative_pairs": 25.0,
+    "hit_rate_at_0.85": 0.0,
+    "false_hit_rate_at_0.85": 0.0,
+    "accuracy_at_0.85": 0.5,
+    "hit_rate_at_0.88": 0.0,
+    "false_hit_rate_at_0.88": 0.0,
+    "accuracy_at_0.88": 0.5,
+    "hit_rate_at_0.90": 0.0,
+    "false_hit_rate_at_0.90": 0.0,
+    "accuracy_at_0.90": 0.5,
+    "hit_rate_at_0.92": 0.0,
+    "false_hit_rate_at_0.92": 0.0,
+    "accuracy_at_0.92": 0.5,
+    "hit_rate_at_0.94": 0.0,
+    "false_hit_rate_at_0.94": 0.0,
+    "accuracy_at_0.94": 0.5,
+    "hit_rate_at_0.96": 0.0,
+    "false_hit_rate_at_0.96": 0.0,
+    "accuracy_at_0.96": 0.5,
+    "hit_rate_at_0.98": 0.0,
+    "false_hit_rate_at_0.98": 0.0,
+    "accuracy_at_0.98": 0.5,
+    "hit_rate_at_0.99": 0.0,
+    "false_hit_rate_at_0.99": 0.0,
+    "accuracy_at_0.99": 0.5
+  },
+  "latency_ms": {
+    "p50": 0.0,
+    "p95": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "mean": 0.0
+  },
+  "runner_latency_ms": {
+    "p50": 0.0,
+    "p95": 0.0,
+    "min": 0.0,
+    "max": 6.0,
+    "mean": 0.12
+  },
+  "usage": {
+    "input_tokens": 0,
+    "cached_input_tokens": 0,
+    "output_tokens": 0,
+    "total_tokens": 0
+  },
+  "cost_usd": null,
+  "price": null,
+  "no_api_cost": false,
+  "error_count": 0,
+  "error_case_ids": [],
+  "threshold_sweep": [
+    {
+      "threshold": 0.85,
+      "hits": 0,
+      "positive_pairs": 25,
+      "hit_rate": 0.0,
+      "false_hits": 0,
+      "negative_pairs": 25,
+      "false_hit_rate": 0.0,
+      "accuracy": 0.5
+    },
+    {
+      "threshold": 0.88,
+      "hits": 0,
+      "positive_pairs": 25,
+      "hit_rate": 0.0,
+      "false_hits": 0,
+      "negative_pairs": 25,
+      "false_hit_rate": 0.0,
+      "accuracy": 0.5
+    },
+    {
+      "threshold": 0.9,
+      "hits": 0,
+      "positive_pairs": 25,
+      "hit_rate": 0.0,
+      "false_hits": 0,
+      "negative_pairs": 25,
+      "false_hit_rate": 0.0,
+      "accuracy": 0.5
+    },
+    {
+      "threshold": 0.92,
+      "hits": 0,
+      "positive_pairs": 25,
+      "hit_rate": 0.0,
+      "false_hits": 0,
+      "negative_pairs": 25,
+      "false_hit_rate": 0.0,
+      "accuracy": 0.5
+    },
+    {
+      "threshold": 0.94,
+      "hits": 0,
+      "positive_pairs": 25,
+      "hit_rate": 0.0,
+      "false_hits": 0,
+      "negative_pairs": 25,
+      "false_hit_rate": 0.0,
+      "accuracy": 0.5
+    },
+    {
+      "threshold": 0.96,
+      "hits": 0,
+      "positive_pairs": 25,
+      "hit_rate": 0.0,
+      "false_hits": 0,
+      "negative_pairs": 25,
+      "false_hit_rate": 0.0,
+      "accuracy": 0.5
+    },
+    {
+      "threshold": 0.98,
+      "hits": 0,
+      "positive_pairs": 25,
+      "hit_rate": 0.0,
+      "false_hits": 0,
+      "negative_pairs": 25,
+      "false_hit_rate": 0.0,
+      "accuracy": 0.5
+    },
+    {
+      "threshold": 0.99,
+      "hits": 0,
+      "positive_pairs": 25,
+      "hit_rate": 0.0,
+      "false_hits": 0,
+      "negative_pairs": 25,
+      "false_hit_rate": 0.0,
+      "accuracy": 0.5
+    }
+  ],
+  "chosen_threshold": 0.94,
+  "embedding_source": "mock (deterministic sha256, dimension 1024)",
+  "deterministic_embeddings": true,
+  "label_source": "pairs written and audited by the implementation session, not an independent human annotator",
+  "cases": [
+    {
+      "case_id": "c001",
+      "query_a": "What is the return window for electronics?",
+      "query_b": "How long do I have to return an electronic item?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.014079,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "returns",
+        "electronics"
+      ],
+      "note": "Same 15 day electronics window.",
+      "error": null
+    },
+    {
+      "case_id": "c002",
+      "query_a": "How many days do I have to return a normal item?",
+      "query_b": "What is the standard return period after delivery?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.043762,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "returns",
+        "standard"
+      ],
+      "note": "Same 30 calendar day standard window.",
+      "error": null
+    },
+    {
+      "case_id": "c003",
+      "query_a": "When are late deliveries eligible for compensation?",
+      "query_b": "When can I claim compensation for a late delivery?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "late_delivery",
+        "policy"
+      ],
+      "note": "Same three calendar day eligibility rule.",
+      "error": null
+    },
+    {
+      "case_id": "c004",
+      "query_a": "How much is the late delivery voucher worth?",
+      "query_b": "What is the value of the late-delivery compensation?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.000816,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "late_delivery",
+        "policy"
+      ],
+      "note": "Same ten percent voucher rule.",
+      "error": null
+    },
+    {
+      "case_id": "c005",
+      "query_a": "How long does a refund take after the item is inspected?",
+      "query_b": "When will I get my money back after returning an item?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "returns",
+        "refunds"
+      ],
+      "note": "Same five business day refund after inspection.",
+      "error": null
+    },
+    {
+      "case_id": "c006",
+      "query_a": "Can I pay with boleto?",
+      "query_b": "Is a bank slip accepted as payment?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "payments"
+      ],
+      "note": "Boleto is the bank slip.",
+      "error": null
+    },
+    {
+      "case_id": "c007",
+      "query_a": "How many installments can I pay in?",
+      "query_b": "Can I split the order into monthly payments?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "payments",
+        "installments"
+      ],
+      "note": "Same installment policy.",
+      "error": null
+    },
+    {
+      "case_id": "c008",
+      "query_a": "How do I start selling on the marketplace?",
+      "query_b": "What is the process to become a seller?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.000687,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "seller_onboarding"
+      ],
+      "note": "Same onboarding path.",
+      "error": null
+    },
+    {
+      "case_id": "c009",
+      "query_a": "Which documents does a new seller need to upload?",
+      "query_b": "What paperwork is required for seller onboarding?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.02909,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "seller_onboarding"
+      ],
+      "note": "Same document list.",
+      "error": null
+    },
+    {
+      "case_id": "c010",
+      "query_a": "What is the commission rate for sellers?",
+      "query_b": "How much does the marketplace charge per sale?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.04722,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "seller_onboarding",
+        "commission"
+      ],
+      "note": "Same twelve percent commission.",
+      "error": null
+    },
+    {
+      "case_id": "c011",
+      "query_a": "How long does standard delivery take in the southeast?",
+      "query_b": "What is the usual delivery time in the southeast region?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.005333,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "shipping"
+      ],
+      "note": "Same three to seven business day range.",
+      "error": null
+    },
+    {
+      "case_id": "c012",
+      "query_a": "Can I track my parcel?",
+      "query_b": "Where can I see the tracking information for my order?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.007163,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "shipping",
+        "tracking"
+      ],
+      "note": "Same tracking code on the order page.",
+      "error": null
+    },
+    {
+      "case_id": "c013",
+      "query_a": "What happens if a boleto is not paid?",
+      "query_b": "Is an unpaid bank slip canceled automatically?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "payments",
+        "boleto"
+      ],
+      "note": "Same automatic cancellation after the due date.",
+      "error": null
+    },
+    {
+      "case_id": "c014",
+      "query_a": "Are personalized items returnable?",
+      "query_b": "Can customized products be returned?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.055806,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "returns",
+        "exceptions"
+      ],
+      "note": "Same exception for personalized items.",
+      "error": null
+    },
+    {
+      "case_id": "c015",
+      "query_a": "How soon must a damaged item be reported?",
+      "query_b": "What is the deadline to report a damaged delivery?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "returns",
+        "damage"
+      ],
+      "note": "Same 48 hour rule.",
+      "error": null
+    },
+    {
+      "case_id": "c016",
+      "query_a": "How many days after the estimated date is a delivery considered late?",
+      "query_b": "When does a delivery count as late for compensation?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.028367,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "late_delivery",
+        "policy"
+      ],
+      "note": "Same three calendar day threshold.",
+      "error": null
+    },
+    {
+      "case_id": "c017",
+      "query_a": "What is the maximum voucher for late delivery?",
+      "query_b": "What is the compensation cap for a late parcel?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.03589,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "late_delivery",
+        "voucher"
+      ],
+      "note": "Same fifty reais cap.",
+      "error": null
+    },
+    {
+      "case_id": "c018",
+      "query_a": "Can a voucher be combined with a promotion?",
+      "query_b": "May I use the late-delivery voucher together with another offer?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.051696,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "late_delivery",
+        "voucher"
+      ],
+      "note": "Same one other promotion rule.",
+      "error": null
+    },
+    {
+      "case_id": "c019",
+      "query_a": "How long does a seller have to hand the parcel to the carrier?",
+      "query_b": "What is the seller handling deadline after payment?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.038179,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "shipping",
+        "handling"
+      ],
+      "note": "Same two business day handling rule.",
+      "error": null
+    },
+    {
+      "case_id": "c020",
+      "query_a": "Is express delivery available?",
+      "query_b": "Can I choose a faster shipping option?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.035322,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "shipping",
+        "express"
+      ],
+      "note": "Same express option for selected sellers.",
+      "error": null
+    },
+    {
+      "case_id": "c021",
+      "query_a": "How long do seller documents take to be checked?",
+      "query_b": "When are seller registration documents approved?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "seller_onboarding"
+      ],
+      "note": "Same three business day check.",
+      "error": null
+    },
+    {
+      "case_id": "c022",
+      "query_a": "What payment methods does the marketplace accept?",
+      "query_b": "Which ways can I pay for an order?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.001725,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "payments"
+      ],
+      "note": "Same card, boleto and Pix list.",
+      "error": null
+    },
+    {
+      "case_id": "c023",
+      "query_a": "When are payouts made to sellers?",
+      "query_b": "How often do sellers receive their money?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.014558,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "seller_onboarding",
+        "payouts"
+      ],
+      "note": "Same every two weeks payout.",
+      "error": null
+    },
+    {
+      "case_id": "c024",
+      "query_a": "Do shipping fees get refunded for a defective item?",
+      "query_b": "Will the delivery cost be returned when the product is faulty?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.009484,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "returns",
+        "refunds"
+      ],
+      "note": "Same refund of shipping for a defect.",
+      "error": null
+    },
+    {
+      "case_id": "c025",
+      "query_a": "What is the refund timing for a Pix payment?",
+      "query_b": "How long does a Pix refund take to arrive?",
+      "should_hit": true,
+      "pair_type": "paraphrase",
+      "similarity": 0.024755,
+      "predicted_hit": false,
+      "correct": false,
+      "tags": [
+        "payments",
+        "refunds"
+      ],
+      "note": "Same Pix refund to the paying account.",
+      "error": null
+    },
+    {
+      "case_id": "c026",
+      "query_a": "How many orders were delivered in March 2018?",
+      "query_b": "How many orders were delivered in April 2018?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.096882,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "data",
+        "month"
+      ],
+      "note": "A different month has a different count.",
+      "error": null
+    },
+    {
+      "case_id": "c027",
+      "query_a": "What is the return window for electronics?",
+      "query_b": "What is the standard return window?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "returns",
+        "electronics"
+      ],
+      "note": "15 days versus 30 days.",
+      "error": null
+    },
+    {
+      "case_id": "c028",
+      "query_a": "What is the return window for electronics?",
+      "query_b": "What is the return window for furniture?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.051808,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "returns",
+        "category"
+      ],
+      "note": "Furniture follows the standard window, not the electronics one.",
+      "error": null
+    },
+    {
+      "case_id": "c029",
+      "query_a": "What is the late delivery compensation policy?",
+      "query_b": "How many late deliveries were there in March 2018?",
+      "should_hit": false,
+      "pair_type": "cross_type",
+      "similarity": 0.01296,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "cross_type",
+        "late_delivery",
+        "data"
+      ],
+      "note": "Policy text versus a database count.",
+      "error": null
+    },
+    {
+      "case_id": "c030",
+      "query_a": "How many orders were delivered late in March 2018?",
+      "query_b": "How many orders were delivered late in April 2018?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.020657,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "data",
+        "late_delivery",
+        "month"
+      ],
+      "note": "A different month has a different count.",
+      "error": null
+    },
+    {
+      "case_id": "c031",
+      "query_a": "How many orders were delivered late in March 2018?",
+      "query_b": "How many orders were delivered on time in March 2018?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.042652,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "data",
+        "late_delivery"
+      ],
+      "note": "Late and on-time counts are different.",
+      "error": null
+    },
+    {
+      "case_id": "c032",
+      "query_a": "How much is the late delivery voucher worth?",
+      "query_b": "How many late deliveries were compensated in March 2018?",
+      "should_hit": false,
+      "pair_type": "cross_type",
+      "similarity": 0.015343,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "cross_type",
+        "late_delivery",
+        "data"
+      ],
+      "note": "Voucher value versus a compensated count.",
+      "error": null
+    },
+    {
+      "case_id": "c033",
+      "query_a": "How do I start selling on the marketplace?",
+      "query_b": "How many sellers joined the marketplace in 2017?",
+      "should_hit": false,
+      "pair_type": "cross_type",
+      "similarity": 0.032988,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "cross_type",
+        "seller_onboarding",
+        "data"
+      ],
+      "note": "Onboarding steps versus a seller count.",
+      "error": null
+    },
+    {
+      "case_id": "c034",
+      "query_a": "How many installments can I pay in?",
+      "query_b": "How many installments are interest free?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.039601,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "payments",
+        "installments"
+      ],
+      "note": "The maximum count and the interest-free count differ.",
+      "error": null
+    },
+    {
+      "case_id": "c035",
+      "query_a": "How long does standard delivery take in the southeast?",
+      "query_b": "How long does express delivery take in the southeast?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "shipping",
+        "express"
+      ],
+      "note": "Express is faster than standard.",
+      "error": null
+    },
+    {
+      "case_id": "c036",
+      "query_a": "What is the commission rate for sellers?",
+      "query_b": "Which seller paid the highest commission in 2018?",
+      "should_hit": false,
+      "pair_type": "cross_type",
+      "similarity": 0.021229,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "cross_type",
+        "seller_onboarding",
+        "data"
+      ],
+      "note": "A rate versus a seller ranking.",
+      "error": null
+    },
+    {
+      "case_id": "c037",
+      "query_a": "What is the return window for electronics?",
+      "query_b": "How many electronics were returned in 2017?",
+      "should_hit": false,
+      "pair_type": "cross_type",
+      "similarity": 0.053575,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "cross_type",
+        "returns",
+        "data"
+      ],
+      "note": "A policy window versus a return count.",
+      "error": null
+    },
+    {
+      "case_id": "c038",
+      "query_a": "Can I track my parcel?",
+      "query_b": "How long can tracking take to update?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "shipping",
+        "tracking"
+      ],
+      "note": "Tracking availability versus the 24 hour update lag.",
+      "error": null
+    },
+    {
+      "case_id": "c039",
+      "query_a": "Are personalized items returnable?",
+      "query_b": "Are digital codes returnable?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "returns",
+        "exceptions"
+      ],
+      "note": "Two different exceptions, both normally not returnable.",
+      "error": null
+    },
+    {
+      "case_id": "c040",
+      "query_a": "How soon must a damaged item be reported?",
+      "query_b": "How soon must a late delivery compensation request be opened?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.013102,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "late_delivery",
+        "damage"
+      ],
+      "note": "48 hours for damage versus 60 days for compensation.",
+      "error": null
+    },
+    {
+      "case_id": "c041",
+      "query_a": "What is the minimum late delivery voucher?",
+      "query_b": "What is the maximum late delivery voucher?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "late_delivery",
+        "voucher"
+      ],
+      "note": "Five reais minimum versus fifty reais maximum.",
+      "error": null
+    },
+    {
+      "case_id": "c042",
+      "query_a": "Can a voucher be exchanged for cash?",
+      "query_b": "Can a voucher be combined with a promotion?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "late_delivery",
+        "voucher"
+      ],
+      "note": "Two different voucher rules.",
+      "error": null
+    },
+    {
+      "case_id": "c043",
+      "query_a": "How long does a seller have to hand the parcel to the carrier?",
+      "query_b": "How long does the carrier take to deliver the parcel?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.011919,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "shipping",
+        "handling"
+      ],
+      "note": "Seller handling time versus carrier delivery time.",
+      "error": null
+    },
+    {
+      "case_id": "c044",
+      "query_a": "What payment methods does the marketplace accept?",
+      "query_b": "How many orders were paid by boleto in 2018?",
+      "should_hit": false,
+      "pair_type": "cross_type",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "cross_type",
+        "payments",
+        "data"
+      ],
+      "note": "A methods list versus an order count.",
+      "error": null
+    },
+    {
+      "case_id": "c045",
+      "query_a": "Is express delivery available?",
+      "query_b": "Is international delivery available?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "shipping",
+        "express"
+      ],
+      "note": "Express is domestic; the corpus does not offer international shipping.",
+      "error": null
+    },
+    {
+      "case_id": "c046",
+      "query_a": "How long do seller documents take to be checked?",
+      "query_b": "How long does a refund take after inspection?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.025535,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "seller_onboarding",
+        "refunds"
+      ],
+      "note": "Three business days for documents versus five for a refund.",
+      "error": null
+    },
+    {
+      "case_id": "c047",
+      "query_a": "What payment methods does the marketplace accept?",
+      "query_b": "Where is a refund sent for a Pix payment?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.010164,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "payments",
+        "refunds"
+      ],
+      "note": "Accepted methods versus the refund destination.",
+      "error": null
+    },
+    {
+      "case_id": "c048",
+      "query_a": "When are payouts made to sellers?",
+      "query_b": "When is a late delivery voucher credited to the customer?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "seller_onboarding",
+        "late_delivery"
+      ],
+      "note": "Every two weeks for payouts versus three business days for a voucher.",
+      "error": null
+    },
+    {
+      "case_id": "c049",
+      "query_a": "How many orders were delivered in March 2018?",
+      "query_b": "How many orders were shipped in March 2018?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.016825,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "data",
+        "shipping"
+      ],
+      "note": "Delivered and shipped counts differ in the same month.",
+      "error": null
+    },
+    {
+      "case_id": "c050",
+      "query_a": "How long does delivery take to remote areas?",
+      "query_b": "How long does delivery take to the southeast region?",
+      "should_hit": false,
+      "pair_type": "near_miss",
+      "similarity": 0.0,
+      "predicted_hit": false,
+      "correct": true,
+      "tags": [
+        "shipping",
+        "region"
+      ],
+      "note": "Up to twenty business days for remote areas versus three to seven in the southeast.",
+      "error": null
+    }
+  ]
+}

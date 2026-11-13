@@ -17,7 +17,10 @@
 #                 (defaults: 5, 0.35, false, conditional, vector). search
 #                 hybrid adds full-text search and RRF; rewrite true enables
 #                 the conditional rewrite of design.md section 9.3
-#   cache:        enabled, threshold, ttl_days (defaults: false, 0.92, 7)
+#   cache:        enabled, threshold, ttl_days (defaults: false, 0.92, 7).
+#                 The demo tenants use 0.94, chosen from
+#                 evals/reports/cache-lmstudio.md, but keep enabled false: the
+#                 measured false-hit rate is above the 2 percent target.
 #
 # Tools not listed under allow or ask are denied. The tool server takes the
 # tenant from the signed run token and never from request arguments.
@@ -38,6 +41,15 @@ tenants:
     retrieval:
       search: hybrid
       rewrite: true
+    cache:
+      # Measured on 2026-11-13, bge-m3 + dataset v5: 0.94 hits 1 of 25
+      # paraphrases and false-hits 1 of 25 near misses (4 percent). The
+      # false-hit target is 2 percent, so the demo leaves the cache off and
+      # the report explains why; set enabled true to turn it on.
+      # See evals/reports/cache-lmstudio.md.
+      enabled: false
+      threshold: 0.94
+      ttl_days: 7
   # A real cross-tenant demo: only seller 955fee... orders are visible, and a
   # request for any other order or for a tool outside the allowlist is denied.
   seller_a:
@@ -54,3 +66,7 @@ tenants:
     retrieval:
       search: hybrid
       rewrite: true
+    cache:
+      enabled: false
+      threshold: 0.94
+      ttl_days: 7

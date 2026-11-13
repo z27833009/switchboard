@@ -1,10 +1,11 @@
 """Cache contract: the registered no-cache adapter.
 
-Only one cache adapter exists until T2.18 adds the Postgres semantic cache, so
-this module pins the ``NoCache`` behaviour the orchestrators rely on while
-caching is off: every lookup misses, a store changes nothing and invalidation
-reports zero removed entries. The same cases will run against the Postgres
-adapter with its own expectations in T2.18.
+``NoCache`` remains the no-op implementation and the second registered
+``Cache`` adapter. This module pins the behaviour the orchestrators rely on
+while caching is off: every lookup misses, a store changes nothing, invalidation
+reports zero removed entries and ``key_for`` never pays for an embedding. The
+Postgres adapter has its own unit and integration tests in ``tests/unit/test_cache.py``
+and ``tests/integration/test_cache_integration.py``.
 """
 
 from __future__ import annotations
@@ -16,6 +17,8 @@ from switchboard.core.models import (
     AgentResult,
     CachedAnswer,
     CacheKey,
+    RunContext,
+    TenantContext,
     Usage,
 )
 from switchboard.core.ports import Cache
@@ -46,9 +49,28 @@ def cache() -> Cache:
     return NoCache()
 
 
-def test_the_registry_exposes_the_no_cache_adapter() -> None:
-    assert Registry().names(CACHES) == ["none"]
+def test_the_registry_exposes_both_cache_adapters() -> None:
+    assert Registry().names(CACHES) == ["none", "pg_semantic"]
     assert Registry().load(CACHES, "none") is NoCache
+
+
+async def test_key_for_does_not_embed_the_query(cache: Cache) -> None:
+    ctx = RunContext(
+        run_id="run-1",
+        tenant=TenantContext(
+            tenant_id="default",
+            allowed_agents={"docs"},
+            allowed_tools=set(),
+            provider="fake",
+        ),
+        run_token="unused",
+        trace_parent="00-" + "a" * 32 + "-" + "b" * 16 + "-01",
+    )
+    built = await cache.key_for(ctx, "  What is the RETURN   window?  ")
+    assert built.tenant_id == "default"
+    assert built.normalized_query == "what is the return window?"
+    assert built.embedding == []
+    assert built.index_version == 0
 
 
 async def test_every_lookup_misses(cache: Cache) -> None:

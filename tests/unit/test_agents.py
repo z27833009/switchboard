@@ -87,8 +87,15 @@ class FakeRetriever:
         self.calls = 0
 
     async def retrieve(
-        self, query: str, ctx: RunContext, k: int = 5, *, round: int = 1
+        self,
+        query: str,
+        ctx: RunContext,
+        k: int = 5,
+        *,
+        round: int = 1,
+        embedding: list[float] | None = None,
     ) -> list[RetrievedChunk]:
+        del embedding
         self.calls += 1
         return self.chunks[:k]
 

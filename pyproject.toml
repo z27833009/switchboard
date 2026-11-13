@@ -52,6 +52,7 @@ pgvector = "switchboard.adapters.retrievers.pgvector:PgVectorRetriever"
 
 [project.entry-points."switchboard.caches"]
 none = "switchboard.adapters.cache.none:NoCache"
+pg_semantic = "switchboard.adapters.cache.pg_semantic:PgSemanticCache"
 
 [project.entry-points."switchboard.agents"]
 direct = "switchboard.agents.direct:DirectAgent"
@@ -69,6 +70,7 @@ toolcall = "switchboard.eval.suites.toolcall:ToolCallSuite"
 gate = "switchboard.eval.suites.gate:GateSuite"
 rag = "switchboard.eval.suites.rag:RagSuite"
 injection = "switchboard.eval.suites.injection:InjectionSuite"
+cache = "switchboard.eval.suites.cache:CacheSuite"
 
 [dependency-groups]
 dev = [

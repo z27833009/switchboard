@@ -44,6 +44,7 @@ SUITE_VERSIONS = {
     "gate": "v2",
     "rag": "v3",
     "injection": "v4",
+    "cache": "v5",
 }
 
 DATABASE_URL = os.environ.get("SWITCHBOARD_DATABASE_URL", "")
@@ -134,7 +135,7 @@ async def test_execute_and_score_are_the_same_loop_without_io(contract: SuiteCon
     assert score.metrics
     if contract.name in {"routing", "toolcall"}:
         assert score.passed is True
-    if contract.name in {"gate", "injection"}:
+    if contract.name in {"gate", "injection", "cache"}:
         # Deterministic suites never call the model.
         assert provider.requests == []
 
