@@ -1,6 +1,6 @@
 # ADR 0013: Quality gate with deterministic checks first and one corrective action
 
-Status: proposed, 2026-11-12 (v1 feature). Replaces the LLM-scored gate of design 0.1.
+Status: accepted, 2026-11-13. Proposed 2026-11-12 (v1 feature), replacing the LLM-scored gate of design 0.1. Layer 1 ships and is measured on 30 cases in `evals/reports/gate-mock.md`; layer 2, the LLM judge, is v2 and is not built.
 
 ## Context
 

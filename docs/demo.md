@@ -1,6 +1,6 @@
 # Five minute demo
 
-This script shows the Phase 1 loop end to end: a traced routing decision, a document citation, a tool citation with its audit row, a merged plan, the measured evaluation reports, and the three edits that add a tool. Everything runs locally: Docker Desktop on the host, LM Studio on the host, no cloud account.
+This script shows Phase 1 and v1 end to end: a traced routing decision, a document citation, a tool citation with its audit row, a merged plan, the measured evaluation reports, and the three edits that add a tool. v1 adds the quality gate, sessions and clarification, feedback, the audit API, the provider and orchestrator comparison, and the trace timeline; the evaluation section lists those artifacts. Everything runs locally: Docker Desktop on the host, LM Studio on the host, no cloud account.
 
 The timings below assume the stack is already up, both models are loaded and the data is loaded. Setup is in the [README quick start](../README.md#quick-start). The demo works with the 1000-order sample, but the full Olist download gives realistic counts and is what the screenshots in a live demo should use.
 
@@ -21,7 +21,7 @@ The timings below assume the stack is already up, both models are loaded and the
 4. Open these tabs or windows:
    - Chat: http://localhost:8080/#/chat
    - Run list: http://localhost:8080/#/runs
-   - Reports: `evals/reports/routing-lmstudio.md` and `evals/reports/toolcall-lmstudio.md`
+   - Reports: `evals/reports/routing-lmstudio.md`, `evals/reports/toolcall-lmstudio.md` and `evals/reports/compare.md`
    - A terminal at the repository root for the health and audit commands
 5. Keep the tenant selector on `default`.
 
@@ -35,7 +35,7 @@ curl -s http://localhost:8000/health
 
 Expected: `"status":"ok"` with `ok` for `postgres`, `mcp_olist` and `lmstudio`. The endpoint returns 503 when a dependency is down and names it. Mention that the same report is available through the web proxy at http://localhost:8080/api/health, which is the path a browser deployment uses.
 
-Optional, if there is time: open http://localhost:8000/docs and show the five routes (`/chat`, `/chat/stream`, `/runs`, `/runs/{id}/trace`, `/health`).
+Optional, if there is time: open http://localhost:8000/docs and show the chat, stream, runs, trace, audit, feedback and health routes in one list.
 
 ## 0:30 Document question (45 s)
 
@@ -71,7 +71,7 @@ docker compose exec -T postgres psql -U switchboard -d switchboard \
   -c "SELECT tool_name, tool_version, args_redacted, status, duration_ms, created_at FROM public.tool_audit ORDER BY created_at DESC LIMIT 1;"
 ```
 
-Expected: one `orders_late` row, version `1`, the three arguments, status `ok` and a duration in milliseconds. This is the row a later audit API (v1) will read.
+Expected: one `orders_late` row, version `1`, the three arguments, status `ok` and a duration in milliseconds. The audit API reads the same row: `curl 'http://localhost:8000/audit?tenant_id=default&limit=1'`.
 
 If the model puts `[t1]` before the number instead of after it, click the chip anyway: the citation is what links the claim to the tool result.
 
@@ -83,7 +83,7 @@ Ask:
 
 Click **Send**. Expected plan: `data+docs`. Two `agent.started` steps appear close together. In the trace, `agent.data` and `agent.docs` overlap in time, as do their `chat qwen3-8b` spans. The merged answer has a `data:` section and a `docs:` section. The docs section carries a `[d1]` citation to `data/documents/late-delivery-compensation.md` (at least three calendar days late, order not canceled, account in good standing, request within 60 calendar days).
 
-Say what is measured: the routing report shows 10 of 10 `data+docs` test cases predicted correctly after the T1.17a prompt change, so mixed plans are no longer the weak part of the local router (plan accuracy 0.9231 overall). The remaining errors are one `data` case predicted as `data+docs`, one `docs` case predicted as `data`, and one `direct` case whose plan failed validation because `direct` was combined with another agent. Run the wording above live and show what the trace reports.
+Say what is measured: the routing report shows 10 of 10 `data+docs` test cases predicted correctly after the T1.17a prompt change, so mixed plans are no longer the weak part of the local router (plan accuracy 0.9231 overall). The remaining errors are one `data` case predicted as `data+docs`, one `docs` case predicted as `direct`, and one `direct` case whose plan failed validation because `direct` was combined with another agent. Run the wording above live and show what the trace reports.
 
 The data section may repeat numbers without its own `[t1]` marker. The tool span is still in the trace, and the docs citation is the one returned in the merged answer. Do not claim both kinds of citation if the merge only returned one.
 
@@ -103,9 +103,11 @@ Routing: 39 of 39 test cases, plan accuracy 0.9231, Jaccard 0.9359, unambiguous 
 
 Tool call: 40 of 40 cases, tool name, argument and both accuracy 0.9500, 0.95 calls per case, no redundant calls. Latency is one model call per case, p50 4466.0 ms and p95 5551.7 ms for routing, p50 3407.5 ms and p95 3747.8 ms for tool call.
 
-Say which numbers are measured and which are targets: both reports were measured on LM Studio 1.2.0 with qwen3-8b, dataset v1, no limit, on 2026-11-12. The routing report scored the 39 test cases from its test split; the toolcall report scored all 40 cases. The 0.75 routing target and the 0.60 tool-call target are targets in the requirements. Cost is null in the reports because local models have no API cost and the price table arrives in v1.
+Say which numbers are measured and which are targets: both reports were measured on LM Studio 1.2.0 with qwen3-8b, dataset v1, no limit, on 2026-11-12. The routing report scored the 39 test cases from its test split; the toolcall report scored all 40 cases. The 0.75 routing target and the 0.60 tool-call target are targets in the requirements. The routing and tool call reports predate the price table, so their cost is null; `config/prices.yaml` records an explicit zero row for LM Studio, and the newer agent-loop reports record 0.0 with "no API cost". No paid-provider cost is claimed.
 
 Then point at the CI badge in the README: the gate runs the mock provider, which replays recorded model output, so it measures the pipeline (parsing, plan validation, tool normalization, scoring), not the model. A prompt change changes the fixture key and forces a re-record. See `docs/adr/0008-evaluation-strategy.md`.
+
+v1 artifacts at the same stop: `evals/reports/compare.md` puts the plan graph and the agent loop side by side for the six measured LM Studio combinations; `evals/reports/gate-mock.md` and `evals/reports/injection-mock.md` are deterministic reports with no model call; `GET /audit?tenant_id=default` reads the audit rows; the chat page keeps a session id so "And in April?" follows the March question; the thumbs under an answer feed `switchboard eval harvest`. The trace page also offers a timeline and a plan graph view.
 
 ## 4:15 Add a tool (45 s)
 

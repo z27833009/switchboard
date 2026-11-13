@@ -1,6 +1,6 @@
 # ADR 0012: Bounded tool output and a layered context policy
 
-Status: proposed, 2026-11-12
+Status: accepted, 2026-11-13. Proposed 2026-11-12. Layers 1 to 4 ship: aggregates first, a bounded `ToolResultView` with `result_page@1`, per-agent context, and `ClearOldestToolResults`. Layer 5, model summarization, stays deliberately not implemented.
 
 ## Context
 

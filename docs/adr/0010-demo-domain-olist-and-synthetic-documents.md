@@ -1,6 +1,6 @@
 # ADR 0010: Demo domain: Olist dataset plus synthetic policy documents
 
-Status: proposed, 2026-11-11
+Status: accepted, 2026-11-13. Proposed 2026-11-11. The Olist loader, the 1000-order sample, the seller-based tenants and the five synthetic policy documents ship and are used by the demo and the suites.
 
 ## Context
 

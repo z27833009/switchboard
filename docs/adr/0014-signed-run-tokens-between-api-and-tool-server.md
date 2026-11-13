@@ -1,6 +1,6 @@
 # ADR 0014: Signed run tokens between the API and the tool server
 
-Status: proposed, 2026-11-12. Amends ADR 0005.
+Status: accepted, 2026-11-13. Proposed 2026-11-12. Amends ADR 0005. HS256 run tokens, server-side tenant resolution, and rejection plus audit of missing, forged and expired tokens ship with tests.
 
 ## Context
 

@@ -1,6 +1,6 @@
 # ADR 0007: Semantic cache before routing, scoped by tenant and index version, with measured false-hit rate
 
-Status: proposed, 2026-11-11 (v1 feature). Amended 2026-11-12: lookup moved before the supervisor, route removed from the key. The file name keeps its original slug so links stay stable.
+Status: proposed, 2026-11-11 (v1 feature). Amended 2026-11-12: lookup moved before the supervisor, route removed from the key. The file name keeps its original slug so links stay stable. Not implemented as of 2026-11-13: the only `Cache` adapter is `NoCache` (T2.15), there is no `cache` dataset or threshold report, and T2.18 has not started, so AC-10a to AC-10d are unproven.
 
 ## Context
 

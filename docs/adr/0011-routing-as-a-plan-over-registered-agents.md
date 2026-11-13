@@ -1,6 +1,6 @@
 # ADR 0011: Routing as a plan over registered agents
 
-Status: proposed, 2026-11-12. Supersedes the `Route` enum in design 0.1.
+Status: accepted, 2026-11-13. Proposed 2026-11-12. Supersedes the `Route` enum in design 0.1. The plan, the registry-generated prompt and schema, `Send` fan-out, validation with one repair, the fallback plan and re-plan after a gate failure ship; `ClarifyAgent` is the one-class, one-entry-point proof (AC-23c).
 
 ## Context
 

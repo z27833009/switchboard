@@ -1,6 +1,6 @@
 # ADR 0002: LangGraph behind an orchestrator port, with an agent loop as the second adapter
 
-Status: proposed, 2026-11-11. Amended 2026-11-12: the second adapter is an agent loop, not a sequential orchestrator.
+Status: accepted, 2026-11-13. Proposed 2026-11-11, amended 2026-11-12 (the second adapter is an agent loop, not a sequential orchestrator). Both adapters ship: the LangGraph plan graph stays the default in `platform.yaml`, and the agent loop is the measured control group (routing plan accuracy 0.9231 against 0.6410, tool call both accuracy 0.9500 against 0.9250). The optional `langgraph-visualizer` integration (T2.16) was cancelled by the author on 2026-11-12 and is not built.
 
 ## Context
 

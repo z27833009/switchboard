@@ -1,6 +1,6 @@
 # ADR 0001: Modular monolith with ports and adapters
 
-Status: proposed, 2026-11-11
+Status: accepted, 2026-11-13. Proposed 2026-11-11. Phase 1 and every shipped v1 task use this structure: the `core` import contract runs in CI, and the second provider, second orchestrator, hybrid retriever and `NoCache` adapter were added without a core change.
 
 ## Context
 

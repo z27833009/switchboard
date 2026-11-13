@@ -1,6 +1,6 @@
 # ADR 0008: Evaluation strategy: versioned datasets, mock provider in CI, honest reporting
 
-Status: proposed, 2026-11-11. Amended 2026-11-12: fixture keys and loud misses, what the CI gate measures, plan labels, feedback harvest, orchestrator as a report dimension.
+Status: accepted, 2026-11-13. Proposed 2026-11-11, amended 2026-11-12 (fixture keys and loud misses, what the CI gate measures, plan labels, feedback harvest, orchestrator as a report dimension). The mock CI gate, datasets v1 to v4, committed reports and the comparison report ship.
 
 ## Context
 

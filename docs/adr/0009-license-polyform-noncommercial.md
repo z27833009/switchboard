@@ -1,6 +1,6 @@
 # ADR 0009: License: PolyForm Noncommercial 1.0.0
 
-Status: proposed, 2026-11-11
+Status: accepted, 2026-11-13. Proposed 2026-11-11. `LICENSE` carries PolyForm Noncommercial 1.0.0, and the README describes the project as source-available, not open source.
 
 ## Context
 

@@ -1,6 +1,6 @@
 # ADR 0005: MCP tool server in Python with read-only parameterized tools
 
-Status: proposed, 2026-11-11. Amended 2026-11-12: tenant identity comes from a signed run token (ADR 0014); no sandbox needed.
+Status: accepted, 2026-11-13. Proposed 2026-11-11, amended 2026-11-12 (tenant identity comes from a signed run token, ADR 0014; no sandbox needed). The five manifest tools, read-only transactions, statement timeout, row cap, server-side allowlist and mandatory audit row ship with unit and integration tests.
 
 ## Context
 

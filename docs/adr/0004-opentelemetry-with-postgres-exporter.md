@@ -1,6 +1,6 @@
 # ADR 0004: OpenTelemetry API with a PostgreSQL exporter
 
-Status: proposed, 2026-11-11. Amended 2026-11-12: read-after-run consistency and step events. Amended 2026-11-13: the v1 OTLP exporter and Jaeger profile are built.
+Status: accepted, 2026-11-13. Proposed 2026-11-11, amended 2026-11-12 (read-after-run consistency and step events) and 2026-11-13 (the v1 OTLP exporter and Jaeger profile are built). PostgreSQL stays the default exporter; OTLP is a switch (T2.13).
 
 ## Context
 

@@ -1,6 +1,6 @@
 # Switchboard
 
-**A source-available multi-agent platform where every routing decision is traced, every tool call is read-only and audited, and every number on the README was measured.**
+**A source-available multi-agent platform where every routing decision is traced, every tool call is read-only and audited, and every measured number links to a committed report.**
 
 Switchboard takes a user question, lets a supervisor decide whether to answer directly, search documents, query a business database through MCP tools, or do several of these in parallel, and then shows you exactly what happened and what it cost. Adding a new agent, tool, model provider, retriever, cache strategy or evaluation suite means implementing one interface and registering it, not changing core code.
 
@@ -8,18 +8,21 @@ Switchboard takes a user question, lets a supervisor decide whether to answer di
 
 The badge reports the CI gate. That gate replays recorded model output with the mock provider, so it measures the pipeline (parsing, plan validation, tool normalization, scoring), not the model. See [ADR 0008](docs/adr/0008-evaluation-strategy.md).
 
-> Status: **Phase 1 complete** (T1.01 to T1.18). The evaluation harness has measured reports on LM Studio. Every metric in the docs is a target until a report backs it, and the status column in the requirements links the measured ones.
+> Status: **Phase 1 complete, and v1 is built through T2.15.** T2.01 to T2.15 are merged. T2.16 (optional `langgraph-visualizer` integration) was cancelled by the author on 2026-11-12, and T2.18 (semantic cache) is not implemented. T2.12's comparison tool and all six LM Studio rows are committed; the six DeepSeek rows are `not run` because no `DEEPSEEK_API_KEY` is available. Every metric in the docs is a target until a report backs it.
 
 ## Measured results
 
-Dataset v1, qwen3-8b on LM Studio, full default split with no limit, run on 2026-11-12. The routing suite scored 39 of 39 test cases and the toolcall suite 40 of 40 cases.
+All model rows were measured on LM Studio 1.2.0 with qwen3-8b at context 8192 and one parallel slot, on the dates in each report. Routing scores the 39 test cases of dataset v1, tool call all 40 v1 cases, and retrieval the 40 test cases of v3; the gate and injection suites are deterministic and make no model call.
 
-| Suite | Result | Latency |
-| --- | --- | --- |
-| Routing (plan graph) | Plan accuracy 0.9231, above the 0.75 local target (Jaccard 0.9359, ambiguous cases 0.6000) | p50 4466.0 ms, p95 5551.7 ms |
-| Tool call | Tool name and argument accuracy both 0.9500, above the 0.60 local target; 0.95 calls per case, no redundant calls | p50 3407.5 ms, p95 3747.8 ms |
+| Suite | Result | Latency | Report |
+| --- | --- | --- | --- |
+| Routing (plan graph) | Plan accuracy 0.9231, Jaccard 0.9359, unambiguous 0.9706, ambiguous 0.6000, 39 of 39 test cases; above the 0.75 local target | p50 4466.0 ms, p95 5551.7 ms | [routing-lmstudio.md](evals/reports/routing-lmstudio.md) |
+| Tool call | Tool name and argument accuracy both 0.9500, 0.95 calls per case, no redundant calls; above the 0.60 local target | p50 3407.5 ms, p95 3747.8 ms | [toolcall-lmstudio.md](evals/reports/toolcall-lmstudio.md) |
+| Retrieval (rag suite) | Conditional hybrid recall@5 1.0000, MRR 0.8521; query as written 1.0000 and 0.8250; always rewrite 0.9750 and 0.8521; 40 of 40 v3 cases | p50 606.0 ms, p95 1218.8 ms per retrieval case | [rag-lmstudio.md](evals/reports/rag-lmstudio.md) |
+| Quality gate (deterministic, 30 cases v2) | `numbers_grounded` precision 0.9000, recall 1.0000; citations, evidence and merge checks 1.0000/1.0000; case accuracy 0.9667 | no model call | [gate-mock.md](evals/reports/gate-mock.md) |
+| Injection (deterministic, 40 cases v4) | Detection rate 1.0000, false positive rate 0.1000, precision 0.9091 | no model call | [injection-mock.md](evals/reports/injection-mock.md) |
 
-Reports: [routing](evals/reports/routing-lmstudio.md), [tool call](evals/reports/toolcall-lmstudio.md). Latency is one model call per case, not an end-to-end run. The LM Studio runs have no API cost: `config/prices.yaml` records zero for the local provider, and a new run or report computes its USD cost from that table, including cached input tokens at the cached rate. The committed reports predate the price table and keep a null cost rather than a backfilled number. The mock reports under [evals/reports/](evals/reports/) replay recorded model output, so the CI gate measures the pipeline, not the model.
+Latency is one model call per case for routing and tool call, not an end-to-end run; retrieval latency is the per-case wall time of one strategy. The LM Studio runs have no API cost: `config/prices.yaml` records a zero row for the local provider, so a new run or report computes USD 0.0 and labels it "no API cost". The routing and tool call reports predate the price table and keep a null cost rather than a backfilled number; the newer agent-loop reports record 0.0. The mock reports under [evals/reports/](evals/reports/) replay recorded model output, so the CI gate measures the pipeline, not the model.
 
 ## Provider and orchestrator comparison
 
@@ -29,7 +32,7 @@ Reports: [routing](evals/reports/routing-lmstudio.md), [tool call](evals/reports
 uv run switchboard eval compare --not-run-reason "deepseek=DEEPSEEK_API_KEY missing"
 ```
 
-Measured on LM Studio 1.2.0 with qwen3-8b on 2026-11-13, full test split of dataset v1 (routing, toolcall) and v3 (rag). These rows have no API cost.
+The six LM Studio rows were measured on 2026-11-12 (langgraph) and 2026-11-13 (agent loop) with qwen3-8b, on dataset v1 (routing test split, toolcall all cases) and v3 (rag test split). The comparison covers 6 of the 12 provider and orchestrator combinations: every LM Studio row is measured, and every DeepSeek row is `not run: DEEPSEEK_API_KEY missing`. These rows have no API cost.
 
 | Suite | Orchestrator | Score | p50 / p95 | Tokens per 100 queries |
 | --- | --- | --- | --- | --- |
@@ -187,7 +190,7 @@ Invoke-RestMethod -Uri http://localhost:8000/chat -Method Post `
   -Body '{"query":"What is the return window for electronics?","tenant_id":"default"}'
 ```
 
-The first request after loading the model can be slow while LM Studio loads it; the first measured routing run had p95 68.27 s from the one-time load. Later model calls in the committed reports took about 2.4 to 3.4 s.
+The first request after loading the model can be slow while LM Studio loads it; the first measured routing run had p95 68.27 s from the one-time load. Later model calls in the committed reports took about 3.4 to 4.5 s (tool call p50 3407.5 ms, routing p50 4466.0 ms).
 
 Rate an answer with the thumbs up or down under the answer, or on the run page, with an optional note. Ratings are stored per tenant and append-only. `uv run --env-file .env switchboard eval harvest --since 2026-11-01` writes the negatively rated runs of that date onward to `evals/candidates/` as unlabeled cases; [evals/candidates/README.md](evals/candidates/README.md) states the format. The command never edits a frozen dataset.
 
@@ -229,6 +232,7 @@ Most "agent platform" demos hide three things: how the router decided, how often
 | Document | Purpose |
 | --- | --- |
 | [docs/demo.md](docs/demo.md) | Five minute demo script and the "add a tool in three steps" walkthrough |
+| [docs/interview-notes.md](docs/interview-notes.md) | Five minute interview walkthrough of the decisions, with measured numbers and known limitations |
 | [docs/spec/requirements.md](docs/spec/requirements.md) | Goals, non-goals, user stories with acceptance criteria, quality metrics with targets |
 | [docs/spec/design.md](docs/spec/design.md) | Architecture, ports and adapters, diagrams, data model, error handling, evaluation design |
 | [docs/spec/tasks.md](docs/spec/tasks.md) | Phased roadmap: Phase 1 (smallest impressive demo), v1, v2 |
@@ -241,7 +245,7 @@ Python 3.12 with uv, FastAPI, LangGraph (as one orchestrator adapter), MCP (Fast
 
 ## Continuous integration
 
-CI runs lint, type checks, unit and contract tests, the integration tests against a PostgreSQL 16 service and a locally started Olist MCP server, and the routing, toolcall and gate eval suites on the `mock` provider. The routing and toolcall suites replay recorded model output, so the eval gate measures the pipeline (parsing, plan validation, tool normalization, scoring), not the model. The gate suite makes no model call at all: it runs the deterministic checks over the 30 labeled cases in dataset v2 and reports per-check precision and recall. A prompt change alters the fixture keys, which forces a re-record against a real model and produces a new report. The regression gate compares against the committed files in [evals/baselines/](evals/baselines/) and fails on a drop larger than 0.05; baselines are updated by committing a new file. See [ADR 0008](docs/adr/0008-evaluation-strategy.md).
+CI runs lint, type checks, unit and contract tests, the integration tests against a PostgreSQL 16 service and a locally started Olist MCP server, and the routing, toolcall and gate eval suites on the `mock` provider. The routing and toolcall suites replay recorded model output, so the eval gate measures the pipeline (parsing, plan validation, tool normalization, scoring), not the model. The gate suite makes no model call at all: it runs the deterministic checks over the 30 labeled cases in dataset v2 and reports per-check precision and recall. The rag and injection suites are not part of the CI gate: rag needs the database and the embedding model, and injection is measured by its own committed report. A prompt change alters the fixture keys, which forces a re-record against a real model and produces a new report. The regression gate compares against the committed files in [evals/baselines/](evals/baselines/) and fails on a drop larger than 0.05; baselines are updated by committing a new file. See [ADR 0008](docs/adr/0008-evaluation-strategy.md).
 
 ## License
 
