@@ -4,6 +4,7 @@ import { errorMessage, getJson, isAbortError } from "../api";
 import type { RunSummary } from "../api";
 import { CitationChips, ErrorList, StatusBadge, Tag } from "../components/Badges";
 import { FeedbackForm } from "../components/Feedback";
+import { Markdown } from "../components/Markdown";
 import { TENANTS } from "../config";
 import {
   formatCostDetail,
@@ -93,7 +94,9 @@ export function RunDetailPage({
           <section className="surface">
             <h2 className="surface-title">Answer</h2>
             {run.answer !== null && run.answer !== "" ? (
-              <p className="turn-text turn-answer">{run.answer}</p>
+              <div className="turn-answer">
+                <Markdown text={run.answer} />
+              </div>
             ) : (
               <p className="muted">The run has no stored answer.</p>
             )}

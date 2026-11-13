@@ -1272,6 +1272,64 @@ textarea {
   line-height: 1.6;
 }
 
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown p {
+  margin: 0 0 10px;
+}
+
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: 14px 0 6px;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.markdown ul,
+.markdown ol {
+  margin: 4px 0 10px;
+  padding-left: 1.35em;
+}
+
+.markdown li {
+  margin: 2px 0;
+}
+
+.markdown code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--bg-sidebar);
+  font-family: var(--mono);
+  font-size: 0.86em;
+}
+
+.markdown pre {
+  margin: 4px 0 10px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sidebar);
+  white-space: pre;
+}
+
+.markdown pre code {
+  padding: 0;
+  background: none;
+}
+
+.markdown a {
+  color: var(--accent);
+  text-underline-offset: 2px;
+}
+
 .clarify-question {
   margin: 4px 0 8px;
   font-size: 16px;

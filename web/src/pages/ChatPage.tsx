@@ -13,9 +13,10 @@ import {
 } from "../api";
 import type { ChatResponse, RunSummary, RunsResponse, StepEvent } from "../api";
 import { CitationChips, ErrorList, StatusBadge, Tag, statusTone } from "../components/Badges";
-import { FeedbackForm } from "../components/Feedback";
 import { AlertIcon, ClockIcon } from "../components/Icons";
+import { Markdown } from "../components/Markdown";
 import { formatCostDetail, formatDuration, formatLatency, formatTokens } from "../format";
+import { runHref, traceHref } from "../routes";
 import { newSessionId } from "../session";
 
 function stepSummary(step: StepEvent): string {
@@ -305,7 +306,9 @@ function TurnArticle({
             </p>
           </>
         ) : answerText !== "" ? (
-          <p className="turn-text turn-answer">{answerText}</p>
+          <div className="turn-answer">
+            <Markdown text={answerText} />
+          </div>
         ) : turn.streaming ? (
           <p className="muted">Waiting for the first token...</p>
         ) : (
@@ -358,31 +361,14 @@ function TurnArticle({
           <>
             <p className="turn-meta">
               run{" "}
-              <a
-                href={`#/runs/${encodeURIComponent(result.run_id)}?tenant=${encodeURIComponent(
-                  result.tenant_id,
-                )}`}
-                title={result.run_id}
-              >
+              <a href={runHref(result.run_id, result.tenant_id, result.session_id)} title={result.run_id}>
                 <code>{result.run_id.slice(0, 8)}</code>
               </a>{" "}
               · {formatTokens(result.usage.input_tokens)} in /{" "}
               {formatTokens(result.usage.output_tokens)} out ·{" "}
               {formatCostDetail(result.cost_usd)} ·{" "}
-              <a
-                href={`#/runs/${encodeURIComponent(result.run_id)}/trace?tenant=${encodeURIComponent(
-                  result.tenant_id,
-                )}`}
-              >
-                open trace
-              </a>
+              <a href={traceHref(result.run_id, result.tenant_id, result.session_id)}>open trace</a>
             </p>
-            <FeedbackForm
-              key={result.run_id}
-              runId={result.run_id}
-              tenantId={result.tenant_id}
-              latest={null}
-            />
           </>
         ) : null}
       </article>
