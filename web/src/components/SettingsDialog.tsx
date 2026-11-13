@@ -96,6 +96,12 @@ function SectionBody({ section, data }: { section: SectionKey; data: SettingsRes
         <Value label="orchestrator">
           <code>{platform.orchestrator}</code>
         </Value>
+        <Value label="available orchestrators">
+          <Chips
+            values={data.available_orchestrators}
+            empty="no orchestrator was built for this provider"
+          />
+        </Value>
         <Value label="retriever">
           <code>{platform.retriever}</code>
         </Value>

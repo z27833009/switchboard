@@ -316,6 +316,9 @@ class ChatRequest(BaseModel):
     tenant_id: str = Field(min_length=1)
     session_id: str | None = None
     history: list[Turn] = Field(default_factory=list)
+    # Run this request on a registered orchestrator by name instead of the
+    # platform default (T3.07). None keeps the default path unchanged.
+    orchestrator: str | None = Field(default=None, min_length=1)
 
 
 class ErrorRecord(BaseModel):

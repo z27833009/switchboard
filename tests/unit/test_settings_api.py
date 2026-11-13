@@ -303,6 +303,10 @@ async def test_known_tenant_returns_the_expected_shape(
         },
     }
     assert body["tenants"] == ["default", "seller_a"]
+    # Without an explicit availability map the snapshot names the platform
+    # orchestrator and nothing else, so it never claims a target it did not
+    # build (T3.07).
+    assert body["available_orchestrators"] == ["langgraph"]
 
     tools = {tool["wire_name"]: tool for tool in body["tools"]}
     assert set(tools) == {

@@ -457,6 +457,10 @@ class SettingsResponse(BaseModel):
     tools: list[SettingsTool] = Field(default_factory=list)
     agents: list[SettingsAgent] = Field(default_factory=list)
     tenants: list[str] = Field(default_factory=list)
+    # Orchestrator names this process can run for the tenant's provider, for
+    # the trace page's replay selector (T3.07). The platform default is always
+    # present; a replay target appears only when it was built at startup.
+    available_orchestrators: list[str] = Field(default_factory=list)
 
 
 __all__ = [

@@ -353,8 +353,13 @@ class FakeOrchestrator:
         publisher: StepEventPublisher | None = None,
         answer_deltas: tuple[str, ...] = (),
         answer_text: str | None = None,
+        name: str | None = None,
     ) -> None:
         self._tracer = tracer
+        if name is not None:
+            # A second fake for replay tests records the name the API must store
+            # on the run row (T3.07).
+            self.name = name
         self._agents = agents
         self._status = status
         self._tool_name = tool_name
@@ -506,12 +511,14 @@ def build_harness(
     sensitive_args: Mapping[str, Sequence[str]] | None = None,
     history_turns: int = 3,
     settings_snapshot: Mapping[str, Mapping[str, Any]] | None = None,
+    replay_orchestrators: Mapping[tuple[str, str], Any] | None = None,
 ) -> AppHarness:
     """Build an app with fakes and a client bound to it (no lifespan, no IO)."""
     deps = AppDeps(
         store=store,
         audit=store,
         orchestrators={"lmstudio": orchestrator},
+        replay_orchestrators=dict(replay_orchestrators or {}),
         tenants=tenants,
         run_token_secret=SECRET,
         run_timeout_s=30.0,

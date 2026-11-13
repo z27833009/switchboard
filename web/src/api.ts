@@ -252,6 +252,9 @@ export interface SettingsResponse {
   tools: SettingsTool[];
   agents: SettingsAgent[];
   tenants: string[];
+  // Orchestrator names this process can run for the tenant's provider (the
+  // platform default plus any replay target built at startup, T3.07).
+  available_orchestrators: string[];
 }
 
 export type HealthState = "ok" | "error" | "unknown";

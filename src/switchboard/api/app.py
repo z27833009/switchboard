@@ -96,6 +96,22 @@ def _tenant(deps: AppDeps, tenant_id: str) -> TenantContext:
         raise HTTPException(status_code=404, detail=f"unknown tenant {tenant_id!r}") from exc
 
 
+def _check_orchestrator(deps: AppDeps, tenant: TenantContext, name: str | None) -> None:
+    """Reject an unknown replay target before a run row exists (T3.07).
+
+    ``name=None`` is the default path and is not validated here, exactly as
+    before this task. A named orchestrator must be one the process built for the
+    tenant's provider, otherwise the request is a 400 rather than a 500 or a
+    run that never had a chance.
+    """
+    if name is None:
+        return
+    try:
+        deps.orchestrator_for(tenant.provider, name)
+    except ConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 def _run_context(
     deps: AppDeps, tenant: TenantContext, run_id: str, trace_parent: str
 ) -> RunContext:
@@ -162,7 +178,7 @@ async def execute_run(
     trace_parent: str,
 ) -> tuple[RunResult, bool]:
     """One run: run row, orchestrator, flush, final row (design 5 and 12.2)."""
-    orchestrator = deps.orchestrator_for(tenant.provider)
+    orchestrator = deps.orchestrator_for(tenant.provider, request.orchestrator)
     context = _run_context(deps, tenant, run_id, trace_parent)
     # Loaded before the new run row exists, so the current query is not part of
     # its own history.
@@ -256,6 +272,7 @@ async def chat(request: Request, payload: ChatRequest) -> ChatResponse:
     """Run one request and return the final payload (AC-01a)."""
     deps = _deps(request.app)
     tenant = _tenant(deps, payload.tenant_id)
+    _check_orchestrator(deps, tenant, payload.orchestrator)
     run_id = str(uuid.uuid4())
     try:
         result, flushed = await execute_run(
@@ -280,6 +297,7 @@ async def chat_stream(request: Request, payload: ChatRequest) -> StreamingRespon
     """Stream the run's steps as server-sent events (AC-22a, design 12.5)."""
     deps = _deps(request.app)
     tenant = _tenant(deps, payload.tenant_id)
+    _check_orchestrator(deps, tenant, payload.orchestrator)
     run_id = str(uuid.uuid4())
     queue = deps.publisher.register(run_id)
     task = asyncio.create_task(

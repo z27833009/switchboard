@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 
-import { errorMessage, getJson, isAbortError } from "../api";
-import type { RunSummary, SpanEvent, TraceResponse, TraceSpan } from "../api";
+import { errorMessage, getJson, isAbortError, postJson } from "../api";
+import type { ChatResponse, RunSummary, SettingsResponse, SpanEvent, TraceResponse, TraceSpan } from "../api";
 import { StatusBadge } from "../components/Badges";
 import { ChevronDownIcon } from "../components/Icons";
 import { TENANTS } from "../config";
 import { formatDateTime, formatDuration, formatTokens, formatValue } from "../format";
-import { runHref, tabHref } from "../routes";
+import { runHref, tabHref, traceHref } from "../routes";
 import type { TraceView } from "../routes";
 import {
   ancestorsOf,
@@ -464,6 +464,144 @@ function PlanGraphView({
   );
 }
 
+function planLabelOf(result: ChatResponse): string {
+  return result.plan === null ? "no plan" : result.plan.agents.join("+");
+}
+
+function ReplayPanel({ run, tenantId }: { run: RunSummary; tenantId: string }) {
+  const [options, setOptions] = useState<string[] | null>(null);
+  const [optionsError, setOptionsError] = useState<string | null>(null);
+  const [choice, setChoice] = useState<string>("");
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ payload: ChatResponse; orchestrator: string } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setOptions(null);
+    setOptionsError(null);
+    getJson<SettingsResponse>(
+      `/settings?tenant_id=${encodeURIComponent(tenantId)}`,
+      controller.signal,
+    )
+      .then((payload) => {
+        if (!controller.signal.aborted) {
+          setOptions(payload.available_orchestrators);
+        }
+      })
+      .catch((caught) => {
+        if (!isAbortError(caught)) {
+          setOptions([]);
+          setOptionsError(errorMessage(caught));
+        }
+      });
+    return () => controller.abort();
+  }, [tenantId]);
+
+  // Default to an orchestrator other than the recorded one, since comparing
+  // two control flows is the point of the control; a user choice wins.
+  const defaultChoice = options?.find((name) => name !== run.orchestrator) ?? options?.[0] ?? "";
+  const selected = options?.includes(choice) === true ? choice : defaultChoice;
+  const canReplay = !running && options !== null && selected !== "";
+
+  async function startReplay() {
+    if (!canReplay) {
+      return;
+    }
+    const orchestrator = selected;
+    setRunning(true);
+    setError(null);
+    setResult(null);
+    try {
+      const payload = await postJson<ChatResponse>("/chat", {
+        query: run.query,
+        tenant_id: tenantId,
+        orchestrator,
+      });
+      setResult({ payload, orchestrator });
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <section className="surface">
+      <div className="surface-head">
+        <h2 className="surface-title">Replay</h2>
+      </div>
+      <p className="muted small">
+        Run the recorded query again on another registered orchestrator. This starts a new run on
+        the tenant&apos;s configured provider and leaves the run above untouched. A replay does not
+        carry the original session history.
+      </p>
+      {options === null ? <p className="muted">Loading orchestrators...</p> : null}
+      {optionsError !== null ? (
+        <div className="error-box" role="alert">
+          <strong>Could not load the replay targets</strong>
+          <p>{optionsError}</p>
+        </div>
+      ) : null}
+      {options !== null && options.length === 0 && optionsError === null ? (
+        <p className="muted">This process reports no available orchestrator for the tenant.</p>
+      ) : null}
+      {options !== null && options.length > 0 ? (
+        <div className="replay-controls">
+          <label className="field field-inline">
+            <span className="field-label">Orchestrator</span>
+            <select
+              value={selected}
+              onChange={(event) => setChoice(event.target.value)}
+              disabled={running}
+            >
+              {options.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                  {name === run.orchestrator ? " (recorded)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="button" className="button" onClick={startReplay} disabled={!canReplay}>
+            {running ? "Replaying..." : "Replay"}
+          </button>
+        </div>
+      ) : null}
+      {running ? (
+        <p className="muted" role="status">
+          A new run is running. It can take as long as the original.
+        </p>
+      ) : null}
+      {error !== null ? (
+        <div className="error-box" role="alert">
+          <strong>Replay failed</strong>
+          <p>{error}</p>
+        </div>
+      ) : null}
+      {result !== null ? (
+        <div className="replay-result" role="status">
+          <p>
+            <strong>Replay finished</strong> <StatusBadge status={result.payload.status} />{" "}
+            <a href={traceHref(result.payload.run_id, tenantId, null)}>Open trace</a>
+            <span className="dot-separator" aria-hidden="true">
+              ·
+            </span>
+            <a href={runHref(result.payload.run_id, tenantId, null)}>Run detail</a>
+          </p>
+          <p className="muted small">
+            run <code>{result.payload.run_id}</code> on <code>{result.orchestrator}</code> · plan{" "}
+            {planLabelOf(result.payload)}
+            {result.payload.trace_incomplete ? " · trace incomplete" : ""}
+          </p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export interface TracePageProps {
   runId: string;
   tenant: string | null;
@@ -637,6 +775,12 @@ export function TracePage({
             <dd>{recordedPlan ?? "-"}</dd>
           </div>
           <div className="kv">
+            <dt>orchestrator</dt>
+            <dd>
+              <code>{run.orchestrator}</code>
+            </dd>
+          </div>
+          <div className="kv">
             <dt>gate</dt>
             <dd>
               {gate.verdict === null ? (
@@ -682,6 +826,8 @@ export function TracePage({
           </div>
         </dl>
       ) : null}
+
+      {run !== null ? <ReplayPanel run={run} tenantId={tenantId} /> : null}
 
       {loading ? <p className="muted">Loading trace...</p> : null}
       {error !== null ? (

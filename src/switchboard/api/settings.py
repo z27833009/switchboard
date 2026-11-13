@@ -13,7 +13,7 @@ plain JSON (no dates, sets or models) so the route can return them unchanged.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -87,6 +87,7 @@ def _tenant_payload(
     tenant: TenantConfig,
     agent_specs: list[AgentSpec],
     tool_specs: list[ToolSpec],
+    available_orchestrators: Sequence[str] | None,
 ) -> dict[str, Any]:
     provider = settings.providers.providers[tenant.provider]
     price = settings.prices.lookup(tenant.provider, provider.model)
@@ -100,6 +101,13 @@ def _tenant_payload(
             "context_policy": settings.platform.context_policy,
             "limits": settings.platform.limits.model_dump(mode="json"),
         },
+        # The orchestrator names this process can run for the tenant's
+        # provider (the platform default plus built replay targets, T3.07).
+        "available_orchestrators": (
+            [settings.platform.orchestrator]
+            if available_orchestrators is None
+            else list(available_orchestrators)
+        ),
         "tenant": {
             "tenant_id": tenant_id,
             "provider": tenant.provider,
@@ -150,17 +158,37 @@ def _tenant_payload(
     }
 
 
-def build_settings_snapshots(settings: Settings, registry: Registry) -> dict[str, dict[str, Any]]:
+def build_settings_snapshots(
+    settings: Settings,
+    registry: Registry,
+    *,
+    available_orchestrators: Mapping[str, Sequence[str]] | None = None,
+) -> dict[str, dict[str, Any]]:
     """One JSON-safe settings payload per configured tenant, keyed by tenant id.
 
     Building every tenant up front keeps the route a dictionary lookup: the
     dialog cannot trigger file reads, registry loads or a partially built
     answer, and an injected ``AppDeps`` without a snapshot is a clean 503.
+
+    ``available_orchestrators`` is keyed by provider name and lists the
+    orchestrator names the API actually built for replay (T3.07). Without it
+    (a test that only wires the platform default), the payload names the
+    platform orchestrator and nothing else, so it never claims a target that
+    may not run.
     """
     agent_specs = load_agent_specs(registry)
     tool_specs = load_manifest_tool_specs(settings)
     return {
-        tenant_id: _tenant_payload(settings, tenant_id, tenant, agent_specs, tool_specs)
+        tenant_id: _tenant_payload(
+            settings,
+            tenant_id,
+            tenant,
+            agent_specs,
+            tool_specs,
+            None
+            if available_orchestrators is None
+            else available_orchestrators.get(tenant.provider),
+        )
         for tenant_id, tenant in sorted(settings.tenants.tenants.items())
     }
 

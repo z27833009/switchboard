@@ -13,7 +13,12 @@ from tests.fakes import MemoryRunStore, tenants_config
 from switchboard.adapters.cache.none import NoCache
 from switchboard.adapters.orchestrator.agent_loop import AgentLoopOrchestrator
 from switchboard.adapters.orchestrator.langgraph_impl import LangGraphOrchestrator
-from switchboard.api.deps import AppDeps, build_orchestrators, context_policy_for
+from switchboard.api.deps import (
+    AppDeps,
+    build_orchestrator_set,
+    build_orchestrators,
+    context_policy_for,
+)
 from switchboard.api.step_events import StepEventPublisher
 from switchboard.core.config import (
     EmbedderConfig,
@@ -32,6 +37,7 @@ from switchboard.core.config import (
 )
 from switchboard.core.context import ClearOldestToolResults
 from switchboard.core.errors import ConfigError
+from switchboard.core.ports import Orchestrator
 from switchboard.registry import (
     CACHES,
     EMBEDDERS,
@@ -87,6 +93,22 @@ class FakeOrchestratorClass:
 
     def __init__(self, **kwargs: Any) -> None:
         self.kwargs = kwargs
+
+
+class SecondOrchestratorClass:
+    name = "second"
+
+    def __init__(self, **kwargs: Any) -> None:
+        self.kwargs = kwargs
+
+
+class UnbuildableOrchestratorClass:
+    """Stands in for an optional target whose provider key is absent (T3.07)."""
+
+    name = "unbuildable"
+
+    def __init__(self, **kwargs: Any) -> None:
+        raise ConfigError("provider 'paid' needs an api_key; set the environment variable")
 
 
 def settings_for(retriever: str = "fake") -> Settings:
@@ -267,3 +289,78 @@ def test_app_deps_rejects_a_tenant_without_an_orchestrator() -> None:
     )
     with pytest.raises(ConfigError, match="no orchestrator for provider"):
         deps.orchestrator_for("lmstudio")
+
+
+def registry_with_replay() -> Registry:
+    return Registry(
+        entries=[
+            Entry(name="fake", group=PROVIDERS, value=FakeProvider),
+            Entry(name="fake", group=ORCHESTRATORS, value=FakeOrchestratorClass),
+            Entry(name="second", group=ORCHESTRATORS, value=SecondOrchestratorClass),
+            Entry(name="fake", group=RETRIEVERS, value=FakeRetriever),
+            Entry(name="fake", group=TOOL_SOURCES, value=FakeToolSource),
+            Entry(name="mock", group=EMBEDDERS, value=None),
+            Entry(name="none", group=CACHES, value=NoCache),
+        ]
+    )
+
+
+def test_every_registered_orchestrator_gets_a_replay_instance_per_provider() -> None:
+    pool = cast(asyncpg.Pool, object())
+    built = build_orchestrator_set(settings_for(), registry_with_replay(), pool)
+
+    assert set(built.default) == {"fake"}
+    assert set(built.replay) == {("fake", "second")}
+    default = cast(FakeOrchestratorClass, built.default["fake"])
+    replay = cast(SecondOrchestratorClass, built.replay[("fake", "second")])
+    # The replay target shares the provider instance, price row and the other
+    # components of the default path, so only the orchestrator class differs.
+    assert replay.kwargs["provider"] is default.kwargs["provider"]
+    assert replay.kwargs["price"] is default.kwargs["price"]
+    assert replay.kwargs["retriever"] is default.kwargs["retriever"]
+    assert replay.kwargs["cache"] is default.kwargs["cache"]
+    assert replay.kwargs["answer_delta"] is None
+
+
+def test_an_unbuildable_replay_target_is_skipped_not_fatal() -> None:
+    """A missing provider key on an optional target never stops startup."""
+    registry_with_unbuildable = Registry(
+        entries=[
+            Entry(name="fake", group=PROVIDERS, value=FakeProvider),
+            Entry(name="fake", group=ORCHESTRATORS, value=FakeOrchestratorClass),
+            Entry(name="unbuildable", group=ORCHESTRATORS, value=UnbuildableOrchestratorClass),
+            Entry(name="fake", group=RETRIEVERS, value=FakeRetriever),
+            Entry(name="fake", group=TOOL_SOURCES, value=FakeToolSource),
+            Entry(name="mock", group=EMBEDDERS, value=None),
+            Entry(name="none", group=CACHES, value=NoCache),
+        ]
+    )
+    pool = cast(asyncpg.Pool, object())
+    built = build_orchestrator_set(settings_for(), registry_with_unbuildable, pool)
+
+    assert set(built.default) == {"fake"}
+    assert built.replay == {}
+
+
+def test_app_deps_selects_a_named_replay_target() -> None:
+    default = cast(Orchestrator, FakeOrchestratorClass())
+    replay = cast(Orchestrator, SecondOrchestratorClass())
+    deps = AppDeps(
+        store=MemoryRunStore(),
+        audit=MemoryRunStore(),
+        orchestrators={"fake": default},
+        replay_orchestrators={("fake", "second"): replay},
+        tenants=tenants_config(),
+        run_token_secret="s" * 32,
+        run_timeout_s=30.0,
+        publisher=StepEventPublisher(),
+    )
+
+    assert deps.orchestrator_for("fake") is default
+    assert deps.orchestrator_for("fake", "second") is replay
+    # The platform default answers to its own name, so a replay can repeat it.
+    assert deps.orchestrator_for("fake", "fake") is default
+    assert deps.available_orchestrators("fake") == ["fake", "second"]
+    assert deps.available_orchestrators("other") == []
+    with pytest.raises(ConfigError, match="no orchestrator named 'missing'"):
+        deps.orchestrator_for("fake", "missing")

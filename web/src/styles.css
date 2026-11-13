@@ -1843,6 +1843,30 @@ dialog::backdrop {
   margin-bottom: 10px;
 }
 
+.replay-controls {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 4px;
+}
+
+.replay-result {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sidebar);
+}
+
+.replay-result p {
+  margin: 0 0 4px;
+}
+
+.replay-result p:last-child {
+  margin-bottom: 0;
+}
+
 .view-switch {
   display: flex;
   flex-wrap: wrap;
