@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { errorMessage, getJson, isAbortError } from "../api";
 import type { RunSummary, SpanEvent, TraceResponse, TraceSpan } from "../api";
 import { StatusBadge } from "../components/Badges";
+import { ChevronDownIcon } from "../components/Icons";
 import { TENANTS } from "../config";
 import { formatDateTime, formatDuration, formatTokens, formatValue } from "../format";
 import { runHref, tabHref } from "../routes";
@@ -53,13 +54,29 @@ function SpanToggle({
   return (
     <button
       type="button"
-      className="toggle"
+      className={`toggle${isExpanded ? " is-open" : ""}`}
       onClick={() => onToggle(span.span_id)}
       aria-expanded={isExpanded}
       aria-label={`${isExpanded ? "Collapse" : "Expand"} ${span.name}`}
     >
-      {isExpanded ? "v" : ">"}
+      <ChevronDownIcon className="toggle-icon" />
     </button>
+  );
+}
+
+function TreeGuides({ row }: { row: FlatSpan }) {
+  if (row.depth === 0) {
+    return null;
+  }
+  const parentHasNext = row.guides[row.guides.length - 1] === true;
+  const continueLine = !row.isLast || parentHasNext;
+  return (
+    <span className="tree-guides" aria-hidden="true">
+      {row.guides.slice(0, -1).map((hasLine, index) => (
+        <span key={index} className={`tree-guide${hasLine ? " has-line" : ""}`} />
+      ))}
+      <span className={`tree-branch${continueLine ? " continue" : ""}`} />
+    </span>
   );
 }
 
@@ -78,15 +95,13 @@ function TreeRow({
   onToggle: (spanId: string) => void;
   onSelect: (spanId: string) => void;
 }) {
-  const { span, depth } = row;
+  const { span } = row;
   const barWidth =
     maxDuration > 0 ? Math.max(1, Math.round((span.duration_ms / maxDuration) * 100)) : 0;
   const markers = spanMarkers(span);
   return (
-    <div
-      className={`span-row${selectedId === span.span_id ? " selected" : ""}`}
-      style={{ paddingLeft: `${depth * 18 + 4}px` }}
-    >
+    <div className={`span-row${selectedId === span.span_id ? " selected" : ""}`}>
+      <TreeGuides row={row} />
       <SpanToggle span={span} expanded={expanded} onToggle={onToggle} />
       <button type="button" className="span-select" onClick={() => onSelect(span.span_id)}>
         <span className="span-name">{span.name}</span>
@@ -105,16 +120,12 @@ function TreeRow({
 function TimelineRow({
   row,
   window,
-  expanded,
   selectedId,
-  onToggle,
   onSelect,
 }: {
   row: FlatSpan;
   window: { start: number; total: number };
-  expanded: ReadonlySet<string>;
   selectedId: string | null;
-  onToggle: (spanId: string) => void;
   onSelect: (spanId: string) => void;
 }) {
   const { span, depth } = row;
@@ -133,7 +144,6 @@ function TimelineRow({
       className={`timeline-row${selectedId === span.span_id ? " selected" : ""}`}
     >
       <div className="timeline-label" style={{ paddingLeft: `${depth * 14 + 2}px` }}>
-        <SpanToggle span={span} expanded={expanded} onToggle={onToggle} />
         <button
           type="button"
           className="timeline-select"
@@ -717,12 +727,16 @@ export function TracePage({
                 >
                   Timeline
                 </button>
-                <button type="button" onClick={expandAll}>
-                  Expand all
-                </button>
-                <button type="button" onClick={collapseAll}>
-                  Collapse all
-                </button>
+                {activeView === "tree" ? (
+                  <>
+                    <button type="button" onClick={expandAll}>
+                      Expand all
+                    </button>
+                    <button type="button" onClick={collapseAll}>
+                      Collapse all
+                    </button>
+                  </>
+                ) : null}
               </div>
             </div>
 
@@ -774,24 +788,20 @@ export function TracePage({
                       <span className="timeline-offset">start</span>
                       <span className="timeline-duration">duration</span>
                     </div>
-                    {visibleRows.map((row) => (
+                    {allRows.map((row) => (
                       <TimelineRow
                         key={row.span.span_id}
                         row={row}
                         window={window}
-                        expanded={expanded}
                         selectedId={selectedId}
-                        onToggle={handleToggle}
                         onSelect={selectSpan}
                       />
                     ))}
                   </>
                 )}
-                {visibleRows.length < allRows.length ? (
+                {activeView === "tree" && visibleRows.length < allRows.length ? (
                   <p className="muted timeline-hint">
                     {allRows.length - visibleRows.length} span(s) are hidden by a collapsed parent.
-                    Expand a row to show them; the tree and the timeline share the same expansion
-                    state.
                   </p>
                 ) : null}
               </div>

@@ -1911,7 +1911,7 @@ dialog::backdrop {
 
 .span-row {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 2px;
   padding-top: 1px;
   padding-bottom: 1px;
@@ -1926,25 +1926,89 @@ dialog::backdrop {
 
 .toggle,
 .toggle-placeholder {
-  width: 22px;
-  min-width: 22px;
-  height: 22px;
+  width: 18px;
+  min-width: 18px;
   padding: 0;
-  font-size: 11px;
-  line-height: 1;
   background: transparent;
   color: var(--text-secondary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: 0;
 }
 
 .toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  border-radius: 4px;
   cursor: pointer;
+}
+
+.toggle:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.toggle-icon {
+  width: 13px;
+  height: 13px;
+  transform: rotate(-90deg);
+  transition: transform 120ms ease;
+}
+
+.toggle.is-open .toggle-icon {
+  transform: rotate(0deg);
 }
 
 .toggle-placeholder {
   display: inline-block;
-  border-color: transparent;
+  align-self: stretch;
+}
+
+/* A real tree: one column per ancestor, a vertical line while that ancestor
+   has a later sibling, and an elbow into the current row. */
+.tree-guides {
+  display: flex;
+  flex: none;
+  align-self: stretch;
+}
+
+.tree-guide,
+.tree-branch {
+  position: relative;
+  width: 18px;
+  min-width: 18px;
+  align-self: stretch;
+}
+
+.tree-guide.has-line::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 9px;
+  border-left: 1px solid color-mix(in srgb, var(--text-secondary) 30%, var(--bg));
+  content: "";
+}
+
+.tree-branch::before {
+  position: absolute;
+  top: 0;
+  bottom: 50%;
+  left: 9px;
+  border-left: 1px solid color-mix(in srgb, var(--text-secondary) 30%, var(--bg));
+  content: "";
+}
+
+.tree-branch.continue::before {
+  bottom: 0;
+}
+
+.tree-branch::after {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 9px;
+  border-top: 1px solid color-mix(in srgb, var(--text-secondary) 30%, var(--bg));
+  content: "";
 }
 
 .span-select {

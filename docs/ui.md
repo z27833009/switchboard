@@ -46,7 +46,7 @@ The shell is a two-column grid at `100dvh`: `<aside class="sidebar">` and a scro
 - **Drawer (under 1024 px).** A native `<dialog>` holding the full sidebar; opened from the menu button in the title row. The browser provides focus containment, Escape and focus return; a light backdrop click closes it, with a pointer-position fallback where `closedby` is missing.
 - **Chat.** The transcript scrolls; the composer is pinned to the bottom of the view. Above the composer sits one compact run summary bar for the latest turn (plan, status, latency, tokens, cost, gate, cache). The bar's `Steps (n)` disclosure expands the live step list inline. There is no right inspector column; a citation chip opens the trace page at the cited span.
 - **Runs.** The runs of the current conversation, with status and plan filters and a refresh button, then a semantic table with a row header, sticky column headers and row links. The tenant is fixed for the session; switching tenant starts a new conversation.
-- **Traces.** The traces of the current conversation, one per run, with plan, status, latency, cache and trace completeness; opening one keeps the existing trace page with Timeline, Tree, Expand all, Collapse all and the plan graph.
+- **Traces.** The traces of the current conversation, one per run, with plan, status, latency, cache and trace completeness; opening one keeps the existing trace page with Timeline, Tree, Expand all, Collapse all and the plan graph. The tree draws connector lines for each ancestor and a corner for the last child, with a small chevron only on rows that have children. The timeline has no per-row toggles and shows every span; Expand all and Collapse all appear only in Tree.
 - **Run detail and trace detail.** Their own header information plus a back link; the global tabs above stay in place and no page repeats them.
 - **Settings.** A native modal `<dialog>` opened from the profile menu: a read-only notice, a vertical section sub-nav (Account, General, Model, Tools & MCP, Agents, Retrieval, Cache) and read-only cards on the right. The dialog keeps a fixed 1000 by 760 desktop size (and a fixed viewport-filling size on a phone) so changing sections does not resize the window; the content column scrolls inside it. Closing is by the close button, Escape or a backdrop click, and focus returns to the menu item that opened it.
 
@@ -116,7 +116,8 @@ Manual checks, at 1440x1200, 768x1200 and 375x900 (Chrome device emulation or a 
 6. **1440 wide, shell.** The 260 px sidebar, independent recent-list scroll, title row and tabs are all visible, and the transcript is capped at 860 px.
 7. **Keyboard only.** Tab reaches the skip link, the sidebar, the tabs, the page content, the composer and the send button in that order; the tab bar is one stop and the arrow keys move between tabs; the profile menu opens with Enter and closes with Escape.
 8. **Status.** Force a status (`partial`, `needs_clarification` or an error) and confirm the glyph and the label change, not only the colour.
-9. **Read-only settings.** The dialog shows values from `GET /settings`; stopping the API and reopening it shows the error box and no values.
+9. **Trace tree and timeline.** Tree rows are connected by visible guide lines, only expandable rows show a chevron, and the timeline has no toggles or Expand/Collapse buttons.
+10. **Read-only settings.** The dialog shows values from `GET /settings`; stopping the API and reopening it shows the error box and no values.
 
 Screenshots of these checks are committed under `docs/` with the run and viewport in the name, and progress.md records them.
 

@@ -10,6 +10,12 @@ import type { RunSummary, TraceSpan } from "./api";
 export interface FlatSpan {
   span: TraceSpan;
   depth: number;
+  // True when this span is the last child of its parent. The tree draws a
+  // corner instead of a continuing branch for it.
+  isLast: boolean;
+  // One entry per ancestor level: true when that ancestor has a later sibling,
+  // so the connector line must continue through this row.
+  guides: readonly boolean[];
 }
 
 export interface TraceWindow {
@@ -82,13 +88,14 @@ function text(value: unknown): string | null {
 
 export function flattenSpanTree(spans: TraceSpan[]): FlatSpan[] {
   const rows: FlatSpan[] = [];
-  const walk = (nodes: TraceSpan[], depth: number) => {
-    for (const node of nodes) {
-      rows.push({ span: node, depth });
-      walk(node.children, depth + 1);
-    }
+  const walk = (nodes: TraceSpan[], depth: number, guides: boolean[]) => {
+    nodes.forEach((node, index) => {
+      const isLast = index === nodes.length - 1;
+      rows.push({ span: node, depth, isLast, guides });
+      walk(node.children, depth + 1, [...guides, !isLast]);
+    });
   };
-  walk(spans, 0);
+  walk(spans, 0, []);
   return rows;
 }
 
@@ -99,15 +106,16 @@ export function visibleSpanRows(
   expanded: ReadonlySet<string>,
 ): FlatSpan[] {
   const rows: FlatSpan[] = [];
-  const walk = (nodes: TraceSpan[], depth: number) => {
-    for (const node of nodes) {
-      rows.push({ span: node, depth });
+  const walk = (nodes: TraceSpan[], depth: number, guides: boolean[]) => {
+    nodes.forEach((node, index) => {
+      const isLast = index === nodes.length - 1;
+      rows.push({ span: node, depth, isLast, guides });
       if (node.children.length > 0 && expanded.has(node.span_id)) {
-        walk(node.children, depth + 1);
+        walk(node.children, depth + 1, [...guides, !isLast]);
       }
-    }
+    });
   };
-  walk(spans, 0);
+  walk(spans, 0, []);
   return rows;
 }
 
