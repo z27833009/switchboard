@@ -47,6 +47,8 @@ from switchboard.api.schemas import (
     RunAggregateRow,
     RunsResponse,
     RunSummary,
+    SessionsResponse,
+    SessionSummary,
     SettingsResponse,
     TraceResponse,
 )
@@ -314,6 +316,27 @@ async def _load_run(deps: AppDeps, run_id: str, tenant_id: str) -> dict[str, Any
     if row is None:
         raise HTTPException(status_code=404, detail="run not found")
     return row
+
+
+@router.get("/sessions", response_model=SessionsResponse)
+async def list_sessions(
+    request: Request,
+    tenant_id: str = Query(min_length=1, description="Tenant whose conversations to list."),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> SessionsResponse:
+    """The tenant's conversations, newest first, one row per session.
+
+    The sidebar shows conversations rather than every run, so a follow-up turn
+    does not appear as a second entry. A run without a session id is excluded:
+    it has no conversation to resume.
+    """
+    deps = _deps(request.app)
+    tenant = _tenant(deps, tenant_id)
+    rows = await deps.store.list_sessions(tenant_id=tenant.tenant_id, limit=limit)
+    return SessionsResponse(
+        sessions=[SessionSummary.from_row(row) for row in rows],
+        count=len(rows),
+    )
 
 
 @router.get("/runs", response_model=RunsResponse | RunAggregateResponse)

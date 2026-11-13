@@ -62,6 +62,39 @@ ORDER BY started_at DESC
 LIMIT $2
 """
 
+# One row per conversation. The first query is the stable title; the newest
+# row supplies the status and plan. A sessionless run is not a conversation and
+# is excluded, so the sidebar never repeats one conversation as several rows.
+LIST_SESSIONS_SQL = """
+WITH firsts AS (
+    SELECT DISTINCT ON (session_id)
+        session_id, tenant_id, query AS title, started_at
+    FROM public.runs
+    WHERE tenant_id = $1 AND session_id IS NOT NULL
+    ORDER BY session_id, started_at ASC, id ASC
+),
+lasts AS (
+    SELECT DISTINCT ON (session_id)
+        session_id, query AS last_query, status, plan, started_at AS last_run_at
+    FROM public.runs
+    WHERE tenant_id = $1 AND session_id IS NOT NULL
+    ORDER BY session_id, started_at DESC, id DESC
+),
+counts AS (
+    SELECT session_id, count(*) AS run_count
+    FROM public.runs
+    WHERE tenant_id = $1 AND session_id IS NOT NULL
+    GROUP BY session_id
+)
+SELECT f.session_id, f.tenant_id, f.title, l.last_query, l.status, l.plan,
+       c.run_count, f.started_at, l.last_run_at
+FROM firsts f
+JOIN lasts l USING (session_id)
+JOIN counts c USING (session_id)
+ORDER BY l.last_run_at DESC, f.session_id DESC
+LIMIT $2
+"""
+
 # Aggregation for `GET /runs?group_by=`. Days are UTC because started_at is a
 # timestamptz and a report should not move with the server's local timezone.
 # `provider` is null on rows written before T2.06; they are grouped as
@@ -244,6 +277,8 @@ class RunStore(Protocol):
         session_id: str | None = None,
     ) -> list[dict[str, Any]]: ...
 
+    async def list_sessions(self, *, tenant_id: str, limit: int = 20) -> list[dict[str, Any]]: ...
+
     async def aggregate_runs(
         self, *, tenant_id: str, group_by: Literal["day", "provider"]
     ) -> list[dict[str, Any]]: ...
@@ -319,6 +354,10 @@ class PgRunStore:
     ) -> list[dict[str, Any]]:
         rows = await self._pool.fetch(LIST_RUNS_SQL, tenant_id, limit, session_id)
         return [run_row(row) for row in rows]
+
+    async def list_sessions(self, *, tenant_id: str, limit: int = 20) -> list[dict[str, Any]]:
+        rows = await self._pool.fetch(LIST_SESSIONS_SQL, tenant_id, limit)
+        return [dict(row) for row in rows]
 
     async def aggregate_runs(
         self, *, tenant_id: str, group_by: Literal["day", "provider"]

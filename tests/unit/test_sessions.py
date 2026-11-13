@@ -439,3 +439,33 @@ async def test_a_clarify_run_finished_event_carries_the_status() -> None:
     assert final["status"] == "needs_clarification"
     assert final["answer"] == "Which month do you mean?"
     assert final["session_id"] == "s-1"
+
+
+async def test_sessions_group_runs_into_one_conversation(harness: AppHarness) -> None:
+    """The sidebar lists conversations, not one row per turn (T3.03)."""
+    first_session = str(uuid.uuid4())
+    second_session = str(uuid.uuid4())
+    await post_chat(harness, "first question", session_id=first_session)
+    await post_chat(harness, "follow-up question", session_id=first_session)
+    await post_chat(harness, "other conversation", session_id=second_session)
+    await post_chat(harness, "a sessionless run")
+
+    response = await harness.client.get("/sessions", params={"tenant_id": "default", "limit": 20})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["count"] == 2
+    by_session = {row["session_id"]: row for row in body["sessions"]}
+    assert set(by_session) == {first_session, second_session}
+    assert by_session[first_session]["run_count"] == 2
+    assert by_session[first_session]["title"] == "first question"
+    assert by_session[first_session]["last_query"] == "follow-up question"
+    assert by_session[second_session]["run_count"] == 1
+    # Newest conversation first; the sessionless run is not a conversation.
+    assert [row["session_id"] for row in body["sessions"]] == [
+        second_session,
+        first_session,
+    ]
+
+    cross = await harness.client.get("/sessions", params={"tenant_id": "seller_a", "limit": 20})
+    assert cross.status_code == 200
+    assert cross.json()["count"] == 0

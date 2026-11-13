@@ -101,6 +101,23 @@ export interface RunsResponse {
   count: number;
 }
 
+export interface SessionSummary {
+  session_id: string;
+  tenant_id: string;
+  title: string;
+  last_query: string;
+  status: RunStatus;
+  plan: string | null;
+  run_count: number;
+  started_at: string;
+  last_run_at: string;
+}
+
+export interface SessionsResponse {
+  sessions: SessionSummary[];
+  count: number;
+}
+
 export interface SpanEvent {
   name: string;
   time: string;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { errorMessage, getHealthState, getJson, isAbortError } from "./api";
-import type { HealthState, RunSummary, RunsResponse } from "./api";
+import type { HealthState, SessionsResponse, SessionSummary } from "./api";
 import { MenuIcon } from "./components/Icons";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { Sidebar, SidebarRail } from "./components/Sidebar";
@@ -16,8 +16,8 @@ import { chatHref, parseRoute, routeKey, tabForRoute, tabHref } from "./routes";
 import type { Route, TabKey } from "./routes";
 import { newSessionId } from "./session";
 
-// How many recent runs the sidebar shows. The API caps the list at 200; eight
-// keeps the sidebar short and every row one click from the stored run.
+// How many recent conversations the sidebar shows. Eight keeps the list short
+// and every row one click from its stored transcript.
 const RECENT_LIMIT = 8;
 const HEALTH_REFRESH_MS = 60_000;
 
@@ -36,7 +36,7 @@ export default function App() {
     return "sessionId" in initial ? initial.sessionId : null;
   });
   const [health, setHealth] = useState<HealthState>("unknown");
-  const [recent, setRecent] = useState<RunSummary[]>([]);
+  const [recent, setRecent] = useState<SessionSummary[]>([]);
   const [recentLoading, setRecentLoading] = useState(true);
   const [recentError, setRecentError] = useState<string | null>(null);
   const [recentKey, setRecentKey] = useState(0);
@@ -100,13 +100,13 @@ export default function App() {
     const controller = new AbortController();
     setRecentLoading(true);
     setRecentError(null);
-    getJson<RunsResponse>(
-      `/runs?limit=${RECENT_LIMIT}&tenant_id=${encodeURIComponent(tenant)}`,
+    getJson<SessionsResponse>(
+      `/sessions?limit=${RECENT_LIMIT}&tenant_id=${encodeURIComponent(tenant)}`,
       controller.signal,
     )
       .then((data) => {
         if (!controller.signal.aborted) {
-          setRecent(data.runs);
+          setRecent(data.sessions);
         }
       })
       .catch((caught) => {
@@ -234,12 +234,7 @@ export default function App() {
   }
 
   const activeTab = tabForRoute(route);
-  const activeKey =
-    route.name === "run" || route.name === "trace"
-      ? route.runId
-      : route.name === "chat" && route.sessionId !== null
-        ? (recent.find((run) => run.session_id === route.sessionId)?.run_id ?? null)
-        : null;
+  const activeKey = activeSessionId;
 
   let title = "New conversation";
   let subtitle: string | null = null;

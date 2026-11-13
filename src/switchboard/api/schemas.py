@@ -211,6 +211,44 @@ class RunsResponse(BaseModel):
     count: int
 
 
+class SessionSummary(BaseModel):
+    """One conversation in ``GET /sessions``, grouped by ``session_id``.
+
+    The sidebar lists conversations, not individual runs: a session has one
+    title (its first question), the latest run's status and plan, and a count of
+    its turns. Only sessions with at least one stored run are returned.
+    """
+
+    session_id: str
+    tenant_id: str
+    title: str
+    last_query: str
+    status: RunStatus
+    plan: str | None = None
+    run_count: int
+    started_at: datetime
+    last_run_at: datetime
+
+    @classmethod
+    def from_row(cls, row: Mapping[str, Any]) -> SessionSummary:
+        return cls(
+            session_id=str(row["session_id"]),
+            tenant_id=str(row["tenant_id"]),
+            title=str(row["title"]),
+            last_query=str(row["last_query"]),
+            status=cast(RunStatus, row["status"]),
+            plan=cast(str | None, row.get("plan")),
+            run_count=int(row["run_count"]),
+            started_at=cast(datetime, row["started_at"]),
+            last_run_at=cast(datetime, row["last_run_at"]),
+        )
+
+
+class SessionsResponse(BaseModel):
+    sessions: list[SessionSummary]
+    count: int
+
+
 class RunAggregateRow(BaseModel):
     """One day or provider bucket of ``GET /runs?group_by=`` (AC-19b).
 

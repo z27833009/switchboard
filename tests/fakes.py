@@ -132,6 +132,39 @@ class MemoryRunStore:
         rows.sort(key=lambda row: row["started_at"], reverse=True)
         return rows[:limit]
 
+    async def list_sessions(self, *, tenant_id: str, limit: int = 20) -> list[dict[str, Any]]:
+        grouped: dict[str, dict[str, Any]] = {}
+        for row in self.runs.values():
+            if row["tenant_id"] != tenant_id or row["session_id"] is None:
+                continue
+            session_id = row["session_id"]
+            started = row["started_at"]
+            current = grouped.get(session_id)
+            if current is None:
+                grouped[session_id] = {
+                    "session_id": session_id,
+                    "tenant_id": tenant_id,
+                    "title": row["query"],
+                    "last_query": row["query"],
+                    "status": row["status"],
+                    "plan": row["plan"],
+                    "run_count": 1,
+                    "started_at": started,
+                    "last_run_at": started,
+                }
+                continue
+            current["run_count"] += 1
+            if started < current["started_at"]:
+                current["started_at"] = started
+                current["title"] = row["query"]
+            if started >= current["last_run_at"]:
+                current["last_run_at"] = started
+                current["last_query"] = row["query"]
+                current["status"] = row["status"]
+                current["plan"] = row["plan"]
+        rows = sorted(grouped.values(), key=lambda row: row["last_run_at"], reverse=True)
+        return rows[:limit]
+
     async def aggregate_runs(
         self, *, tenant_id: str, group_by: Literal["day", "provider"]
     ) -> list[dict[str, Any]]:

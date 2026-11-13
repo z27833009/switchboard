@@ -1,7 +1,7 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useEffect, useId, useRef, useState } from "react";
 
-import type { HealthState, RunSummary } from "../api";
+import type { HealthState, SessionSummary } from "../api";
 import { TENANTS } from "../config";
 import { formatWhen } from "../format";
 import { chatHref } from "../routes";
@@ -61,25 +61,19 @@ export function StatusDot({ health }: { health: HealthState }) {
   );
 }
 
-export function recentHref(run: RunSummary): string {
-  if (run.session_id !== null && run.session_id !== "") {
-    return chatHref(run.tenant_id, run.session_id);
-  }
-  return `#/runs/${encodeURIComponent(run.run_id)}?tenant=${encodeURIComponent(run.tenant_id)}`;
+export function recentHref(session: SessionSummary): string {
+  return chatHref(session.tenant_id, session.session_id);
 }
 
-function recentMeta(run: RunSummary): string {
-  const parts = [run.plan ?? "no plan", formatWhen(run.started_at)];
-  // A row without a session id cannot resume a conversation, so it says what
-  // it does instead: it opens the stored run.
-  parts.push(run.session_id === null || run.session_id === "" ? "run" : "conversation");
-  return parts.join(" · ");
+function recentMeta(session: SessionSummary): string {
+  const turns = session.run_count === 1 ? "1 turn" : `${session.run_count} turns`;
+  return [session.plan ?? "no plan", formatWhen(session.last_run_at), turns].join(" · ");
 }
 
 interface SidebarProps {
   tenant: string;
   health: HealthState;
-  recent: RunSummary[];
+  recent: SessionSummary[];
   recentLoading: boolean;
   recentError: string | null;
   activeKey: string | null;
@@ -304,37 +298,38 @@ export function Sidebar({
           Recent
         </h2>
         {recentLoading && recent.length === 0 ? (
-          <p className="muted small sidebar-note">Loading recent runs...</p>
+          <p className="muted small sidebar-note">Loading conversations...</p>
         ) : null}
         {recentError !== null ? (
-          <p className="muted small sidebar-note">Recent runs could not be loaded. {recentError}</p>
+          <p className="muted small sidebar-note">
+            Recent conversations could not be loaded. {recentError}
+          </p>
         ) : null}
         {!recentLoading && recentError === null && recent.length === 0 ? (
-          <p className="muted small sidebar-note">No runs for this tenant yet.</p>
+          <p className="muted small sidebar-note">No conversations for this tenant yet.</p>
         ) : null}
         {recent.length > 0 ? (
           <ul className="recent-list">
-            {recent.map((run) => {
-              const key = `${run.run_id}`;
-              return (
-                <li key={run.run_id}>
-                  <a
-                    className={`recent-item${activeKey === key ? " is-active" : ""}`}
-                    href={recentHref(run)}
-                    onClick={onNavigate}
-                  >
-                    <span className="recent-query">{run.query}</span>
-                    <span className="recent-meta">
-                      <span
-                        className={`recent-dot recent-dot-${statusTone(run.status)}`}
-                        aria-hidden="true"
-                      />
-                      {recentMeta(run)}
-                    </span>
-                  </a>
-                </li>
-              );
-            })}
+            {recent.map((session) => (
+              <li key={session.session_id}>
+                <a
+                  className={`recent-item${
+                    activeKey === session.session_id ? " is-active" : ""
+                  }`}
+                  href={recentHref(session)}
+                  onClick={onNavigate}
+                >
+                  <span className="recent-query">{session.title}</span>
+                  <span className="recent-meta">
+                    <span
+                      className={`recent-dot recent-dot-${statusTone(session.status)}`}
+                      aria-hidden="true"
+                    />
+                    {recentMeta(session)}
+                  </span>
+                </a>
+              </li>
+            ))}
           </ul>
         ) : null}
       </nav>
@@ -382,16 +377,18 @@ export function SidebarRail({
       </button>
       {recent.length > 0 ? (
         <ul className="rail-list" aria-label="Recent">
-          {recent.slice(0, 6).map((run) => (
-            <li key={run.run_id}>
+          {recent.slice(0, 6).map((session) => (
+            <li key={session.session_id}>
               <a
-                className={`rail-recent${activeKey === run.run_id ? " is-active" : ""}`}
-                href={recentHref(run)}
-                title={run.query}
+                className={`rail-recent${
+                  activeKey === session.session_id ? " is-active" : ""
+                }`}
+                href={recentHref(session)}
+                title={session.title}
                 onClick={onNavigate}
               >
-                <span aria-hidden="true">{run.query.trim().charAt(0).toUpperCase() || "?"}</span>
-                <span className="visually-hidden">{run.query}</span>
+                <span aria-hidden="true">{session.title.trim().charAt(0).toUpperCase() || "?"}</span>
+                <span className="visually-hidden">{session.title}</span>
               </a>
             </li>
           ))}

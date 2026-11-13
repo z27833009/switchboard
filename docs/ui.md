@@ -10,7 +10,7 @@ The shell, tokens and components live in `web/src/styles.css` and `web/src/App.t
 2. Light only. No dark theme, no gradients, no glass or blur, no decorative shadows. A shadow is used only for the settings dialog and the composer.
 3. Type is small and quiet. 14 px body, 12 px metadata, 20 to 24 px page titles. No display sizes inside cards.
 4. The tab bar switches the current conversation's Chat / Runs / Traces views. The sidebar navigates conversations and the workspace; it never duplicates the three tabs, and switching tabs keeps the same session id.
-5. No invented state. The status dot reads `GET /health`, the settings dialog reads `GET /settings`, the recent list reads `GET /runs`, and a resumed conversation is rebuilt from stored run rows. A failed read shows an error and no values, never a placeholder that looks like data.
+5. No invented state. The status dot reads `GET /health`, the settings dialog reads `GET /settings`, the recent list reads `GET /sessions`, and a resumed conversation is rebuilt from stored run rows. A failed read shows an error and no values, never a placeholder that looks like data.
 
 ## 2. Design tokens
 
@@ -41,7 +41,7 @@ Soft tints (tag and box backgrounds) are derived with `color-mix()` from these t
 
 The shell is a two-column grid at `100dvh`: `<aside class="sidebar">` and a scrolling `<main>`-equivalent `.app-main`. `.app-main` is a column of a fixed header (title row, then tabs) and the routed panel. The panel is the only horizontally and vertically bounded area, so the sidebar can scroll its own recent list without moving the transcript.
 
-- **Sidebar (260 px).** Brand "Switchboard" and an API status dot with its label, a full-width `+ New chat` button, a `Recent` list that scrolls independently, and a bottom profile area `Local workspace` plus the current tenant. The profile opens a menu with Settings, Switch tenant (inline tenant radios) and Docs (the API reference at `/api/docs`). There is no sign-in and no logout.
+- **Sidebar (260 px).** Brand "Switchboard" and an API status dot with its label, a full-width `+ New chat` button, a `Recent` list of conversations that scrolls independently, and a bottom profile area `Local workspace` plus the current tenant. The profile opens a menu with Settings, Switch tenant (inline tenant radios) and Docs (the API reference at `/api/docs`). There is no sign-in and no logout.
 - **Icon rail (72 px).** Brand mark, new chat, up to eight recent conversations as initial-letter buttons with accessible names, a tenant switch button that shows the tenant's initial, settings and the status dot.
 - **Drawer (under 1024 px).** A native `<dialog>` holding the full sidebar; opened from the menu button in the title row. The browser provides focus containment, Escape and focus return; a light backdrop click closes it, with a pointer-position fallback where `closedby` is missing.
 - **Chat.** The transcript scrolls; the composer is pinned to the bottom of the view. Above the composer sits one compact run summary bar for the latest turn (plan, status, latency, tokens, cost, gate, cache). The bar's `Steps (n)` disclosure expands the live step list inline. There is no right inspector column; a citation chip opens the trace page at the cited span.
@@ -125,5 +125,5 @@ Screenshots of these checks are committed under `docs/` with the run and viewpor
 - There is no authentication, so the sidebar has no sign-in, sign-out or account avatar that would pretend to be one. "Local workspace" names the workspace, and Switch tenant changes the tenant id used by every request.
 - The tab bar is presented with the ARIA tab pattern because the author specified tabs with arrow keys. It switches the current conversation's Chat, Runs and Traces views, which share one session. If the views ever stop sharing one document (for example independent URLs with server-side history), they should become links instead.
 - The run row stores neither the gate verdict nor the plan reason, so a resumed conversation shows `gate: not recorded` and a plan label without its reason. Live runs show both from the step events.
-- The Recent list is the tenant's latest runs, not a server-side conversation index. A row without a session id opens the run detail and says `run` in its metadata rather than pretending to resume a conversation.
+- The Recent list is the tenant's latest conversations grouped by `session_id`, one row per chat. Its title is the first question in that chat; the meta line shows the latest plan and time plus the number of turns. Sessionless runs are excluded because they have no conversation to resume.
 - Runs and Traces are conversation-scoped. There is no all-tenant run or trace explorer in this build; switching tenant starts a new conversation, and the sidebar recent list is the way to move between stored conversations.
