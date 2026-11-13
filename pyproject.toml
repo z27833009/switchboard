@@ -18,6 +18,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
+  "anthropic==2.8.0",
   "asyncpg==0.32.0",
   "fastapi==0.162.5",
   "langgraph==1.2.21",
@@ -39,6 +40,7 @@ switchboard = "switchboard.cli:app"
 
 [project.entry-points."switchboard.providers"]
 openai_compatible = "switchboard.adapters.providers.openai_compat:OpenAICompatibleProvider"
+anthropic = "switchboard.adapters.providers.anthropic:AnthropicProvider"
 mock = "switchboard.adapters.providers.mock:MockProvider"
 
 [project.entry-points."switchboard.embedders"]

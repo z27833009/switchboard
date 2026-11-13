@@ -58,6 +58,7 @@ async def test_chat_returns_the_final_payload(harness: AppHarness) -> None:
     assert body["usage"] == {
         "input_tokens": 150,
         "cached_input_tokens": 0,
+        "cache_write_input_tokens": 0,
         "output_tokens": 20,
     }
     assert body["trace_incomplete"] is False

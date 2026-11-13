@@ -62,8 +62,17 @@ class ProviderCapabilities(BaseModel):
 
 
 class Usage(BaseModel):
+    # Every prompt token the provider billed, including the cached read and the
+    # cache write parts, like OpenAI's prompt_tokens (design.md sections 4 and
+    # 12.4). Anthropic reports the three components separately, so its adapter
+    # adds them up here.
     input_tokens: int = Field(ge=0)
     cached_input_tokens: int = Field(default=0, ge=0)
+    # Prompt tokens written to a provider prompt cache. A write is billed above
+    # the normal input rate, so it is its own field rather than folded into the
+    # cached read count. Zero for providers without an explicit cache write
+    # (Anthropic is the only one today).
+    cache_write_input_tokens: int = Field(default=0, ge=0)
     output_tokens: int = Field(ge=0)
 
     @property
@@ -74,6 +83,9 @@ class Usage(BaseModel):
         return Usage(
             input_tokens=self.input_tokens + other.input_tokens,
             cached_input_tokens=self.cached_input_tokens + other.cached_input_tokens,
+            cache_write_input_tokens=(
+                self.cache_write_input_tokens + other.cache_write_input_tokens
+            ),
             output_tokens=self.output_tokens + other.output_tokens,
         )
 

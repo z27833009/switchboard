@@ -80,6 +80,61 @@ def test_a_local_zero_price_costs_zero() -> None:
     assert compute_cost(usage, LOCAL) == 0.0
 
 
+def test_cache_write_tokens_use_the_write_rate_when_the_row_has_one() -> None:
+    priced = PriceEntry(
+        provider="cached",
+        model="cached-model",
+        input_per_million=2.0,
+        cached_input_per_million=0.1,
+        cache_write_per_million=2.5,
+        output_per_million=10.0,
+        source="https://example.invalid/prices",
+    )
+    usage = Usage(
+        input_tokens=1_000_000,
+        cached_input_tokens=400_000,
+        cache_write_input_tokens=200_000,
+        output_tokens=0,
+    )
+    # 400k fresh at 2.00, 400k read at 0.10, 200k written at 2.50.
+    expected = 400_000 * 2.0 / 1_000_000
+    expected += 400_000 * 0.1 / 1_000_000
+    expected += 200_000 * 2.5 / 1_000_000
+    assert compute_cost(usage, priced) == pytest.approx(expected)
+
+
+def test_without_a_write_rate_a_write_costs_the_input_rate() -> None:
+    # Every row written before cache_write_per_million existed keeps its cost.
+    priced = PriceEntry(
+        provider="cached",
+        model="cached-model",
+        input_per_million=2.0,
+        cached_input_per_million=0.1,
+        output_per_million=10.0,
+        source="https://example.invalid/prices",
+    )
+    usage = Usage(
+        input_tokens=200_000,
+        cached_input_tokens=0,
+        cache_write_input_tokens=200_000,
+        output_tokens=0,
+    )
+    assert compute_cost(usage, priced) == pytest.approx(0.4)
+
+
+def test_a_write_row_makes_the_zero_price_check_positive() -> None:
+    priced = PriceEntry(
+        provider="cached",
+        model=None,
+        input_per_million=0.0,
+        cached_input_per_million=0.0,
+        cache_write_per_million=1.0,
+        output_per_million=0.0,
+    )
+    assert priced.is_zero is False
+    assert LOCAL.is_zero is True
+
+
 def test_more_cached_than_input_is_clamped_not_negative() -> None:
     usage = Usage(input_tokens=100, cached_input_tokens=150, output_tokens=0)
     # 100 cached at 0.006, no uncached input; never a negative amount.

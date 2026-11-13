@@ -1,11 +1,13 @@
-"""ModelProvider contract: OpenAI-compatible (fake client) and mock replay.
+"""ModelProvider contract: OpenAI-compatible, Anthropic and mock replay.
 
-Both adapters answer the same five questions: what they support, how a plain
+All adapters answer the same five questions: what they support, how a plain
 completion is shaped, how a tool call is normalised, how structured output is
 parsed and how an error leaves the adapter. The OpenAI-compatible client is the
-recorded Bionic 1.2.0 payload set loaded into the SDK model, so no socket is
-opened; the mock adapter replays committed fixtures from ``evals/fixtures``.
-Streaming is asserted only where ``capabilities().streaming`` is true.
+recorded Bionic 1.2.0 payload set loaded into the SDK model, the Anthropic
+client is a scripted fake built from the SDK's own ``Message`` type, and the
+mock adapter replays committed fixtures from ``evals/fixtures``. No test in this
+module opens a socket. Streaming is asserted only where
+``capabilities().streaming`` is true.
 """
 
 from __future__ import annotations
@@ -17,11 +19,17 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
+import anthropic
 import openai
 import pytest
+from anthropic.types import Message as AnthropicMessage
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from tests.contracts.support import MOCK_FIXTURES, OPENAI_FIXTURES
 
+from switchboard.adapters.providers.anthropic import (
+    STRUCTURED_TOOL_NAME as ANTHROPIC_STRUCTURED_TOOL,
+)
+from switchboard.adapters.providers.anthropic import AnthropicProvider
 from switchboard.adapters.providers.mock import MockProvider
 from switchboard.adapters.providers.openai_compat import OpenAICompatibleProvider
 from switchboard.core.errors import FixtureMissError, ProviderTransientError
@@ -226,6 +234,203 @@ def build_openai_contract(*, error: bool = False) -> ProviderContract:
     )
 
 
+ANTHROPIC_STREAM_EVENTS: tuple[dict[str, Any], ...] = (
+    {
+        "type": "message_start",
+        "message": {
+            "id": "msg_contract_stream",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-5-5",
+            "content": [],
+            "stop_reason": None,
+            "stop_sequence": None,
+            "usage": {"input_tokens": 19, "output_tokens": 1},
+        },
+    },
+    {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
+    {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {"type": "text_delta", "text": "There "},
+    },
+    {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {"type": "text_delta", "text": "were "},
+    },
+    {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {"type": "text_delta", "text": "7262 late orders."},
+    },
+    {
+        "type": "message_delta",
+        "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+        "usage": {"output_tokens": 6},
+    },
+    {"type": "message_stop"},
+)
+
+
+ANTHROPIC_EVENT_CLASSES: dict[str, Any] = {
+    "message_start": anthropic.types.RawMessageStartEvent,
+    "content_block_start": anthropic.types.RawContentBlockStartEvent,
+    "content_block_delta": anthropic.types.RawContentBlockDeltaEvent,
+    "message_delta": anthropic.types.RawMessageDeltaEvent,
+    "message_stop": anthropic.types.RawMessageStopEvent,
+}
+
+
+def anthropic_stream_events() -> list[Any]:
+    return [
+        ANTHROPIC_EVENT_CLASSES[payload["type"]].model_validate(payload)
+        for payload in ANTHROPIC_STREAM_EVENTS
+    ]
+
+
+class FakeAnthropicStream:
+    def __init__(self, events: list[Any]) -> None:
+        self._events = list(events)
+
+    def __aiter__(self) -> FakeAnthropicStream:
+        return self
+
+    async def __anext__(self) -> Any:
+        if not self._events:
+            raise StopAsyncIteration
+        return self._events.pop(0)
+
+    async def close(self) -> None:
+        self._events.clear()
+
+
+def anthropic_message(
+    content: list[dict[str, Any]],
+    *,
+    stop_reason: str = "end_turn",
+    input_tokens: int = 19,
+    output_tokens: int = 3,
+) -> AnthropicMessage:
+    return AnthropicMessage.model_validate(
+        {
+            "id": "msg_contract",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-5-5",
+            "content": content,
+            "stop_reason": stop_reason,
+            "stop_sequence": None,
+            "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
+        }
+    )
+
+
+class FakeAnthropicMessages:
+    """Dispatches on the request the adapter sends; no network is touched."""
+
+    def __init__(self, *, error: Exception | None = None) -> None:
+        self._error = error
+        self.calls: list[dict[str, Any]] = []
+
+    async def create(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        if self._error is not None:
+            raise self._error
+        if kwargs.get("stream"):
+            return FakeAnthropicStream(anthropic_stream_events())
+        if kwargs.get("tool_choice", {}).get("type") == "tool":
+            return anthropic_message(
+                [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_plan",
+                        "name": ANTHROPIC_STRUCTURED_TOOL,
+                        "input": {"agents": ["data"], "reason": "orders"},
+                    }
+                ],
+                stop_reason="tool_use",
+            )
+        if kwargs.get("tools"):
+            return anthropic_message(
+                [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_weather",
+                        "name": "get_weather_1",
+                        "input": {"city": "Paris"},
+                    }
+                ],
+                stop_reason="tool_use",
+            )
+        return anthropic_message([{"type": "text", "text": "OK."}])
+
+
+def build_anthropic_contract(*, error: bool = False) -> ProviderContract:
+    capabilities = ProviderCapabilities(
+        tools=True,
+        json_schema=False,
+        streaming=True,
+        reasoning=True,
+        context_window=1_000_000,
+    )
+    fake = FakeAnthropicMessages(
+        error=anthropic.APITimeoutError(request=cast(Any, None)) if error else None
+    )
+    provider = AnthropicProvider(
+        name="anthropic",
+        model="claude-sonnet-5-5",
+        capabilities=capabilities,
+        client=SimpleNamespace(messages=fake),
+    )
+    text_request = CompletionRequest(
+        messages=[
+            Message(role="system", content="Answer briefly."),
+            Message(role="user", content="hi"),
+        ]
+    )
+    tool_request = CompletionRequest(
+        messages=[Message(role="user", content="weather?")],
+        tools=[
+            ToolSpec(
+                name="get_weather",
+                version="1",
+                description="Weather for a city.",
+                input_schema={"type": "object", "properties": {"city": {"type": "string"}}},
+            )
+        ],
+    )
+    structured_request = CompletionRequest(
+        messages=[Message(role="user", content="How many orders were late?")],
+        response_schema=PLAN_SCHEMA,
+        max_tokens=128,
+    )
+    stream_request = CompletionRequest(
+        messages=[Message(role="user", content="how many?")], stream=True
+    )
+
+    async def raise_error() -> None:
+        await provider.complete(text_request)
+
+    return ProviderContract(
+        label="anthropic",
+        provider=provider,
+        text_request=text_request,
+        text_expected="OK.",
+        text_usage=Usage(input_tokens=19, output_tokens=3),
+        # The adapter sends the safe name and maps the answer back to the wire
+        # name, so the contract sees the versioned name.
+        tool_request=tool_request,
+        tool_expected="get_weather@1",
+        structured_request=structured_request,
+        structured_expected_agent="data",
+        stream_request=stream_request,
+        stream_expected="There were 7262 late orders.",
+        error_type=ProviderTransientError,
+        raise_error=raise_error,
+    )
+
+
 def build_mock_contract() -> ProviderContract:
     provider = MockProvider(model="qwen3-8b", fixtures_dir=MOCK_FIXTURES)
     text_payload = mock_payload("demo")
@@ -266,29 +471,31 @@ def build_mock_contract() -> ProviderContract:
 
 BUILDERS: tuple[Callable[[], ProviderContract], ...] = (
     build_openai_contract,
+    build_anthropic_contract,
     build_mock_contract,
 )
 
 ERROR_BUILDERS: tuple[Callable[[], ProviderContract], ...] = (
     lambda: build_openai_contract(error=True),
+    lambda: build_anthropic_contract(error=True),
     build_mock_contract,
 )
 
 
-@pytest.fixture(params=BUILDERS, ids=["openai_compatible", "mock"])
+@pytest.fixture(params=BUILDERS, ids=["openai_compatible", "anthropic", "mock"])
 def contract(request: pytest.FixtureRequest) -> ProviderContract:
     builder = cast(Callable[[], ProviderContract], request.param)
     return builder()
 
 
-@pytest.fixture(params=ERROR_BUILDERS, ids=["openai_compatible", "mock"])
+@pytest.fixture(params=ERROR_BUILDERS, ids=["openai_compatible", "anthropic", "mock"])
 def error_contract(request: pytest.FixtureRequest) -> ProviderContract:
     builder = cast(Callable[[], ProviderContract], request.param)
     return builder()
 
 
 def test_registered_provider_adapters_have_a_contract_case() -> None:
-    assert Registry().names(PROVIDERS) == ["mock", "openai_compatible"]
+    assert Registry().names(PROVIDERS) == ["anthropic", "mock", "openai_compatible"]
 
 
 async def test_capabilities_describe_the_adapter(contract: ProviderContract) -> None:

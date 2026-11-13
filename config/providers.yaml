@@ -48,6 +48,35 @@ providers:
     # leaves transient errors unretried here. A comparison run must not
     # silently score a second provider, so the demo config sets none. Example:
     #   fallback_provider: lmstudio
+  # Anthropic's Messages API through the official `anthropic` SDK (design 8.1,
+  # 8.2 and 8.5). Model, context window, output limit and prices were verified
+  # on 2026-11-13 against
+  # https://platform.claude.com/docs/en/models/overview and
+  # https://platform.claude.com/docs/en/about-claude/pricing: claude-sonnet-5-5,
+  # 1M context, 128K output, 2.00 input, 2.50 five-minute cache write, 0.10
+  # cache read and 10.00 output USD per million tokens. `json_schema` is false
+  # because the adapter uses the forced tool-call strategy for structured
+  # output. `reasoning` is false because the adapter exposes no thinking or
+  # effort switch, even though the model can think adaptively. No tenant
+  # selects this provider by default; the key is read from the environment when
+  # the provider is built, so the rest of the config loads without it.
+  anthropic:
+    adapter: anthropic
+    base_url: https://api.anthropic.com
+    api_key_env: ANTHROPIC_API_KEY
+    model: claude-sonnet-5-5
+    # The Messages API requires max_tokens on every request; a request may
+    # still ask for less.
+    max_tokens: 4096
+    # The API accepts only letters, digits, _ and - in a tool name, so the
+    # @major suffix is sent as _major and mapped back to the wire name.
+    tool_name_pattern: "^[A-Za-z0-9_-]{1,128}$"
+    capabilities:
+      tools: true
+      json_schema: false
+      streaming: true
+      reasoning: false
+      context_window: 1000000
 embedders:
   lmstudio:
     adapter: openai_compatible

@@ -138,7 +138,16 @@ class ProviderConfig(BaseModel):
     adapter: str
     base_url: str | None = None
     api_key: str | None = None
+    # An alternative to writing the key in ``api_key``: name the environment
+    # variable and the adapter reads it from the process environment when the
+    # provider is built (design.md section 8.1). The committed config uses it
+    # for a provider whose SDK would otherwise pick its own variable. An unset
+    # variable is a named ConfigError before any request, never an empty key.
+    api_key_env: str | None = None
     model: str | None = None
+    # Output cap for an API that requires one on every request (the Anthropic
+    # Messages API). A CompletionRequest.max_tokens still wins per call.
+    max_tokens: int | None = Field(default=None, ge=1)
     capabilities: ProviderCapabilities | None = None
     fixtures: str | None = None
     timeout_s: float = Field(default=120.0, gt=0)
@@ -167,6 +176,16 @@ class ProviderConfig(BaseModel):
         except re.error as exc:
             raise ValueError(f"tool_name_pattern is not a valid regex: {exc}") from exc
         return value
+
+    @field_validator("api_key_env")
+    @classmethod
+    def _check_api_key_env(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("api_key_env must be an environment variable name or null")
+        return cleaned
 
     @field_validator("fallback_provider")
     @classmethod
@@ -323,6 +342,11 @@ class PriceEntry(BaseModel):
     model: str | None = None
     input_per_million: float = Field(ge=0)
     cached_input_per_million: float = Field(ge=0)
+    # Writing a prompt prefix to the provider's cache is billed above the input
+    # rate (Anthropic: 1.25x for the 5 minute cache). None means the provider
+    # has no separate write price, so a write costs the input rate; every row
+    # written before this field existed therefore keeps its exact cost.
+    cache_write_per_million: float | None = Field(default=None, ge=0)
     output_per_million: float = Field(ge=0)
     source: str | None = None
     note: str | None = None
@@ -330,8 +354,14 @@ class PriceEntry(BaseModel):
     @property
     def is_zero(self) -> bool:
         """True when every rate is zero, as for a model served on this machine."""
+        write = self.cache_write_per_million
+        if write is None:
+            write = self.input_per_million
         return not (
-            self.input_per_million or self.cached_input_per_million or self.output_per_million
+            self.input_per_million
+            or self.cached_input_per_million
+            or self.output_per_million
+            or write
         )
 
 

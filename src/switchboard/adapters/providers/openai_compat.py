@@ -8,7 +8,6 @@ implements the three structured-output strategies with one repair round.
 from __future__ import annotations
 
 import json
-import re
 import time
 from collections.abc import Sequence
 from typing import Any, Literal
@@ -20,6 +19,7 @@ from opentelemetry import trace
 from opentelemetry.trace import SpanKind
 
 from switchboard.adapters._openai_errors import map_error
+from switchboard.adapters.providers.tool_names import safe_tool_names
 from switchboard.core.config import PriceEntry, ProviderConfig
 from switchboard.core.errors import (
     ConfigError,
@@ -46,36 +46,11 @@ from switchboard.tracing.spans import (
 
 Strategy = Literal["native_json_schema", "tool_call", "prompted_json"]
 STRUCTURED_TOOL_NAME = "submit_structured_response"
-INVALID_TOOL_NAME_CHARS = re.compile(r"[^A-Za-z0-9_-]")
 
 
 def _safe_tool_names(names: Sequence[str], pattern: str | None) -> dict[str, str]:
-    """Map wire names to names the provider will accept.
-
-    The wire name keeps ``@major`` (design.md section 7.2); some APIs reject
-    that character. The mapping is deterministic for a given set of names, so
-    an assistant tool-call message in a later turn gets the same safe name as
-    the tool definition in the first turn. When ``pattern`` is null the mapping
-    is the identity and existing providers behave exactly as before.
-    """
-    if pattern is None:
-        return {name: name for name in names}
-    accepted = re.compile(pattern)
-    mapping: dict[str, str] = {}
-    used: set[str] = set()
-    for name in sorted(set(names)):
-        if accepted.fullmatch(name) and name not in used:
-            safe = name
-        else:
-            base = name if accepted.fullmatch(name) else INVALID_TOOL_NAME_CHARS.sub("_", name)
-            safe = base or "tool"
-            suffix = 2
-            while safe in used:
-                safe = f"{base or 'tool'}_{suffix}"
-                suffix += 1
-        used.add(safe)
-        mapping[name] = safe
-    return mapping
+    """Kept as the adapter's local name for the shared mapping helper."""
+    return safe_tool_names(names, pattern)
 
 
 def to_openai_messages(

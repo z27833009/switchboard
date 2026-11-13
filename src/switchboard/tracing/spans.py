@@ -76,6 +76,10 @@ def apply_usage(span: Span, usage: Usage) -> None:
     span.set_attribute("gen_ai.usage.input_tokens", usage.input_tokens)
     span.set_attribute("gen_ai.usage.output_tokens", usage.output_tokens)
     span.set_attribute("switchboard.usage.cached_input_tokens", usage.cached_input_tokens)
+    # Only Anthropic reports a prompt cache write today; the attribute is
+    # written for every provider so a comparison sees a zero, not a gap
+    # (design.md sections 8.5 and 12.1).
+    span.set_attribute("switchboard.usage.cache_write_input_tokens", usage.cache_write_input_tokens)
 
 
 def apply_request_metadata(span: Span, metadata: Mapping[str, Any]) -> None:

@@ -20,18 +20,28 @@ COST_DECIMALS = 12
 
 
 def compute_cost(usage: Usage, price: PriceEntry) -> float:
-    """USD cost of one usage record, with cached input tokens at the cached rate.
+    """USD cost of one usage record, with each cached part at its own rate.
 
-    ``Usage.input_tokens`` counts every prompt token the provider reported and
-    ``cached_input_tokens`` is the part served from its prefix cache, so the
-    cached part is billed once and at the cached rate. A provider that reports
-    more cached tokens than input tokens is clamped rather than billed negative.
+    ``Usage.input_tokens`` counts every prompt token the provider reported,
+    ``cached_input_tokens`` is the part served from its prefix cache and
+    ``cache_write_input_tokens`` the part written to it. Writes are billed at
+    the row's write rate, or at the input rate when the row has no separate
+    write price, so a row written before that field existed bills exactly as
+    before. A provider that reports more cached or written tokens than input
+    tokens is clamped rather than billed negative.
     """
     cached = min(usage.cached_input_tokens, usage.input_tokens)
-    uncached = usage.input_tokens - cached
+    written = min(usage.cache_write_input_tokens, usage.input_tokens - cached)
+    uncached = usage.input_tokens - cached - written
+    write_rate = (
+        price.input_per_million
+        if price.cache_write_per_million is None
+        else price.cache_write_per_million
+    )
     cost = (
         uncached * price.input_per_million
         + cached * price.cached_input_per_million
+        + written * write_rate
         + usage.output_tokens * price.output_per_million
     ) / TOKENS_PER_MILLION
     return round(cost, COST_DECIMALS)

@@ -296,6 +296,22 @@ def test_committed_config_files_load() -> None:
     assert settings.platform.cost_cap_usd == 5.0
     assert settings.prices.lookup("mock") is None
     assert set(settings.tenants.tenants) == {"default", "seller_a"}
+    anthropic_config = settings.providers.providers["anthropic"]
+    assert anthropic_config.adapter == "anthropic"
+    assert anthropic_config.model == "claude-sonnet-5-5"
+    assert anthropic_config.base_url == "https://api.anthropic.com"
+    assert anthropic_config.api_key_env == "ANTHROPIC_API_KEY"
+    assert anthropic_config.api_key is None
+    assert anthropic_config.max_tokens == 4096
+    assert anthropic_config.capabilities is not None
+    assert anthropic_config.capabilities.json_schema is False
+    assert anthropic_config.capabilities.context_window == 1_000_000
+    # A provider that is configured but not used: no tenant selects it.
+    assert {tenant.provider for tenant in settings.tenants.tenants.values()} == {"lmstudio"}
+    anthropic_price = settings.prices.lookup("anthropic", "claude-sonnet-5-5")
+    assert anthropic_price is not None
+    assert anthropic_price.source == "https://platform.claude.com/docs/en/about-claude/pricing"
+    assert anthropic_price.cache_write_per_million == 2.5
     assert settings.tenants.tenants["seller_a"].seller_ids == ["955fee9216a65b617aa5c0531780ce60"]
     assert settings.tenants.tenants["default"].retrieval.search == "hybrid"
     assert settings.tenants.tenants["default"].retrieval.rewrite is True

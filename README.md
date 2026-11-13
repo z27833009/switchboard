@@ -238,7 +238,7 @@ Most "agent platform" demos hide three things: how the router decided, how often
 
 - A supervisor with a structured routing decision (`direct`, `docs`, `data`, or both) and a quality gate that can retry or re-plan a weak answer once.
 - An MCP tool server over a public e-commerce dataset (Olist), exposing parameterized, read-only tools with a per-tenant permission model.
-- A model layer that treats every OpenAI-compatible endpoint (LM Studio locally, DeepSeek in the cloud) the same way, so providers can be compared on the same test set.
+- A model layer that treats every OpenAI-compatible endpoint (LM Studio locally, DeepSeek in the cloud) the same way, plus a native Anthropic adapter with tool use, structured output and prompt caching, so providers can be compared on the same test set through one port.
 - OpenTelemetry instrumentation from day one, stored in PostgreSQL and rendered in a trace view.
 - A versioned evaluation harness with a regression gate in CI.
 
@@ -257,6 +257,15 @@ Most "agent platform" demos hide three things: how the router decided, how often
 ## Stack
 
 Python 3.12 with uv, FastAPI, LangGraph (as one orchestrator adapter), MCP (FastMCP), PostgreSQL 16 with pgvector, OpenTelemetry, TypeScript and React for the web UI, Docker Compose. Cloud deployment (Azure, Terraform) is an optional later phase.
+
+Configured model providers (`config/providers.yaml`):
+
+| Provider | Adapter | Model | Status |
+| --- | --- | --- | --- |
+| `lmstudio` | OpenAI-compatible | `qwen3-8b` on the host | the default for both demo tenants; measured in every committed report |
+| `deepseek` | OpenAI-compatible | `deepseek-flash` | paid, used only by an explicit comparison run; needs `DEEPSEEK_API_KEY` |
+| `anthropic` | native Messages API | `claude-sonnet-5-5` | configured and contract-tested, selected by no tenant and never called live: the T3.06 native tool-use comparison is blocked on an Anthropic key |
+| `mock` | fixture replay | recorded model output | CI and every mock eval report; no network |
 
 ## Continuous integration
 

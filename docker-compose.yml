@@ -124,6 +124,9 @@ services:
       # Empty is allowed for local-only use; the deepseek provider then fails at
       # startup if a tenant selects it, before any request.
       DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
+      # No tenant selects the anthropic provider by default; the API still
+      # reads the key so a tenant switched to it later needs only the env.
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       SWITCHBOARD_TRACING_EXPORTER: "${SWITCHBOARD_TRACING_EXPORTER:-postgres}"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
     extra_hosts:

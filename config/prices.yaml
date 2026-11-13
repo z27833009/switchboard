@@ -10,9 +10,11 @@
 # of an invented zero.
 #
 # Provider prefixes and rates change. When a row is updated, move `verified_on`
-# forward as well; reports cite both the date and the source.
+# forward as well; reports cite both the date and the source. `verified_on` is
+# the newest verification date in the file; each row's note says when that row
+# was checked when the two differ.
 
-verified_on: "2026-11-12"
+verified_on: "2026-11-13"
 
 entries:
   - provider: lmstudio
@@ -38,7 +40,7 @@ entries:
     source: https://api-docs.deepseek.com/quick_start/pricing
     note: >-
       Peak rate for deepseek-flash (cache miss input, cache hit input, output);
-      off-peak is half.
+      off-peak is half. Verified 2026-11-12.
 
   - provider: deepseek
     model: deepseek-v4-pro
@@ -48,4 +50,22 @@ entries:
     source: https://api-docs.deepseek.com/quick_start/pricing
     note: >-
       Peak rate for deepseek-v4-pro (cache miss input, cache hit input,
-      output); off-peak is half.
+      output); off-peak is half. Verified 2026-11-12.
+
+  # Anthropic, verified on 2026-11-13 against
+  # https://platform.claude.com/docs/en/about-claude/pricing: Claude Sonnet 5.5
+  # bills 2.00 input, 2.50 for a 5-minute cache write (1.25x), 0.10 for a cache
+  # read (0.05x on this model) and 10.00 output USD per million tokens. The
+  # adapter asks for the 5-minute cache, so this row is exact for its writes;
+  # the 1-hour cache (2x) and the batch discount (50 percent off) are not
+  # modelled.
+  - provider: anthropic
+    model: claude-sonnet-5-5
+    input_per_million: 2.0
+    cached_input_per_million: 0.1
+    cache_write_per_million: 2.5
+    output_per_million: 10.0
+    source: https://platform.claude.com/docs/en/about-claude/pricing
+    note: >-
+      Claude Sonnet 5.5 on the first-party API: base input, 5-minute cache
+      write, cache read and output. Verified 2026-11-13.

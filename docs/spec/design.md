@@ -151,8 +151,9 @@ class CompletionRequest(BaseModel):
     metadata: dict = {}                   # run_id, tenant_id, purpose
 
 class Usage(BaseModel):
-    input_tokens: int
-    cached_input_tokens: int = 0          # served from the provider's prefix cache
+    input_tokens: int                    # every prompt token, cache parts included
+    cached_input_tokens: int = 0         # served from the provider's prefix cache
+    cache_write_input_tokens: int = 0    # written to it (billed above input rate)
     output_tokens: int
 
 class CompletionResponse(BaseModel):
@@ -605,6 +606,14 @@ providers:
     tool_name_pattern: "^[a-zA-Z0-9_-]+$"  # @major would be rejected; mapped to _major
     capabilities: {tools: true, json_schema: false, streaming: true, reasoning: true, context_window: 1000000}
     extra_body: {reasoning_effort: none}   # thinking is on by default; plans stay non-thinking
+  anthropic:
+    adapter: anthropic
+    base_url: https://api.anthropic.com
+    api_key_env: ANTHROPIC_API_KEY         # read when the provider is built
+    model: claude-sonnet-5-5
+    max_tokens: 4096                       # the Messages API requires one per request
+    tool_name_pattern: "^[A-Za-z0-9_-]{1,128}$"  # same @major mapping as DeepSeek
+    capabilities: {tools: true, json_schema: false, streaming: true, reasoning: false, context_window: 1000000}
   mock:
     adapter: mock
     model: ${LMSTUDIO_MODEL}
@@ -625,6 +634,19 @@ Prices live in `config/prices.yaml` (12.4), not here.
 The DeepSeek rows were verified on 2026-11-12 against the provider's price page and chat-completions reference: `deepseek-flash` and `deepseek-v4-pro` accept tools and streaming, the context window is 1M, thinking is on by default, and `response_format` accepts `json_object` but not a JSON schema, so `json_schema` is false and the adapter uses the forced tool-call strategy. `reasoning_effort: none` keeps the model non-thinking, which the forced tool-call strategy needs because `tool_choice: "required"` is rejected in thinking mode. The key is written as `${DEEPSEEK_API_KEY:-}`: an unset key is an empty value, so all four config files still load for a local or mock run, and only building the `deepseek` provider (a tenant or an eval that selects it, and `--record` through it) fails, with a named `ConfigError`, before any request. A literal placeholder such as LM Studio's `lm-studio` is still written directly.
 
 `tool_name_pattern` is an optional provider-level regex. When set, the adapter maps each wire name to a name that matches the pattern (an invalid character becomes `_`, with a numeric suffix on collision), sends the safe name in the tool definition and in prior assistant tool-call messages, and maps the model's returned name back to the wire name. The tool, audit row, trace and result keep the wire name; a null pattern keeps the previous behavior. DeepSeek needs it because its function-name pattern rejects `@`, which every `name@major` wire name contains.
+
+**Anthropic adapter (v2, T3.06).** `AnthropicProvider` (`adapters/providers/anthropic.py`, entry point `switchboard.providers:anthropic`) wraps the official `anthropic` Python SDK and implements the same `ModelProvider` port, so agents and both orchestrators do not change.
+
+- Messages: every system message is joined into the one `system` prompt; user and assistant turns become content blocks; an assistant `tool_calls` list becomes `tool_use` blocks with the safe tool name; a `tool` message becomes a `tool_result` block inside a user turn. Consecutive turns with the same role are merged, which is what puts a tool result and the following question in one user turn.
+- Native tools: `ToolSpec.input_schema` is sent as the tool's `input_schema`, and `tool_choice` is `auto` for a tool round or `{"type": "tool", "name": ...}` for structured output. The three-value mapping (`auto`, `any`, specific) lives in one function; the port has no field that asks for `any` today.
+- Structured output: because the config sets `json_schema: false`, the adapter uses strategy 2 of 8.2, a forced tool named `submit_structured_response` whose input schema is the requested schema. The returned object is validated against that schema (`type`, `properties`, `required`, `additionalProperties: false`, `items`, `enum`) and a mismatch is one repair round, then `StructuredOutputError`. Declaring `json_schema: true` for this adapter is a named `ConfigError` rather than a silently different behaviour.
+- Streaming and cancellation: text deltas go to `delta_callback`, thinking deltas stay out of the answer and out of the callback, `input_json_delta` fragments are merged per block index, and usage comes from `message_start` plus `message_delta`. Structured-output calls are never streamed. Cancelling the awaiting task cancels the SDK request and the HTTP stream, and `CancelledError` is never converted into a provider error.
+- Errors: 429 and 5xx (including 529 "overloaded") are `ProviderTransientError` so the fallback decorator may retry them; 400, 401 and 403 are `ProviderRequestError` and are not retried. The SDK client is built with `max_retries=0`, because the retry budget belongs to the fallback decorator (8.4). Anything that is not an SDK or transport error is re-raised unchanged.
+- Configuration: `ProviderConfig` gained `api_key_env` (name the variable, read with `os.environ` when the provider is built) and `max_tokens` (the Messages API requires one on every request; a request's own `max_tokens` wins). No tenant selects this provider in the committed config, so the platform runs without an Anthropic key.
+- Two deliberate differences: the pinned SDK's Messages API exposes no `temperature` parameter, so `CompletionRequest.temperature` is not sent; and `capabilities.reasoning` is declared false because the adapter does not expose a thinking or effort switch, even though the model can think adaptively.
+
+Model, context window, output limit and prices were verified on 2026-11-13 against https://platform.claude.com/docs/en/models/overview and https://platform.claude.com/docs/en/about-claude/pricing: `claude-sonnet-5-5`, 1M context, 128K output, 2.00 input, 2.50 five-minute cache write, 0.10 cache read and 10.00 output USD per million tokens. No Anthropic key was available for this task, so the adapter is covered by contract tests with an injected fake client and the native tool-use comparison, latency and cost per query remain unmeasured.
+
 
 **Streaming answer tokens (v1).** When `CompletionRequest.stream` is true and the declared capability allows it, `OpenAICompatibleProvider` passes `stream: true` and `stream_options: {include_usage: true}` to the SDK and consumes the async iterator. It forwards each answer text fragment to `CompletionRequest.delta_callback`, accumulates the final text, keeps reasoning fragments (`reasoning_content` and the other fields of 8.3) in `reasoning` and never sends them to the callback, merges tool-call fragments by `index` and parses the arguments exactly as in the non-streamed path, and reads usage from the chunk that carries it. A gateway that sends no usage chunk leaves usage at zero rather than guessing. The returned `CompletionResponse` has the same shape as a non-streamed call, so agents and the gate do not branch on how it was produced. Structured-output calls are never streamed: a request with `stream` and a `response_schema` is rejected, and the supervisor never asks for one. `MockProvider` replays a recorded answer as deterministic fixed-size fragments, so streaming tests need no network. Non-streaming behaviour is unchanged.
 
@@ -647,13 +669,15 @@ In order of preference, chosen by `capabilities.json_schema`:
 
 The chosen strategy is recorded as a span attribute so eval reports can break down accuracy by strategy.
 
+The Anthropic adapter always uses strategy 2 and its config declares `json_schema: false`, so the recorded strategy of every structured Anthropic call is `tool_call`. Its forced tool is named `submit_structured_response`, the returned object is validated against the requested schema and one repair round follows a mismatch, as in the OpenAI-compatible prompted path. The SDK's own structured-output helper is deliberately not used: the tool-call form is the one the port describes, is visible in the trace, and needs no second response type.
+
 ### 8.3 Tool call normalization
 
 Tool calls from any provider are normalized to `ToolCall(name, arguments: dict, call_id)`. Arguments that arrive as a JSON string are parsed; failures become a tool validation error returned to the model (6.6).
 
 Reasoning output is separated from the answer: `<think>` blocks in the text (Qwen3 emits them by default) or a separate reasoning field are removed from `text` before parsing, and only their length is recorded on the span. Plans and other structured calls request non-thinking mode where the model supports a switch (Qwen3: `/no_think` in the system prompt), because thinking tokens add latency without improving a one-word classification.
 
-Usage is normalized the same way: cached input tokens are read from whichever field the provider returns (for example `prompt_cache_hit_tokens` on DeepSeek, `prompt_tokens_details.cached_tokens` on OpenAI-style responses) and default to zero when absent, as with LM Studio.
+Usage is normalized the same way: cached input tokens are read from whichever field the provider returns (for example `prompt_cache_hit_tokens` on DeepSeek, `prompt_tokens_details.cached_tokens` on OpenAI-style responses) and default to zero when absent, as with LM Studio. Anthropic reports the prompt as three numbers, so `input_tokens` is `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`, `cached_input_tokens` is the read part and `cache_write_input_tokens` the write part; a provider that reports no cache writes leaves that field at zero.
 
 ### 8.4 Fallback and routing by policy (v1, v2)
 
@@ -671,6 +695,8 @@ Most providers cache identical prompt prefixes and bill cached input tokens at a
 6. The current query, then evidence blocks.
 
 Nothing dynamic (timestamps, run ids) appears before step 4. A unit test asserts that two runs with different queries produce byte-identical prefixes up to step 3. Every model span records `switchboard.usage.cached_input_tokens`, and reports show the cached share of input tokens per provider.
+
+Anthropic bills prompt caching explicitly, so the adapter marks the stable prefix with `cache_control: {"type": "ephemeral"}` in the documented way: one breakpoint on the last tool definition (which covers the whole tools array) and one on the system prompt block, for two of the four permitted breakpoints. Dynamic user and tool-result blocks never carry one. The 5-minute cache is the one the adapter asks for, and its writes are reported by the API as `cache_creation_input_tokens`, which maps to `switchboard.usage.cache_write_input_tokens` and is billed at the row's write rate. A prefix shorter than the provider's minimum cacheable length is simply not cached; the adapter does not pad it.
 
 ### 8.6 Context management
 
@@ -809,7 +835,7 @@ The code uses the OpenTelemetry API directly. Span names and attributes follow t
 | `run` | server | `switchboard.tenant_id`, `switchboard.run_id`, `switchboard.orchestrator`, `switchboard.plan`, `switchboard.cache.hit`, `switchboard.attempts`, `switchboard.status` |
 | `supervisor.plan` | internal | `switchboard.plan`, `switchboard.plan.size`, `switchboard.plan.reason`, `switchboard.plan.fallback` |
 | `agent.<name>` | internal | `switchboard.agent`, `switchboard.partial`, `switchboard.citations` |
-| `chat <model>` | client | `gen_ai.operation.name=chat`, `gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `switchboard.usage.cached_input_tokens`, `switchboard.structured_output.strategy`, `switchboard.context.tokens_estimated`, `switchboard.context.compacted`, `switchboard.context.cleared_results`, `switchboard.latency_ms`, `switchboard.cost_usd` |
+| `chat <model>` | client | `gen_ai.operation.name=chat`, `gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `switchboard.usage.cached_input_tokens`, `switchboard.usage.cache_write_input_tokens`, `gen_ai.response.id`, `switchboard.provider.stop_reason`, `switchboard.structured_output.strategy`, `switchboard.context.tokens_estimated`, `switchboard.context.compacted`, `switchboard.context.cleared_results`, `switchboard.latency_ms`, `switchboard.cost_usd` |
 | `embeddings <model>` | client | `gen_ai.operation.name=embeddings`, token usage |
 | `execute_tool <name>` | client | `gen_ai.tool.name`, `switchboard.tool.version`, `switchboard.tool.args_hash`, `switchboard.tool.status`, `switchboard.tool.total_rows`, `switchboard.tool.audit_id`, guardrail attributes below; event `tool.result` with the full result capped at 64 KB |
 | `retrieve` | internal | `switchboard.retrieval.k`, `switchboard.retrieval.strategy`, `switchboard.retrieval.hits`, `switchboard.retrieval.round`, `switchboard.retrieval.top_score`, guardrail attributes below |
@@ -845,13 +871,15 @@ The author's `langgraph-visualizer` project can be attached as an optional devel
 
 `config/prices.yaml` holds input, cached input and output prices per million tokens per provider and model, with a `verified_on` date and the source URL. Values are copied from the provider's price page when a comparison run is prepared, never from memory. A row with a nonzero price and no source URL fails validation, so an unverified number cannot sit in the table. A row with `model: null` applies to every model of that provider (the local zero row); a matching model row wins over it. The schema is `PricesConfig` and `PriceEntry` in `core/config.py`, loaded by `load_settings` like the other three files.
 
-The math is `core/pricing.py`, a pure module: `compute_cost(usage, entry)` bills `input_tokens - cached_input_tokens` at the input rate, `cached_input_tokens` at the cached rate and `output_tokens` at the output rate, per million tokens. It is the single implementation used by the provider adapter, the orchestrator and the report writer. A provider with no row yields `None`: the chat span omits `switchboard.cost_usd` rather than writing zero, and a run or report stores null cost. A local model such as LM Studio has an explicit zero row, so its span, run and report say 0.0 and the report labels it "no API cost" rather than "free".
+The math is `core/pricing.py`, a pure module: `compute_cost(usage, entry)` bills `input_tokens - cached_input_tokens - cache_write_input_tokens` at the input rate, `cached_input_tokens` at the cached rate, `cache_write_input_tokens` at the write rate (the input rate when the row has none, so older rows keep their exact cost) and `output_tokens` at the output rate, per million tokens. It is the single implementation used by the provider adapter, the orchestrator and the report writer. A provider with no row yields `None`: the chat span omits `switchboard.cost_usd` rather than writing zero, and a run or report stores null cost. A local model such as LM Studio has an explicit zero row, so its span, run and report say 0.0 and the report labels it "no API cost" rather than "free".
 
 The provider adapter resolves its row once at construction (through `create_provider`) and writes the per-call cost on the `chat <model>` span and in `CompletionResponse.cost_usd`. Agents sum the responses they received into `AgentResult.cost_usd`, the orchestrator sums the supervisor call and every agent invocation (including a first attempt the gate rejected, a re-plan and the conditional retrieval rewrites), and the run total is that per-call sum. A run that uses the fallback provider therefore stays exact although it mixed two price rows; a call the provider could not price leaves None, and the orchestrator computes from the summed usage and its one price row only when no call reported a cost (older adapters and tests). The summed usage still counts every model call the run made, so a discarded attempt is visible in tokens even when its cost is zero. The API persists the total in `runs.cost_usd` and records the tenant's configured provider in `runs.provider` so the number can be grouped; a fallback call's own provider is on its chat span.
 
 `GET /runs?tenant_id=...&group_by=day|provider` groups the tenant's runs into UTC days or providers and returns, per bucket, the run count, input, cached input and output tokens, the summed `cost_usd` and `unpriced_runs`. The sum is null when no run in the bucket is priced, and `unpriced_runs` counts the null-cost rows, so an aggregate never passes an incomplete sum off as the full cost. Rows written before the `provider` column existed group as `unknown`. Without `group_by`, `GET /runs` keeps the run-list shape.
 
 DeepSeek publishes peak and off-peak rates (off-peak is half). The committed rows carry the peak rate so a recorded cost cannot be lower than the invoice; the row notes say so. The page listed `deepseek-flash` and `deepseek-v4-pro` on the verification date and no longer lists `deepseek-chat`, so only the two listed names have rows.
+
+The `runs` table keeps input, cached input and output tokens; cache write tokens stay on the chat span and in the completion response rather than in a fourth column, so a stored run still totals every prompt token (they are inside `input_tokens`) but does not separate the written part. Anthropic's row was verified on 2026-11-13 against https://platform.claude.com/docs/en/about-claude/pricing: `claude-sonnet-5-5` bills 2.00 input, 2.50 for a 5-minute cache write, 0.10 for a cache read and 10.00 output USD per million tokens. The provider is configured but unused and no Anthropic call has been made or billed, so there is no measured Anthropic cost or latency anywhere in this repository.
 
 ### 12.5 Step event stream
 
@@ -1232,7 +1260,7 @@ This list is the allowlist referred to in the working agreements: a dependency n
 | Data models | pydantic v2 | the only non-stdlib import allowed in `core` |
 | API | FastAPI, uvicorn | SSE through FastAPI's `StreamingResponse`, no extra package |
 | Orchestration | langgraph | imported only in `adapters/orchestrator/langgraph_impl` |
-| Model clients | openai (official Python SDK) | for every OpenAI-compatible provider and embedder |
+| Model clients | openai (official Python SDK) for every OpenAI-compatible provider and embedder; anthropic (official Python SDK) for the native-tools provider (v2, T3.06) | two SDKs because the Messages API is not OpenAI-compatible; the Anthropic adapter maps it onto the same `ModelProvider` port. Both pinned with `uv add` on the day they were added; `pyproject.toml` and `uv.lock` carry the versions |
 | Answer judge (v2) | no new dependency: `switchboard.judges:llm` wraps a `ModelProvider` from the row above | one structured-output call per answer; prompt and schema live in the adapter |
 | MCP | mcp (official Python SDK), using `mcp.server.mcpserver.MCPServer` for the server and its streamable HTTP client for `McpToolSource`; `mcp_servers/reviews` uses the official TypeScript SDK (`@modelcontextprotocol/sdk`) over the same transport | SDK 2.x renamed FastMCP to MCPServer; not the separate `fastmcp` package, one SDK on both sides |
 | Second MCP server (v2, T3.08) | Node 24 LTS, TypeScript, npm with a committed `package-lock.json`; runtime packages `@modelcontextprotocol/sdk`, `zod` (tool argument schemas the SDK requires), `pg` (Postgres client), `yaml` (shared tenant file), `@opentelemetry/api` (tool spans, no exporter yet); dev packages `typescript`, `@types/node`, `@types/pg` | no web framework: `node:http` plus the SDK's streamable HTTP transport; versions are pinned in `package.json` |
