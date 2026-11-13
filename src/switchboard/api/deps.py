@@ -21,6 +21,7 @@ from switchboard.adapters.embedders.factory import create_embedder
 from switchboard.adapters.providers.factory import create_provider
 from switchboard.api.audit import AuditStore, PgAuditStore, load_sensitive_args
 from switchboard.api.run_tokens import require_run_token_secret
+from switchboard.api.settings import build_settings_snapshots
 from switchboard.api.step_events import StepEventProcessor, StepEventPublisher
 from switchboard.api.store import PgRunStore, RunStore
 from switchboard.config import load_settings
@@ -67,6 +68,10 @@ class AppDeps:
     # Tool manifest sensitive_args, keyed by wire name, for the read-side guard
     # in GET /audit (AC-18b).
     sensitive_args: Mapping[str, Sequence[str]] = field(default_factory=dict)
+    # JSON-safe runtime settings per tenant for GET /settings (T3.03). None in
+    # a test that injects AppDeps without one, which the route answers with 503
+    # rather than inventing values.
+    settings_snapshot: Mapping[str, Mapping[str, Any]] | None = None
 
     def orchestrator_for(self, tenant_provider: str) -> Orchestrator:
         try:
@@ -203,6 +208,9 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
         orchestrators = build_orchestrators(
             settings, registry, pool, answer_delta=step_events.publish_answer_delta
         )
+        # Built once from the same config, registry and manifests the
+        # orchestrators use, so GET /settings cannot drift from what runs.
+        settings_snapshot = build_settings_snapshots(settings, registry)
     except BaseException:
         await pool.close()
         if tracing is not None:
@@ -226,6 +234,7 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
         tracing=tracing,
         closer=close,
         sensitive_args=load_sensitive_args(settings.platform.tool_sources),
+        settings_snapshot=settings_snapshot,
     )
 
 

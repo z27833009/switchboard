@@ -308,10 +308,10 @@ function groupAgents(rows: FlatSpan[]): AgentGroup[] {
  *
  * LangGraph runs the plan before the agents (cache, supervisor, agents, merge,
  * gate); the agent loop records its plan after the tool loop (cache, agents,
- * plan, gate). The cache emits no span while it is a pass-through, so its node
- * says so instead of showing a made-up hit or miss. The merge step has no span
- * of its own, so it is only drawn when more than one agent span was stored and
- * only for an orchestrator whose graph has that step.
+ * plan, gate). The cache only emits a span when the tenant enables it, so its
+ * node says why a trace has none instead of showing a made-up hit or miss. The
+ * merge step has no span of its own, so it is only drawn when more than one
+ * agent span was stored and only for an orchestrator whose graph has that step.
  */
 export function buildPlanGraph(run: RunSummary | null, rows: FlatSpan[]): PlanGraph {
   if (rows.length === 0) {
@@ -350,11 +350,11 @@ export function buildPlanGraph(run: RunSummary | null, rows: FlatSpan[]): PlanGr
     detail:
       cacheSpans.length > 0
         ? `executed ${cacheSpans.length} lookup(s)`
-        : "not enabled in this build",
+        : "no cache span in this trace",
     note:
       cacheSpans.length > 0
         ? null
-        : "The semantic cache is a pass-through until T2.18, so this trace has no cache span and no hit or miss is shown.",
+        : "This trace has no cache.lookup span. A tenant with cache.enabled false makes no lookup (both demo tenants keep it off), so no hit or miss is shown.",
     tone: cacheSpans.length > 0 ? "neutral" : "muted",
     spanId: cacheSpans.length > 0 ? cacheSpans[cacheSpans.length - 1].span_id : null,
     executed: cacheSpans.length > 0,
@@ -482,10 +482,10 @@ export function buildPlanGraph(run: RunSummary | null, rows: FlatSpan[]): PlanGr
 
   // Edges follow the orchestrator's actual graph, not a generic flow.
   if (isAgentLoop) {
-    // The loop does not call the cache in this build, so the cache node is not
-    // connected to a step it never reached.
+    // The loop looks up the cache before it starts and records its plan after
+    // the loop, so this view does not connect the cache node to a step.
     notes.push(
-      "The agent loop does not call the cache in this build, so the cache node has no edge.",
+      "The agent loop looks up the cache before the loop and records its plan after it, so this view draws no edge from the cache node.",
     );
     for (const agent of agentNodes) {
       if (planNodeId !== null) {
@@ -497,13 +497,13 @@ export function buildPlanGraph(run: RunSummary | null, rows: FlatSpan[]): PlanGr
     }
   } else {
     if (planNodeId !== null) {
-      addEdge(edges, seenEdges, "cache", planNodeId, "pass-through");
+      addEdge(edges, seenEdges, "cache", planNodeId, "before");
       for (const agent of agentNodes) {
         addEdge(edges, seenEdges, planNodeId, agent.id, "dispatch");
       }
     } else {
       for (const agent of agentNodes) {
-        addEdge(edges, seenEdges, "cache", agent.id, "pass-through");
+        addEdge(edges, seenEdges, "cache", agent.id, "before");
       }
     }
     for (const agent of agentNodes) {

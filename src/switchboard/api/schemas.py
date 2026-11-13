@@ -15,9 +15,13 @@ from typing import Any, Literal, cast
 
 from pydantic import BaseModel, Field, field_validator
 
+from switchboard.core.config import Limits
 from switchboard.core.models import (
+    CacheSettings,
     Citation,
     ErrorRecord,
+    ProviderCapabilities,
+    RetrievalSettings,
     RoutingDecision,
     RunResult,
     RunStatus,
@@ -330,6 +334,93 @@ class TraceResponse(BaseModel):
     spans: list[TraceSpan] = Field(default_factory=list)
 
 
+class SettingsPrice(BaseModel):
+    """One price row as the settings dialog shows it (design.md section 12.4).
+
+    ``no_api_cost`` is true for an explicit zero row (a model served on this
+    machine); ``None`` price means no row matched, which is "unknown", not
+    "free".
+    """
+
+    input_per_million: float
+    cached_input_per_million: float
+    output_per_million: float
+    no_api_cost: bool
+    verified_on: str | None = None
+
+
+class SettingsProvider(BaseModel):
+    """The provider this process would call for the tenant, minus its secrets."""
+
+    name: str
+    model: str | None = None
+    capabilities: ProviderCapabilities | None = None
+    price: SettingsPrice | None = None
+
+
+class SettingsPlatform(BaseModel):
+    """Platform-level choices from ``config/platform.yaml``."""
+
+    orchestrator: str
+    retriever: str
+    embedder: str
+    cache: str
+    context_policy: str
+    limits: Limits
+
+
+class SettingsTenant(BaseModel):
+    """The tenant's own configuration and allowlists (design.md section 11)."""
+
+    tenant_id: str
+    provider: str
+    seller_ids: list[str] | None = None
+    agents_allow: list[str] = Field(default_factory=list)
+    tools_allow: list[str] = Field(default_factory=list)
+    tools_ask: list[str] = Field(default_factory=list)
+    retrieval: RetrievalSettings
+    cache: CacheSettings
+
+
+class SettingsTool(BaseModel):
+    """One tool manifest entry, with whether this tenant may call it."""
+
+    name: str
+    version: str
+    wire_name: str
+    description: str
+    risk: Literal["read", "write"]
+    tenant_scoped: bool
+    allowed: bool
+
+
+class SettingsAgent(BaseModel):
+    """One registered agent, with whether this tenant's supervisor may plan it."""
+
+    name: str
+    description: str
+    cacheable: bool
+    needs: list[str] = Field(default_factory=list)
+    allowed: bool
+
+
+class SettingsResponse(BaseModel):
+    """Read-only runtime settings for one tenant (design.md section 14, T3.03).
+
+    There is no write route: the dialog shows what the configuration files and
+    the registry resolved at startup, and every value is read with
+    ``GET /settings?tenant_id=...``.
+    """
+
+    read_only: bool = True
+    platform: SettingsPlatform
+    tenant: SettingsTenant
+    provider: SettingsProvider
+    tools: list[SettingsTool] = Field(default_factory=list)
+    agents: list[SettingsAgent] = Field(default_factory=list)
+    tenants: list[str] = Field(default_factory=list)
+
+
 __all__ = [
     "FEEDBACK_NOTE_MAX_CHARS",
     "REDACTED_ARGUMENT",
@@ -344,6 +435,13 @@ __all__ = [
     "RunAggregateRow",
     "RunSummary",
     "RunsResponse",
+    "SettingsAgent",
+    "SettingsPlatform",
+    "SettingsPrice",
+    "SettingsProvider",
+    "SettingsResponse",
+    "SettingsTenant",
+    "SettingsTool",
     "TraceResponse",
     "TraceSpan",
 ]

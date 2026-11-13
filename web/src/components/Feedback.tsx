@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { errorMessage, postJson } from "../api";
 import type { FeedbackSummary } from "../api";
@@ -25,6 +25,8 @@ export function FeedbackForm({
   const [saved, setSaved] = useState<FeedbackSummary | null>(latest);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const noteId = useId();
+  const headingId = useId();
 
   async function send(rating: -1 | 1) {
     if (saving) {
@@ -49,49 +51,63 @@ export function FeedbackForm({
   }
 
   return (
-    <section className="feedback">
-      <h3>Rate this answer</h3>
-      <p className="meta">
-        run <code>{runId}</code> tenant <code>{tenantId}</code>
+    <section className="feedback" aria-labelledby={headingId}>
+      <div className="feedback-head">
+        <h3 id={headingId} className="feedback-heading">
+          Rate this answer
+        </h3>
+        <div className="feedback-row">
+          <button
+            type="button"
+            className="button button-quiet"
+            onClick={() => void send(1)}
+            disabled={saving}
+          >
+            Thumbs up
+          </button>
+          <button
+            type="button"
+            className="button button-quiet"
+            onClick={() => void send(-1)}
+            disabled={saving}
+          >
+            Thumbs down
+          </button>
+          {saving ? <span className="muted small">Saving...</span> : null}
+        </div>
+      </div>
+      <p className="muted small" role="status">
+        {saved !== null
+          ? `Latest feedback: ${ratingLabel(saved.rating)} at ${formatDateTime(saved.created_at)}${
+              saved.note !== null && saved.note !== "" ? `, note: ${saved.note}` : ""
+            }`
+          : "No feedback stored for this run yet."}
       </p>
-      <label className="field">
-        <span>Note (optional, at most {NOTE_MAX_CHARS} characters)</span>
-        <textarea
-          value={note}
-          rows={2}
-          maxLength={NOTE_MAX_CHARS}
-          placeholder="What was wrong, or what would have made this better?"
-          onChange={(event) => setNote(event.target.value)}
-          disabled={saving}
-        />
-      </label>
-      <p className="feedback-actions">
-        <button type="button" onClick={() => void send(1)} disabled={saving}>
-          Thumbs up
-        </button>
-        <button type="button" onClick={() => void send(-1)} disabled={saving}>
-          Thumbs down
-        </button>
-        {saving ? <span className="muted">Saving...</span> : null}
-      </p>
+      <details className="feedback-note">
+        <summary>Add a note (optional)</summary>
+        <label className="field" htmlFor={noteId}>
+          <span className="field-label">Note (at most {NOTE_MAX_CHARS} characters)</span>
+          <textarea
+            id={noteId}
+            value={note}
+            rows={2}
+            maxLength={NOTE_MAX_CHARS}
+            placeholder="What was wrong, or what would have made this better?"
+            onChange={(event) => setNote(event.target.value)}
+            disabled={saving}
+          />
+        </label>
+        <p className="muted small">
+          Feedback is append-only: a new rating adds a row and becomes the run's current verdict.
+          Negative ratings are what <code>switchboard eval harvest</code> reads.
+        </p>
+      </details>
       {error !== null ? (
-        <div className="error-box">
+        <div className="error-box" role="alert">
           <strong>Feedback was not saved</strong>
           <p>{error}</p>
         </div>
       ) : null}
-      {saved !== null ? (
-        <p className="feedback-saved">
-          Latest feedback: {ratingLabel(saved.rating)} at {formatDateTime(saved.created_at)}
-          {saved.note !== null && saved.note !== "" ? `, note: ${saved.note}` : ""}
-        </p>
-      ) : (
-        <p className="muted">No feedback stored for this run yet.</p>
-      )}
-      <p className="muted">
-        Feedback is append-only: a new rating adds a row and becomes the run's current verdict.
-        Negative ratings are what <code>switchboard eval harvest</code> reads.
-      </p>
     </section>
   );
 }

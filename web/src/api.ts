@@ -51,6 +51,7 @@ export interface ChatResponse {
   plan: RoutingDecision | null;
   citations: Citation[];
   usage: Usage;
+  cost_usd: number | null;
   cache_hit: boolean;
   attempts: number;
   errors: ErrorRecord[];
@@ -65,6 +66,7 @@ export interface RunSummary {
   session_id: string | null;
   query: string;
   orchestrator: string;
+  provider: string | null;
   plan: string | null;
   status: RunStatus;
   cache_hit: boolean;
@@ -135,6 +137,107 @@ export interface StepEvent {
   run_id: string;
   [key: string]: unknown;
 }
+
+// GET /settings returns the read-only runtime snapshot built at startup. Every
+// value is the configuration the API actually loaded; the endpoint has no
+// write counterpart and carries no key, base URL or database URL.
+export interface SettingsCapabilities {
+  tools: boolean;
+  json_schema: boolean;
+  streaming: boolean;
+  reasoning: boolean;
+  context_window: number;
+}
+
+export interface SettingsPrice {
+  input_per_million: number;
+  cached_input_per_million: number;
+  output_per_million: number;
+  no_api_cost: boolean;
+  verified_on: string | null;
+}
+
+export interface SettingsLimits {
+  run_timeout_s: number;
+  max_tool_steps: number;
+  max_loop_steps: number;
+  max_plan_size: number;
+  fallback_plan: string[];
+  model_view_rows: number;
+  context_fill: number;
+  history_turns: number;
+}
+
+export interface SettingsPlatform {
+  orchestrator: string;
+  retriever: string;
+  embedder: string;
+  cache: string;
+  context_policy: string;
+  limits: SettingsLimits;
+}
+
+export interface SettingsRetrieval {
+  k: number;
+  min_score: number;
+  rewrite: boolean;
+  rewrite_mode: "conditional" | "always";
+  search: "vector" | "hybrid";
+}
+
+export interface SettingsCache {
+  enabled: boolean;
+  threshold: number;
+  ttl_days: number;
+}
+
+export interface SettingsTenant {
+  tenant_id: string;
+  provider: string;
+  seller_ids: string[] | null;
+  agents_allow: string[];
+  tools_allow: string[];
+  tools_ask: string[];
+  retrieval: SettingsRetrieval;
+  cache: SettingsCache;
+}
+
+export interface SettingsProvider {
+  name: string;
+  model: string | null;
+  capabilities: SettingsCapabilities | null;
+  price: SettingsPrice | null;
+}
+
+export interface SettingsTool {
+  name: string;
+  version: string;
+  wire_name: string;
+  description: string;
+  risk: "read" | "write";
+  tenant_scoped: boolean;
+  allowed: boolean;
+}
+
+export interface SettingsAgent {
+  name: string;
+  description: string;
+  cacheable: boolean;
+  needs: string[];
+  allowed: boolean;
+}
+
+export interface SettingsResponse {
+  read_only: boolean;
+  platform: SettingsPlatform;
+  tenant: SettingsTenant;
+  provider: SettingsProvider;
+  tools: SettingsTool[];
+  agents: SettingsAgent[];
+  tenants: string[];
+}
+
+export type HealthState = "ok" | "error" | "unknown";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -283,6 +386,30 @@ export async function postChatStream(
 
 export function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
+}
+
+/**
+ * GET /health, which answers 200 only when every dependency is ok and 503 with
+ * the same body shape otherwise. The sidebar status dot reads this, so an
+ * unhealthy stack says so instead of showing a decorative green dot.
+ */
+export async function getHealthState(signal?: AbortSignal): Promise<HealthState> {
+  try {
+    const response = await fetch(`${API_BASE}/health`, {
+      signal,
+      headers: { Accept: "application/json" },
+    });
+    const payload: unknown = await response.json();
+    if (!isRecord(payload)) {
+      return "error";
+    }
+    return payload.status === "ok" ? "ok" : "error";
+  } catch (caught) {
+    if (isAbortError(caught)) {
+      throw caught;
+    }
+    return "error";
+  }
 }
 
 export function errorMessage(error: unknown): string {

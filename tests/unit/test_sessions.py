@@ -362,6 +362,44 @@ async def test_history_is_limited_to_the_configured_turn_count(
     ]
 
 
+async def test_the_run_list_can_be_narrowed_to_one_session(harness: AppHarness) -> None:
+    """The chat transcript reads stored runs of one conversation (T3.03)."""
+    session = str(uuid.uuid4())
+    first = await post_chat(harness, "first stored question", session_id=session)
+    await post_chat(harness, "second stored question", session_id=session)
+    await post_chat(harness, "a different session", session_id=str(uuid.uuid4()))
+    unsessioned = await post_chat(harness, "no session at all")
+
+    response = await harness.client.get(
+        "/runs", params={"tenant_id": "default", "session_id": session, "limit": 50}
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["count"] == 2
+    # Newest first, like the unfiltered list; the page reverses it.
+    assert [run["query"] for run in body["runs"]] == [
+        "second stored question",
+        "first stored question",
+    ]
+    assert {run["session_id"] for run in body["runs"]} == {session}
+    assert body["runs"][-1]["run_id"] == first["run_id"]
+    assert body["runs"][-1]["answer"] == first["answer"]
+
+    # Another tenant never sees this conversation.
+    cross = await harness.client.get(
+        "/runs", params={"tenant_id": "seller_a", "session_id": session}
+    )
+    assert cross.status_code == 200
+    assert cross.json()["count"] == 0
+
+    # Without the filter the list is unchanged, including run rows that carry
+    # no session id at all.
+    everything = await harness.client.get("/runs", params={"tenant_id": "default"})
+    listed = {run["run_id"] for run in everything.json()["runs"]}
+    assert unsessioned["run_id"] in listed
+    assert len(listed) == 4
+
+
 async def test_a_clarify_run_finished_event_carries_the_status() -> None:
     store = MemoryRunStore()
     publisher = StepEventPublisher()

@@ -120,8 +120,15 @@ class MemoryRunStore:
             }
         )
 
-    async def list_runs(self, *, tenant_id: str, limit: int = 50) -> list[dict[str, Any]]:
-        rows = [dict(row) for row in self.runs.values() if row["tenant_id"] == tenant_id]
+    async def list_runs(
+        self, *, tenant_id: str, limit: int = 50, session_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        rows = [
+            dict(row)
+            for row in self.runs.values()
+            if row["tenant_id"] == tenant_id
+            and (session_id is None or row["session_id"] == session_id)
+        ]
         rows.sort(key=lambda row: row["started_at"], reverse=True)
         return rows[:limit]
 
@@ -465,6 +472,7 @@ def build_harness(
     flush: Any = None,
     sensitive_args: Mapping[str, Sequence[str]] | None = None,
     history_turns: int = 3,
+    settings_snapshot: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> AppHarness:
     """Build an app with fakes and a client bound to it (no lifespan, no IO)."""
     deps = AppDeps(
@@ -479,6 +487,7 @@ def build_harness(
         tracing=flush,
         health=fake_health,
         sensitive_args=sensitive_args or {},
+        settings_snapshot=settings_snapshot,
     )
     app = create_app(deps=deps)
     harness = AppHarness(

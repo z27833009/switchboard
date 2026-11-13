@@ -579,77 +579,119 @@ export function TracePage({ runId, tenant, spanId, auditId, view }: TracePagePro
   }
 
   return (
-    <div className="page">
-      <section className="panel">
-        <div className="panel-header">
-          <h2>Trace</h2>
-          {trace !== null ? (
-            <span className="muted">
-              {trace.span_count} span(s), trace id {trace.trace_id ?? "not shared"}
-            </span>
-          ) : null}
-        </div>
-        <p className="meta">
-          run <code>{runId}</code> tenant <code>{tenantId}</code>
-        </p>
-        {run !== null ? (
-          <p className="meta">
-            <StatusBadge status={run.status} /> plan {recordedPlan ?? "-"} attempts {run.attempts}{" "}
-            input {formatTokens(run.input_tokens)} tokens output {formatTokens(run.output_tokens)}{" "}
-            tokens
-            {run.cost_usd !== null ? ` cost $${run.cost_usd.toFixed(4)}` : " no API cost recorded"}{" "}
-            gate{" "}
-            {gate.verdict === null ? (
-              <span className="muted">no gate span</span>
-            ) : (
-              <span className={`marker marker-${gate.verdict === "pass" ? "ok" : "warning"}`}>
-                {gate.verdict}
-                {gate.action !== null ? ` (${gate.action})` : ""}
-                {gate.spanCount > 1 ? `, ${gate.spanCount} checks` : ""}
-              </span>
-            )}
-            {gate.failedChecks !== null ? (
-              <span className="warning-text"> failed: {gate.failedChecks}</span>
-            ) : null}
-            {gate.corrective && gate.correctiveAction !== null ? (
-              <span className="marker marker-warning">
-                corrective: {gate.correctiveAction} ({gate.spanCount} gate check(s))
-              </span>
-            ) : null}
-          </p>
-        ) : null}
-        <p className="meta">
-          started {run === null ? "-" : formatDateTime(run.started_at)} ended{" "}
-          {run === null ? "-" : formatDateTime(run.ended_at)}
-        </p>
-        {loading ? <p className="muted">Loading trace...</p> : null}
-        {error !== null ? (
-          <div className="error-box">
-            <strong>Could not load the trace</strong>
-            <p>{error}</p>
-          </div>
-        ) : null}
-        {trace !== null && trace.incomplete ? (
-          <div className="warning-box">
-            <strong>Incomplete trace.</strong> The API reported that span data is missing for this run,
-            because the flush timed out or a span batch was lost. The views below contain only the
-            spans that were stored; they are not a complete record of the run.
-          </div>
-        ) : null}
-        {selectionNotice !== null ? <div className="warning-box">{selectionNotice}</div> : null}
-
+    <div className="page page-trace">
+      <p className="back-link">
+        <a href={`#/traces?tenant=${encodeURIComponent(tenantId)}`}>Back to traces</a>
+        <span className="dot-separator" aria-hidden="true">
+          ·
+        </span>
+        <a href={`#/runs/${encodeURIComponent(runId)}?tenant=${encodeURIComponent(tenantId)}`}>
+          Run detail
+        </a>
+      </p>
+      <p className="turn-meta">
+        run <code>{runId}</code> · tenant <code>{tenantId}</code>
         {trace !== null ? (
           <>
-            <h3 className="section-title">Plan graph</h3>
+            {" "}
+            · {trace.span_count} span(s) · trace id <code>{trace.trace_id ?? "not shared"}</code>
+          </>
+        ) : null}
+      </p>
+      {run !== null ? (
+        <dl className="trace-summary">
+          <div className="kv">
+            <dt>status</dt>
+            <dd>
+              <StatusBadge status={run.status} />
+            </dd>
+          </div>
+          <div className="kv">
+            <dt>plan</dt>
+            <dd>{recordedPlan ?? "-"}</dd>
+          </div>
+          <div className="kv">
+            <dt>gate</dt>
+            <dd>
+              {gate.verdict === null ? (
+                <span className="muted">no gate span</span>
+              ) : (
+                <span className={`marker marker-${gate.verdict === "pass" ? "ok" : "warning"}`}>
+                  {gate.verdict}
+                  {gate.action !== null ? ` (${gate.action})` : ""}
+                  {gate.spanCount > 1 ? `, ${gate.spanCount} checks` : ""}
+                </span>
+              )}
+              {gate.failedChecks !== null ? (
+                <span className="warning-text"> failed: {gate.failedChecks}</span>
+              ) : null}
+              {gate.corrective && gate.correctiveAction !== null ? (
+                <span className="marker marker-warning">
+                  corrective: {gate.correctiveAction} ({gate.spanCount} gate check(s))
+                </span>
+              ) : null}
+            </dd>
+          </div>
+          <div className="kv">
+            <dt>attempts</dt>
+            <dd>{run.attempts}</dd>
+          </div>
+          <div className="kv">
+            <dt>tokens</dt>
+            <dd>
+              {formatTokens(run.input_tokens)} in / {formatTokens(run.output_tokens)} out
+            </dd>
+          </div>
+          <div className="kv">
+            <dt>cost</dt>
+            <dd>{run.cost_usd !== null ? `$${run.cost_usd.toFixed(4)}` : "no API cost recorded"}</dd>
+          </div>
+          <div className="kv">
+            <dt>started</dt>
+            <dd>{formatDateTime(run.started_at)}</dd>
+          </div>
+          <div className="kv">
+            <dt>ended</dt>
+            <dd>{formatDateTime(run.ended_at)}</dd>
+          </div>
+        </dl>
+      ) : null}
+
+      {loading ? <p className="muted">Loading trace...</p> : null}
+      {error !== null ? (
+        <div className="error-box" role="alert">
+          <strong>Could not load the trace</strong>
+          <p>{error}</p>
+        </div>
+      ) : null}
+      {trace !== null && trace.incomplete ? (
+        <div className="warning-box" role="status">
+          <strong>Incomplete trace.</strong> The API reported that span data is missing for this
+          run, because the flush timed out or a span batch was lost. The views below contain only
+          the spans that were stored; they are not a complete record of the run.
+        </div>
+      ) : null}
+      {selectionNotice !== null ? (
+        <div className="warning-box" role="status">
+          {selectionNotice}
+        </div>
+      ) : null}
+
+      {trace !== null ? (
+        <>
+          <section className="surface">
+            <h2 className="surface-title">Plan graph</h2>
             <PlanGraphView
               graph={graph}
               rows={allRows}
               selectedId={selectedId}
               onSelect={selectSpan}
             />
+          </section>
 
-            <div className="panel-header trace-toolbar">
-              <h3 className="section-title">Spans</h3>
+          <section className="surface">
+            <div className="surface-head trace-toolbar">
+              <h2 className="surface-title">Spans</h2>
               <div className="view-switch" role="group" aria-label="Span view">
                 <button
                   type="button"
@@ -683,7 +725,8 @@ export function TracePage({ runId, tenant, spanId, auditId, view }: TracePagePro
                 {allRows.length === 0 ? (
                   <p className="muted">
                     The API returned no spans for this run, so there is nothing to draw in either
-                    view.
+                    view. If <code>tracing.exporter</code> is <code>otlp</code>, the spans are in
+                    the collector instead of the platform trace table.
                   </p>
                 ) : activeView === "tree" ? (
                   visibleRows.map((row) => (
@@ -748,15 +791,9 @@ export function TracePage({ runId, tenant, spanId, auditId, view }: TracePagePro
                 <SpanDetail span={selected} />
               </aside>
             </div>
-          </>
-        ) : null}
-        <p className="links">
-          <a href={`#/runs/${encodeURIComponent(runId)}?tenant=${encodeURIComponent(tenantId)}`}>
-            Open run
-          </a>
-          <a href="#/runs">Back to runs</a>
-        </p>
-      </section>
+          </section>
+        </>
+      ) : null}
     </div>
   );
 }

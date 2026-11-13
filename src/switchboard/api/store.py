@@ -57,6 +57,7 @@ LIST_RUNS_SQL = f"""
 SELECT {RUN_COLUMNS}
 FROM public.runs
 WHERE tenant_id = $1
+  AND ($3::text IS NULL OR session_id = $3)
 ORDER BY started_at DESC
 LIMIT $2
 """
@@ -235,7 +236,13 @@ class RunStore(Protocol):
 
     async def finish_run(self, result: RunResult, *, trace_complete: bool) -> None: ...
 
-    async def list_runs(self, *, tenant_id: str, limit: int = 50) -> list[dict[str, Any]]: ...
+    async def list_runs(
+        self,
+        *,
+        tenant_id: str,
+        limit: int = 50,
+        session_id: str | None = None,
+    ) -> list[dict[str, Any]]: ...
 
     async def aggregate_runs(
         self, *, tenant_id: str, group_by: Literal["day", "provider"]
@@ -307,8 +314,10 @@ class PgRunStore:
             trace_complete,
         )
 
-    async def list_runs(self, *, tenant_id: str, limit: int = 50) -> list[dict[str, Any]]:
-        rows = await self._pool.fetch(LIST_RUNS_SQL, tenant_id, limit)
+    async def list_runs(
+        self, *, tenant_id: str, limit: int = 50, session_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        rows = await self._pool.fetch(LIST_RUNS_SQL, tenant_id, limit, session_id)
         return [run_row(row) for row in rows]
 
     async def aggregate_runs(

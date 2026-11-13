@@ -1,5 +1,8 @@
+import type { ReactNode } from "react";
+
 import type { Citation, ErrorRecord } from "../api";
 import { citationHref } from "../routes";
+import { AlertIcon, CheckIcon, ClockIcon, DotIcon } from "./Icons";
 
 const WARNING_STATUSES = new Set([
   "partial",
@@ -10,16 +13,62 @@ const WARNING_STATUSES = new Set([
   "waiting_approval",
 ]);
 
-export function StatusBadge({ status }: { status: string }) {
-  let tone = "neutral";
+export type Tone = "ok" | "running" | "warning" | "neutral";
+
+export function statusTone(status: string): Tone {
   if (status === "ok") {
-    tone = "ok";
-  } else if (status === "running") {
-    tone = "running";
-  } else if (WARNING_STATUSES.has(status)) {
-    tone = "warning";
+    return "ok";
   }
-  return <span className={`badge badge-${tone}`}>{status}</span>;
+  if (status === "running") {
+    return "running";
+  }
+  if (WARNING_STATUSES.has(status)) {
+    return "warning";
+  }
+  return "neutral";
+}
+
+// The badge never relies on colour alone: each tone has its own glyph as well
+// as its label, so a status stays readable in forced colours and for a reader
+// who cannot separate the green from the amber (WCAG 1.4.1).
+function ToneIcon({ tone }: { tone: Tone }) {
+  const className = "badge-icon";
+  if (tone === "ok") {
+    return <CheckIcon className={className} />;
+  }
+  if (tone === "warning") {
+    return <AlertIcon className={className} />;
+  }
+  if (tone === "running") {
+    return <ClockIcon className={className} />;
+  }
+  return <DotIcon className={className} />;
+}
+
+export function StatusBadge({ status }: { status: string }) {
+  const tone = statusTone(status);
+  return (
+    <span className={`badge badge-${tone}`}>
+      <ToneIcon tone={tone} />
+      <span className="badge-label">{status.replace(/_/g, " ")}</span>
+    </span>
+  );
+}
+
+export function Tag({
+  children,
+  tone = "neutral",
+  title,
+}: {
+  children: ReactNode;
+  tone?: Tone | "accent";
+  title?: string;
+}) {
+  return (
+    <span className={`tag tag-${tone}`} title={title}>
+      {children}
+    </span>
+  );
 }
 
 export function ErrorList({ errors }: { errors: ErrorRecord[] }) {
@@ -58,10 +107,10 @@ export function CitationChips({
   citations: Citation[];
 }) {
   if (citations.length === 0) {
-    return <p className="muted">No citations were returned for this answer.</p>;
+    return <p className="muted small">No citations were returned for this answer.</p>;
   }
   return (
-    <div className="chips">
+    <div className="chips" aria-label="Citations">
       {citations.map((citation, index) => {
         const label = citation.kind === "tool" ? `tool ${citation.ref}` : `doc ${citation.ref}`;
         return (

@@ -47,6 +47,7 @@ from switchboard.api.schemas import (
     RunAggregateRow,
     RunsResponse,
     RunSummary,
+    SettingsResponse,
     TraceResponse,
 )
 from switchboard.api.step_events import RUN_FINISHED, StepEvent
@@ -320,6 +321,13 @@ async def list_runs(
     request: Request,
     tenant_id: str = Query(min_length=1, description="Tenant whose runs to list."),
     limit: int = Query(default=50, ge=1, le=200),
+    session_id: Annotated[
+        str | None,
+        Query(
+            min_length=1,
+            description="Only the runs of this conversation, for the chat transcript.",
+        ),
+    ] = None,
     group_by: Annotated[
         Literal["day", "provider"] | None,
         Query(description="Aggregate cost and tokens per UTC day or per provider."),
@@ -327,16 +335,20 @@ async def list_runs(
 ) -> RunsResponse | RunAggregateResponse:
     """The run list of one tenant, newest first, or its cost buckets (AC-19b).
 
-    Without ``group_by`` the response is the run list, unchanged. With
-    ``group_by=day`` or ``group_by=provider`` the response holds one bucket per
-    day (UTC) or provider with the run count, input, cached input and output
-    tokens and the summed cost. ``limit`` only applies to the run list; a
-    bucket covers every run of the tenant.
+    Without ``group_by`` the response is the run list, unchanged. ``session_id``
+    narrows it to one conversation, which is how the chat page rebuilds a
+    stored transcript from real run rows instead of keeping browser history.
+    With ``group_by=day`` or ``group_by=provider`` the response holds one
+    bucket per day (UTC) or provider with the run count, input, cached input and
+    output tokens and the summed cost. ``limit`` only applies to the run list; a
+    bucket covers every run of the tenant, and neither filter applies to it.
     """
     deps = _deps(request.app)
     tenant = _tenant(deps, tenant_id)
     if group_by is None:
-        rows = await deps.store.list_runs(tenant_id=tenant.tenant_id, limit=limit)
+        rows = await deps.store.list_runs(
+            tenant_id=tenant.tenant_id, limit=limit, session_id=session_id
+        )
         return RunsResponse(runs=[RunSummary.from_row(row) for row in rows], count=len(rows))
     groups = await deps.store.aggregate_runs(tenant_id=tenant.tenant_id, group_by=group_by)
     return RunAggregateResponse(
@@ -406,6 +418,28 @@ async def get_run_trace(
     rows = await deps.store.fetch_spans(str(row["id"]))
     incomplete = not bool(row.get("trace_complete", True)) or not rows_are_complete(rows)
     return assemble_trace(run_id=str(row["id"]), rows=rows, incomplete=incomplete)
+
+
+@router.get("/settings", response_model=SettingsResponse)
+async def get_settings(
+    request: Request,
+    tenant_id: str = Query(min_length=1, description="Tenant whose settings to read."),
+) -> SettingsResponse:
+    """The read-only runtime settings for one tenant (design.md section 14).
+
+    The payload is built once at startup from the loaded configuration, the
+    agent registry and the tool manifests, so it cannot disagree with what the
+    process runs. It carries no API key, base URL, database URL or token
+    secret; ``api/settings.py`` lists the boundary. A tenant that is not in the
+    configuration is a 404, and an application built without a snapshot (a test
+    that injects its own ``AppDeps``) is a 503 rather than an invented answer.
+    """
+    deps = _deps(request.app)
+    tenant = _tenant(deps, tenant_id)
+    snapshot = deps.settings_snapshot
+    if snapshot is None or tenant.tenant_id not in snapshot:
+        raise HTTPException(status_code=503, detail="the settings snapshot is not available")
+    return SettingsResponse.model_validate(snapshot[tenant.tenant_id])
 
 
 @router.get("/audit", response_model=AuditResponse)
@@ -583,6 +617,7 @@ __all__ = [
     "execute_run",
     "get_run",
     "get_run_trace",
+    "get_settings",
     "health",
     "list_audit",
     "list_runs",
