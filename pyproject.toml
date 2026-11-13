@@ -33,6 +33,7 @@ dependencies = [
   "sqlglot==30.31.0",
   "typer==0.29.1",
   "uvicorn==0.54.0",
+  "valkey==6.2.0",
 ]
 
 [project.scripts]
@@ -56,6 +57,7 @@ pgvector = "switchboard.adapters.retrievers.pgvector:PgVectorRetriever"
 [project.entry-points."switchboard.caches"]
 none = "switchboard.adapters.cache.none:NoCache"
 pg_semantic = "switchboard.adapters.cache.pg_semantic:PgSemanticCache"
+valkey_semantic = "switchboard.adapters.cache.valkey_semantic:ValkeySemanticCache"
 
 [project.entry-points."switchboard.agents"]
 direct = "switchboard.agents.direct:DirectAgent"

@@ -6,9 +6,10 @@ import asyncio
 import json
 import os
 import time
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import asyncpg
 import typer
@@ -17,7 +18,7 @@ from switchboard.adapters.embedders.factory import create_embedder
 from switchboard.adapters.judges.factory import create_judge, require_unpriced_provider
 from switchboard.adapters.providers.factory import create_provider
 from switchboard.adapters.providers.mock import MockProvider
-from switchboard.adapters.retrievers.ingest import IngestResult, ingest_directory
+from switchboard.adapters.retrievers.ingest import IngestResult, embed_in_batches, ingest_directory
 from switchboard.config import load_settings
 from switchboard.core.config import PriceEntry, ProviderConfig, Settings
 from switchboard.core.errors import ConfigError, SwitchboardError
@@ -29,6 +30,16 @@ from switchboard.data.olist import (
     compare_counts,
     load_directory,
     read_expected,
+)
+from switchboard.eval import cache_adapters as cache_bench
+from switchboard.eval.cache_adapters import (
+    build_pairs,
+    ensure_benchmark_tenant,
+    load_pair_cases,
+    measure_adapter,
+    measure_postgres_transport,
+    summarize_measurement,
+    valkey_image_facts,
 )
 from switchboard.eval.compare import (
     DEFAULT_COMPARE_NAME,
@@ -70,8 +81,10 @@ from switchboard.eval.runner import (
     run_cases,
     select_cases,
 )
+from switchboard.eval.scorers.cache import CHOSEN_THRESHOLD
 from switchboard.eval.suite import SuiteContext, create_suite
-from switchboard.registry import EVAL_SUITES, ORCHESTRATORS, Registry
+from switchboard.eval.suites.cache import prepare_case
+from switchboard.registry import CACHES, EVAL_SUITES, ORCHESTRATORS, Registry
 
 app = typer.Typer(help="Switchboard command line.", no_args_is_help=True)
 data_app = typer.Typer(help="Dataset commands.", no_args_is_help=True)
@@ -553,6 +566,282 @@ def eval_run(
     typer.echo(f"wall time {elapsed:.2f} s")
     typer.echo(f"wrote {markdown_path}")
     typer.echo(f"wrote {json_path}")
+
+
+@eval_app.command("cache-adapters")
+def eval_cache_adapters(
+    provider: Annotated[
+        str,
+        typer.Option(
+            "--provider",
+            help="mock uses the deterministic mock embedder; any other name selects that "
+            "provider's configured embedder.",
+        ),
+    ] = "mock",
+    adapter: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--adapter",
+            help="Cache adapter to measure; repeat for several. Defaults to pg_semantic "
+            "and valkey_semantic.",
+        ),
+    ] = None,
+    dataset_version: Annotated[
+        str, typer.Option("--dataset-version", help="Frozen cache dataset version, for example v5.")
+    ] = "v5",
+    dataset_dir: Annotated[
+        Path, typer.Option("--dataset-dir", help="Directory holding the dataset versions.")
+    ] = Path("evals/datasets"),
+    split: Annotated[
+        str, typer.Option("--split", help="auto, dev, test or all; auto scores test when present.")
+    ] = "auto",
+    threshold: Annotated[
+        float,
+        typer.Option("--threshold", help="Similarity threshold for a hit (platform value 0.94)."),
+    ] = CHOSEN_THRESHOLD,
+    repeats: Annotated[
+        int,
+        typer.Option("--repeats", help="Store and lookup cycles per pair after warmup."),
+    ] = cache_bench.DEFAULT_REPEATS,
+    warmup: Annotated[
+        int,
+        typer.Option("--warmup", help="Unmeasured store and lookup cycles before the run."),
+    ] = cache_bench.DEFAULT_WARMUP,
+    tenant: Annotated[
+        str,
+        typer.Option(
+            "--tenant",
+            help="Dedicated benchmark tenant id; it must not be a configured tenant.",
+        ),
+    ] = cache_bench.DEFAULT_TENANT,
+    valkey_url: Annotated[
+        str,
+        typer.Option(
+            "--valkey-url",
+            envvar="VALKEY_URL",
+            help="Valkey URL; defaults to VALKEY_URL or valkey://localhost:6379/0.",
+        ),
+    ] = "",
+    config_dir: Annotated[
+        Path, typer.Option("--config-dir", help="Directory with the YAML config.")
+    ] = Path("config"),
+    output_dir: Annotated[
+        Path, typer.Option("--output-dir", help="Directory for the markdown and JSON report.")
+    ] = Path("evals/reports"),
+    name: Annotated[
+        str, typer.Option("--name", help="File name stem for the report.")
+    ] = cache_bench.DEFAULT_NAME,
+) -> None:
+    """Compare Cache adapters on the frozen pair dataset (T3.09, ADR 0003).
+
+    One store and one lookup per pair per repeat, with the tenant cleared before
+    each pair, so the measured hit and false-hit counts are the pairwise decision
+    at the configured threshold. The report carries exact counts, lookup p50 and
+    p95, the adapter and image versions, and every error. It writes
+    ``cache-adapters.md`` and ``.json`` and never touches ``cache-lmstudio.md``,
+    a frozen dataset or a baseline.
+    """
+    started = time.perf_counter()
+    try:
+        settings = load_settings(config_dir)
+        registry = Registry()
+        available = registry.names(CACHES)
+        chosen = tuple(dict.fromkeys(adapter or cache_bench.DEFAULT_ADAPTERS))
+        if not chosen:
+            raise ConfigError("--adapter must name at least one cache adapter")
+        unknown = [value for value in chosen if value not in available]
+        if unknown:
+            raise ConfigError(
+                f"unknown cache adapter {unknown[0]!r}; "
+                f"registered: {', '.join(available) or 'none'}"
+            )
+        if tenant in settings.tenants.tenants:
+            raise ConfigError(
+                f"{tenant!r} is a configured tenant; the benchmark needs a dedicated tenant id "
+                "so it cannot invalidate demo entries"
+            )
+        if repeats < 1:
+            raise ConfigError("--repeats must be at least 1")
+        if not 0.0 <= threshold <= 1.0:
+            raise ConfigError("--threshold must be between 0 and 1")
+        database_url = os.environ.get("SWITCHBOARD_DATABASE_URL", "")
+        if not database_url:
+            raise ConfigError("set SWITCHBOARD_DATABASE_URL")
+        embedder, embedder_source, dimension = cache_bench.build_embedder(settings, provider)
+        if dimension != 1024:
+            raise ConfigError(
+                f"the cache adapters need a 1024-dimension embedder, got {dimension}; "
+                "both stores index a 1024-dimension vector"
+            )
+        cases, chosen_split, dataset_case_count = load_pair_cases(
+            dataset_version, dataset_dir, split=split
+        )
+        texts = sorted({text for case in cases for text in _pair_texts(case)})
+
+        async def run() -> tuple[
+            list[dict[str, Any]],
+            dict[str, Any],
+            dict[str, Any] | None,
+            float,
+            int,
+            list[Any],
+        ]:
+            pool = await asyncpg.create_pool(dsn=database_url, min_size=1, max_size=4)
+            try:
+                embed_started = time.perf_counter()
+                vectors = await embed_in_batches(embedder, texts)
+                embedding_ms = (time.perf_counter() - embed_started) * 1000.0
+                if len(vectors) != len(texts):
+                    raise ConfigError(
+                        f"the embedder returned {len(vectors)} vectors for {len(texts)} questions"
+                    )
+                pairs = build_pairs(cases, dict(zip(texts, vectors, strict=True)))
+                index_version = await ensure_benchmark_tenant(pool, tenant)
+                results: list[dict[str, Any]] = []
+                for name_value in chosen:
+                    component: Any = registry.load(CACHES, name_value)
+                    if name_value == "valkey_semantic":
+                        cache_adapter = component.from_deps(
+                            pool=pool, embedder=embedder, url=valkey_url or None
+                        )
+                    else:
+                        cache_adapter = component.from_deps(pool=pool, embedder=embedder)
+                    try:
+                        measurement = await measure_adapter(
+                            cache_adapter,
+                            pairs,
+                            tenant_id=tenant,
+                            index_version=index_version,
+                            threshold=threshold,
+                            repeats=repeats,
+                            warmup=warmup,
+                        )
+                        describe = getattr(cache_adapter, "describe", None)
+                        described = await describe() if describe is not None else None
+                    finally:
+                        aclose = getattr(cache_adapter, "aclose", None)
+                        if aclose is not None:
+                            await aclose()
+                    results.append(
+                        {
+                            "name": name_value,
+                            "summary": summarize_measurement(measurement),
+                            "pairs": [asdict(pair) for pair in measurement.pairs],
+                            "describe": described,
+                        }
+                    )
+                environment: dict[str, Any] = {
+                    "postgres_server": await pool.fetchval(
+                        "SELECT current_setting('server_version')"
+                    ),
+                    "postgres_pgvector": await pool.fetchval(
+                        "SELECT extversion FROM pg_extension WHERE extname = 'vector'"
+                    ),
+                    "postgres_cache_table": "public.cache_entries (pgvector HNSW, COSINE)",
+                }
+                for entry in results:
+                    described = entry.get("describe") or {}
+                    if entry["name"] == "valkey_semantic":
+                        environment.update(valkey_image_facts("valkey/valkey-bundle:9.0-alpine"))
+                        environment["valkey_server"] = described.get("server", "unknown")
+                        environment["valkey_client"] = described.get("client", "unknown")
+                        modules = described.get("modules") or {}
+                        environment["valkey_search_module"] = modules.get("search", "unknown")
+                        environment["valkey_index"] = (
+                            f"{described.get('index', 'sb_cache')} on HASH keys "
+                            f"{described.get('key_prefix', 'sb:cache:')}"
+                        )
+                transport_control: dict[str, Any] | None = None
+                if any(entry["name"] == "pg_semantic" for entry in results):
+                    transport_control = await measure_postgres_transport(
+                        pool, pairs, tenant_id=tenant, index_version=index_version
+                    )
+                return (
+                    results,
+                    environment,
+                    transport_control,
+                    embedding_ms,
+                    index_version,
+                    pairs,
+                )
+            finally:
+                await pool.close()
+
+        results, environment, transport_control, embedding_ms, index_version, pairs = asyncio.run(
+            run()
+        )
+        empty = [entry["name"] for entry in results if entry["summary"]["lookups"] == 0]
+        if empty:
+            for entry in results:
+                for sample in entry["summary"]["error_samples"]:
+                    typer.echo(f"error: {entry['name']}: {sample}", err=True)
+            raise ConfigError(
+                f"no successful lookup for {', '.join(empty)}; the benchmark did not run"
+            )
+        report = cache_bench.build_report(
+            adapted=results,
+            pairs=pairs,
+            dataset_version=dataset_version,
+            dataset_path=f"{Path(dataset_dir).as_posix()}/{dataset_version}/cache.jsonl",
+            split=chosen_split,
+            dataset_case_count=dataset_case_count,
+            threshold=threshold,
+            repeats=repeats,
+            warmup=warmup,
+            tenant_id=tenant,
+            index_version=int(index_version),
+            embedder_source=embedder_source,
+            embedder_dimension=dimension,
+            embedding_ms=embedding_ms,
+            embedding_vectors=len(texts),
+            provider=provider,
+            model=_cache_bench_model(settings, provider),
+            environment=environment,
+            generated_at=datetime.now(UTC),
+            wall_time_s=time.perf_counter() - started,
+            transport_control=transport_control,
+        )
+        markdown_path, json_path = cache_bench.write_report(report, output_dir, name=name)
+    except SwitchboardError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    typer.echo(
+        f"dataset {dataset_version} split {chosen_split}, {report['pair_count']} pairs "
+        f"({report['positive_pairs']} should hit, {report['negative_pairs']} near misses), "
+        f"threshold {threshold}, {repeats} repeats, tenant {tenant}"
+    )
+    typer.echo(
+        f"embeddings {embedder_source}, {report['embedder']['vectors']} vectors in "
+        f"{report['embedder']['embedding_ms']} ms (excluded from the latency samples)"
+    )
+    for row in report["adapters"]:
+        lookup = row["lookup_latency_ms"]
+        typer.echo(
+            f"{row['name']}: hits {row['hits']}/{row['positive_lookups']} "
+            f"(hit rate {row['hit_rate']:.4f}), false hits "
+            f"{row['false_hits']}/{row['negative_lookups']} "
+            f"(false-hit rate {row['false_hit_rate']:.4f}), errors {row['errors']}, "
+            f"lookup p50 {lookup['p50']} ms p95 {lookup['p95']} ms"
+        )
+    for key, value in sorted(environment.items()):
+        typer.echo(f"{key}: {value}")
+    typer.echo(f"wall time {time.perf_counter() - started:.2f} s, no API cost")
+    typer.echo(f"wrote {markdown_path}")
+    typer.echo(f"wrote {json_path}")
+
+
+def _pair_texts(case: EvalCase) -> tuple[str, str]:
+    query_a, query_b, _should_hit = prepare_case(case)
+    return query_a, query_b
+
+
+def _cache_bench_model(settings: Settings, provider: str) -> str:
+    if provider == "mock":
+        return "deterministic mock embedder"
+    name = settings.platform.embedder
+    config = settings.providers.embedders.get(name)
+    return (config.model if config is not None else None) or "unknown"
 
 
 @eval_app.command("compare")

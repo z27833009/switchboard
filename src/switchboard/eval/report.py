@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -52,7 +53,7 @@ class ReportMeta:
     judge_label: str | None = None
 
 
-def percentile(values: list[int], percent: float) -> float:
+def percentile(values: Sequence[float], percent: float) -> float:
     """Linear interpolation between the closest ranks; 0.0 for no values."""
     if not values:
         return 0.0
@@ -70,7 +71,7 @@ def percentile(values: list[int], percent: float) -> float:
     return ordered[lower] + (ordered[upper] - ordered[lower]) * fraction
 
 
-def latency_summary(values: list[int]) -> dict[str, float]:
+def latency_summary(values: Sequence[float]) -> dict[str, float]:
     return {
         "p50": round(percentile(values, 50), 3),
         "p95": round(percentile(values, 95), 3),

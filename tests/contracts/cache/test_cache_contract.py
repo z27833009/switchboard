@@ -49,8 +49,8 @@ def cache() -> Cache:
     return NoCache()
 
 
-def test_the_registry_exposes_both_cache_adapters() -> None:
-    assert Registry().names(CACHES) == ["none", "pg_semantic"]
+def test_the_registry_exposes_three_cache_adapters() -> None:
+    assert Registry().names(CACHES) == ["none", "pg_semantic", "valkey_semantic"]
     assert Registry().load(CACHES, "none") is NoCache
 
 

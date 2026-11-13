@@ -15,6 +15,8 @@ from switchboard.adapters.orchestrator.agent_loop import AgentLoopOrchestrator
 from switchboard.adapters.orchestrator.langgraph_impl import LangGraphOrchestrator
 from switchboard.api.deps import (
     AppDeps,
+    _close_cache,
+    _start_cache,
     build_orchestrator_set,
     build_orchestrators,
     context_policy_for,
@@ -424,3 +426,31 @@ def test_app_deps_selects_a_named_replay_target() -> None:
     assert deps.available_orchestrators("other") == []
     with pytest.raises(ConfigError, match="no orchestrator named 'missing'"):
         deps.orchestrator_for("fake", "missing")
+
+
+async def test_a_cache_startup_and_shutdown_hook_is_optional_and_tolerant() -> None:
+    """A store-side index is created at startup, and a failure never stops the app."""
+
+    class Ready:
+        started = 0
+        closed = 0
+
+        async def start(self) -> None:
+            self.started += 1
+
+        async def aclose(self) -> None:
+            self.closed += 1
+
+    class Broken:
+        async def start(self) -> None:
+            raise RuntimeError("valkey is down")
+
+    ready = Ready()
+    await _start_cache(ready)
+    await _close_cache(ready)
+    assert (ready.started, ready.closed) == (1, 1)
+
+    await _start_cache(Broken())
+    await _start_cache(None)
+    await _close_cache(None)
+    await _start_cache(NoCache())

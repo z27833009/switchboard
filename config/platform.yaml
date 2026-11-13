@@ -16,12 +16,20 @@ tool_sources:
     url: ${MCP_REVIEWS_URL}/mcp
     manifest: mcp_servers/reviews/manifest.yaml
 retriever: pgvector
-# The Postgres semantic cache (design 10, ADR 0007). `none` keeps every lookup a
-# miss without dropping the adapter; a tenant only uses the cache when its own
-# `cache.enabled` is true. The demo tenants keep it false: the cache suite
-# measured a false-hit rate of 0.04 at the chosen 0.94 threshold, above the
-# 0.02 target (evals/reports/cache-lmstudio.md). Set enabled true per tenant to
-# turn it on without a code change.
+# The semantic cache (design 10, ADR 0007). Two registered adapters:
+#   pg_semantic     entries in public.cache_entries with a pgvector HNSW index
+#                   (the default; the demo stays on Postgres)
+#   valkey_semantic entries in Valkey with the valkey-search module, same key,
+#                   same tenant/version/TTL scoping, same threshold (T3.09,
+#                   evals/reports/cache-adapters.md has the comparison)
+# `none` keeps every lookup a miss without dropping the adapter; a tenant only
+# uses the cache when its own `cache.enabled` is true. The demo tenants keep it
+# false: the cache suite measured a false-hit rate of 0.04 at the chosen 0.94
+# threshold, above the 0.02 target (evals/reports/cache-lmstudio.md). Set
+# enabled true per tenant to turn it on without a code change. Switching to
+# valkey_semantic needs the `valkey` compose service and VALKEY_URL; the
+# adapter reads the tenant's doc index version from public.tenants, so
+# PostgreSQL stays required.
 cache: pg_semantic
 embedder: lmstudio
 context_policy: clear_oldest_tool_results

@@ -8,7 +8,7 @@ Switchboard takes a user question, lets a supervisor decide whether to answer di
 
 The badge reports the CI gate. That gate replays recorded model output with the mock provider, so it measures the pipeline (parsing, plan validation, tool normalization, scoring), not the model. See [ADR 0008](docs/adr/0008-evaluation-strategy.md).
 
-> Status: **Phase 1 complete, and v1 is built through T2.18.** T2.01 to T2.15 and T2.17 to T2.18 are merged. T2.16 (optional `langgraph-visualizer` integration) was cancelled by the author on 2026-11-12. The semantic cache is implemented and measured; its false-hit rate is above the 2 percent target, so the demo tenants keep it disabled and the report says why. T2.12's comparison now covers all 12 provider and orchestrator combinations: six LM Studio rows and six DeepSeek rows, the latter measured on 2026-11-13 with a one-time DeepSeek key and a total actual cost of 0.0326 USD. Every metric in the docs is a target until a report backs it.
+> Status: **Phase 1 complete, and v1 is built through T2.18.** T2.01 to T2.15 and T2.17 to T2.18 are merged. T2.16 (optional `langgraph-visualizer` integration) was cancelled by the author on 2026-11-12. The semantic cache is implemented and measured; its false-hit rate is above the 2 percent target, so the demo tenants keep it disabled and the report says why. T2.12's comparison now covers all 12 provider and orchestrator combinations: six LM Studio rows and six DeepSeek rows, the latter measured on 2026-11-13 with a one-time DeepSeek key and a total actual cost of 0.0326 USD. In v2 the stack also gained a TypeScript MCP server (T3.08), a guarded read-only SQL tool (T3.05), an orchestrator replay panel (T3.07) and a second semantic cache store (T3.09); the last one came with a measured comparison that found identical cache decisions on both stores. Every metric in the docs is a target until a report backs it.
 
 ## Measured results
 
@@ -24,6 +24,7 @@ All LM Studio rows were measured on LM Studio 1.2.0 with qwen3-8b at context 819
 | Rag answer quality (judge mode, 40 cases v3) | `judge_accept_rate` 0.9750 (39 of 40 acceptable, `rag008` weak) with 0 judge errors; the judge itself failed its agreement check, so this is that judge's verdict, not a settled quality claim | generation p50 2695.5 ms, judge p50 2861.5 ms | [rag-judge-lmstudio.md](evals/reports/rag-judge-lmstudio.md) |
 | Injection (deterministic, 40 cases v4) | Detection rate 1.0000, false positive rate 0.1000, precision 0.9091 | no model call | [injection-mock.md](evals/reports/injection-mock.md) |
 | Semantic cache (bge-m3, 50 pairs v5) | At the chosen 0.94 threshold: hit rate 0.0400, false-hit rate 0.0400; at 0.99 both 0.0000. The 0.02 false-hit target is not met, so the demo tenants keep the cache off | embedding only, one batch | [cache-lmstudio.md](evals/reports/cache-lmstudio.md) |
+| Cache adapters (bge-m3, 50 pairs v5, 1000 lookups each) | PostgreSQL and Valkey returned the same decisions: 20 hits of 500 positive lookups (0.0400) and 20 false hits of 500 near-miss lookups (0.0400) each. The store does not change what the cache answers | lookup p50 44.31 ms (PostgreSQL, 21.7 kB text vector) and 0.70 ms (Valkey, 4 kB binary vector) | [cache-adapters.md](evals/reports/cache-adapters.md) |
 
 Latency is one model call per case for routing and tool call, not an end-to-end run; retrieval latency is the per-case wall time of one strategy. The LM Studio runs have no API cost: `config/prices.yaml` records a zero row for the local provider, so a new run or report computes USD 0.0 and labels it "no API cost". The routing and tool call reports predate the price table and keep a null cost rather than a backfilled number; the newer agent-loop reports record 0.0. The mock reports under [evals/reports/](evals/reports/) replay recorded model output, so the CI gate measures the pipeline, not the model.
 
@@ -128,7 +129,9 @@ docker compose up -d --build
 docker compose ps
 ```
 
-The first build installs Python and Node dependencies inside the images, so it can take a few minutes on a cold cache. Wait until all five services (`postgres`, `mcp-olist`, `mcp-reviews`, `api`, `web`) show `healthy`.
+The first build installs Python and Node dependencies inside the images, so it can take a few minutes on a cold cache. Wait until all six services (`postgres`, `mcp-olist`, `mcp-reviews`, `valkey`, `api`, `web`) show `healthy`.
+
+The `valkey` service is the second cache store from the v2 comparison. The default config keeps `cache: pg_semantic`, so nothing depends on it and the API never contacts it; leave it running (it is idle and small) or stop it with `docker compose stop valkey`. Switching the semantic cache to it is `cache: valkey_semantic` in `config/platform.yaml` plus `VALKEY_URL`, and the measured comparison is in [evals/reports/cache-adapters.md](evals/reports/cache-adapters.md).
 
 ```bash
 curl http://localhost:8000/health
@@ -256,7 +259,7 @@ Most "agent platform" demos hide three things: how the router decided, how often
 
 ## Stack
 
-Python 3.12 with uv, FastAPI, LangGraph (as one orchestrator adapter), MCP (FastMCP), PostgreSQL 16 with pgvector, OpenTelemetry, TypeScript and React for the web UI, Docker Compose. Cloud deployment (Azure, Terraform) is an optional later phase.
+Python 3.12 with uv, FastAPI, LangGraph (as one orchestrator adapter), MCP (FastMCP), PostgreSQL 16 with pgvector, OpenTelemetry, TypeScript and React for the web UI, Docker Compose. Valkey 9 with the valkey-search module is wired as a second semantic cache store for the measured comparison only; the default config does not use it. Cloud deployment (Azure, Terraform) is an optional later phase.
 
 Configured model providers (`config/providers.yaml`):
 
@@ -269,7 +272,7 @@ Configured model providers (`config/providers.yaml`):
 
 ## Continuous integration
 
-CI runs lint, type checks, unit and contract tests, the integration tests against a PostgreSQL 16 service and a locally started Olist MCP server, and the routing, toolcall and gate eval suites on the `mock` provider. The routing and toolcall suites replay recorded model output, so the eval gate measures the pipeline (parsing, plan validation, tool normalization, scoring), not the model. The gate suite makes no model call at all: it runs the deterministic checks over the 30 labeled cases in dataset v2 and reports per-check precision and recall. The rag and injection suites are not part of the CI gate: rag needs the database and the embedding model, and injection is measured by its own committed report. A prompt change alters the fixture keys, which forces a re-record against a real model and produces a new report. The regression gate compares against the committed files in [evals/baselines/](evals/baselines/) and fails on a drop larger than 0.05; baselines are updated by committing a new file. See [ADR 0008](docs/adr/0008-evaluation-strategy.md).
+CI runs lint, type checks, unit and contract tests, the integration tests against a PostgreSQL 16 service, a Valkey 9 service for the cache adapter tests, and a locally started Olist MCP server, and the routing, toolcall and gate eval suites on the `mock` provider. The routing and toolcall suites replay recorded model output, so the eval gate measures the pipeline (parsing, plan validation, tool normalization, scoring), not the model. The gate suite makes no model call at all: it runs the deterministic checks over the 30 labeled cases in dataset v2 and reports per-check precision and recall. The rag and injection suites are not part of the CI gate: rag needs the database and the embedding model, and injection is measured by its own committed report. A prompt change alters the fixture keys, which forces a re-record against a real model and produces a new report. The regression gate compares against the committed files in [evals/baselines/](evals/baselines/) and fails on a drop larger than 0.05; baselines are updated by committing a new file. See [ADR 0008](docs/adr/0008-evaluation-strategy.md).
 
 ## License
 

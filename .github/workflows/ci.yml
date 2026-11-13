@@ -69,6 +69,18 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+      # The Valkey cache adapter's integration tests (T3.09). Same image and
+      # digest the compose service uses; the unit tests use a fake client and
+      # never need it.
+      valkey:
+        image: valkey/valkey-bundle:9.0-alpine@sha256:508ee27b6e8b8e516c837259dac179f42188ce158279c4c0814fde019861981e
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
     env:
       # Every value here is a committed development value, never a secret.
       POSTGRES_USER: switchboard
@@ -82,6 +94,9 @@ jobs:
       SWITCHBOARD_RUN_TOKEN_SECRET: switchboard-ci-dev-run-token-secret-not-a-real-secret
       SWITCHBOARD_TENANTS_FILE: config/tenants.yaml
       SWITCHBOARD_TRACING_EXPORTER: postgres
+      # The Valkey cache adapter integration tests use this service; the
+      # PostgreSQL semantic cache stays the configured one (T3.09).
+      VALKEY_URL: valkey://localhost:6379/0
       MCP_OLIST_URL: http://localhost:8001
       MCP_OLIST_PORT: "8001"
       MCP_REVIEWS_URL: http://localhost:8002

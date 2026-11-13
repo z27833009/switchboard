@@ -168,10 +168,14 @@ class BuiltOrchestrators:
     ``default`` is the pre-T3.07 mapping (tenant provider to the platform
     orchestrator). ``replay`` is keyed by (tenant provider, registered
     orchestrator name) and is only read when a request names an orchestrator.
+    ``cache`` is the shared ``Cache`` adapter instance, so startup can create a
+    store-side index once and shutdown can close the connection it owns
+    (T3.09); it is ``None`` for a test that builds only orchestrators.
     """
 
     default: dict[str, Orchestrator]
     replay: dict[tuple[str, str], Orchestrator]
+    cache: Any = None
 
 
 def build_orchestrator_set(
@@ -269,7 +273,7 @@ def build_orchestrator_set(
                     provider_name,
                     exc,
                 )
-    return BuiltOrchestrators(default=default, replay=replay)
+    return BuiltOrchestrators(default=default, replay=replay, cache=cache)
 
 
 def build_orchestrators(
@@ -281,6 +285,31 @@ def build_orchestrators(
 ) -> dict[str, Orchestrator]:
     """One orchestrator per provider name used by a tenant (design 6.1, 16)."""
     return build_orchestrator_set(settings, registry, pool, answer_delta=answer_delta).default
+
+
+async def _start_cache(cache: Any) -> None:
+    """Optional startup hook of a Cache adapter, if it has one (T3.09)."""
+    if cache is None:
+        return
+    start = getattr(cache, "start", None)
+    if start is None:
+        return
+    try:
+        await start()
+    except Exception as exc:  # the adapter is expected to swallow its own
+        logger.warning("cache startup failed: %s", exc)
+
+
+async def _close_cache(cache: Any) -> None:
+    if cache is None:
+        return
+    aclose = getattr(cache, "aclose", None)
+    if aclose is None:
+        return
+    try:
+        await aclose()
+    except Exception as exc:  # pragma: no cover - shutdown only
+        logger.warning("closing the cache failed: %s", exc)
 
 
 async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
@@ -316,6 +345,10 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
         built = build_orchestrator_set(
             settings, registry, pool, answer_delta=step_events.publish_answer_delta
         )
+        # A cache that owns a store-side index creates it here, once, so the
+        # first run does not pay for it. The adapter logs a warning instead of
+        # raising when the store is down: a cache may never fail a run (T3.09).
+        await _start_cache(built.cache)
         # Which names this process can actually run for each provider, so the
         # trace page never offers a replay target that would answer 400.
         available: dict[str, list[str]] = {}
@@ -337,6 +370,7 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
         raise
 
     async def close() -> None:
+        await _close_cache(built.cache)
         await pool.close()
         if tracing is not None:
             tracing.shutdown()

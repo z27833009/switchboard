@@ -121,6 +121,9 @@ services:
       LMSTUDIO_BASE_URL: "http://host.docker.internal:18080/v1"
       LMSTUDIO_MODEL: "${LMSTUDIO_MODEL:-qwen3-8b}"
       LMSTUDIO_EMBEDDING_MODEL: "${LMSTUDIO_EMBEDDING_MODEL:-bge-m3}"
+      # Only read when platform.yaml selects `cache: valkey_semantic`; the
+      # default `pg_semantic` never contacts it (T3.09).
+      VALKEY_URL: "valkey://valkey:6379/0"
       # Empty is allowed for local-only use; the deepseek provider then fails at
       # startup if a tenant selects it, before any request.
       DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
@@ -168,6 +171,35 @@ services:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
       interval: 5s
       timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  # Semantic cache store behind the Cache port (T3.09, ADR 0003). The bundle
+  # image carries the valkey-search module that serves the KNN lookup, pinned by
+  # tag and digest. It is a cache: no append-only file and no snapshot, so a
+  # restart starts empty and Postgres keeps the durable copy. The default
+  # config keeps `cache: pg_semantic`, so the demo does not depend on it.
+  valkey:
+    image: valkey/valkey-bundle:9.0-alpine@sha256:508ee27b6e8b8e516c837259dac179f42188ce158279c4c0814fde019861981e
+    restart: unless-stopped
+    command:
+      [
+        "valkey-server",
+        "--appendonly",
+        "no",
+        "--save",
+        "",
+        "--maxmemory",
+        "256mb",
+        "--maxmemory-policy",
+        "allkeys-lru",
+      ]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
       retries: 20
       start_period: 5s
 
