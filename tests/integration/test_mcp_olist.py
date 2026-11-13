@@ -50,7 +50,7 @@ def mint(tenant_id: str = "default", ttl_s: int = 60) -> tuple[str, str]:
     token = jwt.encode(
         {
             "iss": "switchboard-api",
-            "aud": "mcp-olist",
+            "aud": "switchboard-mcp",
             "tenant_id": tenant_id,
             "run_id": run_id,
             "iat": now,
@@ -168,7 +168,7 @@ async def test_missing_forged_and_expired_tokens_are_rejected() -> None:
     forged = jwt.encode(
         {
             "iss": "switchboard-api",
-            "aud": "mcp-olist",
+            "aud": "switchboard-mcp",
             "tenant_id": "default",
             "run_id": str(uuid.uuid4()),
             "iat": int(time.time()),

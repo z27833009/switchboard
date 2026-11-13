@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 import jwt
 
-AUDIENCE = "mcp-olist"
+AUDIENCE = "switchboard-mcp"
 ISSUER = "switchboard-api"
 MIN_SECRET_BYTES = 32
 

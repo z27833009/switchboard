@@ -26,6 +26,7 @@ evals/candidates/*.jsonl
 # Node
 web/node_modules/
 web/dist/
+mcp_servers/reviews/node_modules/
 
 # IDE and OS
 .vscode/

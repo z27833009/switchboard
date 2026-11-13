@@ -47,6 +47,10 @@ def test_tenants_carry_allowlists_and_seller_scope() -> None:
         "order_lookup@1",
         "top_products@1",
     }
+    # The review tools in the same allowlist belong to mcp_servers/reviews and
+    # are ignored by this server.
+    assert "review_summary@1" not in tenants["seller_a"].allowed_tools
+    assert "order_reviews@1" not in tenants["seller_a"].allowed_tools
     assert tenants["seller_a"].ask_tools == frozenset()
     assert tenants["seller_a"].seller_ids == ("955fee9216a65b617aa5c0531780ce60",)
 
@@ -64,8 +68,14 @@ def write_tenants(tmp_path: Path, body: str) -> Path:
     return path
 
 
-def test_unknown_tool_wire_name_fails_at_startup(tmp_path: Path) -> None:
-    path = write_tenants(
+def test_foreign_and_malformed_tool_wire_names(tmp_path: Path) -> None:
+    """A foreign name is ignored here; a malformed name still fails.
+
+    The tenants file is shared with mcp_servers/reviews, so this server only
+    enforces the names it serves. The API checks the union of every manifest
+    declared in platform.yaml (tests/unit/test_config.py).
+    """
+    foreign = write_tenants(
         tmp_path,
         """
 tenants:
@@ -77,8 +87,20 @@ tenants:
       allow: ["ghost_tool@1"]
 """,
     )
-    with pytest.raises(ServerConfigError, match=r"unknown tools.*ghost_tool@1"):
-        load_tenants(path, MANIFEST)
+    tenants = load_tenants(foreign, MANIFEST)
+    assert tenants["default"].allowed_tools == frozenset()
+
+    malformed = write_tenants(
+        tmp_path,
+        """
+tenants:
+  default:
+    tools:
+      allow: ["ghost_tool"]
+""",
+    )
+    with pytest.raises(ServerConfigError, match=r"malformed wire names.*ghost_tool"):
+        load_tenants(malformed, MANIFEST)
 
 
 def test_unknown_keys_duplicates_and_ask_overlap_fail(tmp_path: Path) -> None:

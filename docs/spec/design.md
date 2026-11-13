@@ -501,7 +501,7 @@ The tool ships disabled: it is in the manifest but in no demo tenant's `tools.al
 
 ### 7.2 Tool manifest and versioning
 
-The manifest (`mcp_servers/olist/manifest.yaml`) is the source of truth for `ToolSpec`. The wire name is `name@major`. Rules:
+Each tool source owns one manifest. `mcp_servers/olist/manifest.yaml` is the source of truth for the Olist `ToolSpec`, and `mcp_servers/reviews/manifest.yaml` (TypeScript server, T3.08) does the same for the review tools. `platform.yaml` names both; the API loads every declared manifest, validates the tenant allowlists against their union and shows every tool in `/settings`. The wire name is `name@major`. Rules:
 
 - Adding an optional argument or a result field is a minor change; the wire name stays.
 - Removing or renaming an argument, changing a type or changing semantics is a major change; the server serves both majors for one phase and the old one logs a deprecation warning.
@@ -537,18 +537,21 @@ Tools not listed under `allow` or `ask` are denied. `ask` is the v2 human-approv
 **The tool server must not trust the caller's claim about who it is.** In 0.1 the tenant id travelled in request metadata, so the server-side check compared a claim against a list without knowing whether the claim was true. In 0.2 the API mints a **run token** at the start of every run (ADR 0014):
 
 ```json
-{"iss": "switchboard-api", "aud": "mcp-olist", "tenant_id": "seller_a",
+{"iss": "switchboard-api", "aud": "switchboard-mcp", "tenant_id": "seller_a",
  "run_id": "6f1c...", "iat": 1762934400, "exp": 1762934490, "jti": "..."}
 ```
 
-- Signed with HS256 and a shared secret (`SWITCHBOARD_RUN_TOKEN_SECRET`) known only to the API and the tool server.
+- Signed with HS256 and a shared secret (`SWITCHBOARD_RUN_TOKEN_SECRET`) known only to the API and the tool servers.
+- The audience is platform-wide (`switchboard-mcp`), so one token reaches every server; both servers verify it locally with the same secret (ADR 0014).
 - Lifetime is the run timeout plus 30 seconds.
 - `McpToolSource` sends it as `Authorization: Bearer <token>` on the MCP HTTP transport, alongside the W3C `traceparent` header.
 - The server verifies signature, audience and expiry, takes `tenant_id` and `run_id` from the token only, and ignores any tenant or seller field in tool arguments or metadata. It then loads the tenant's allowlist and `seller_ids` from its own copy of the tenant config.
 
 Enforcement still happens twice: `McpToolSource` filters `list_tools` so the model never sees a denied tool (convenience, fewer wasted model turns), and the server checks the allowlist on every call (the trust boundary). Tenant-scoped tools receive `seller_ids` from server-side config, never from model-generated arguments.
 
-With several tool servers, verification would move into a gateway in front of them (the approach of MCP gateways such as IBM's ContextForge). With one server, a gateway is an extra process without a second consumer, so the check stays in the server.
+The second server (T3.08) keeps verification inside each server instead of adding a gateway. A gateway would either need each server's tenant and tool rules or would forward a verified tenant claim that the server must trust without seeing the signature, which moves the boundary rather than removing it. With two servers the duplicated check is small and every server proves the signature itself. A gateway becomes the right shape with many servers, separate operators, or centralized revocation and rate limiting (ADR 0014, update of 2026-11-13).
+
+The tenants file is shared. Each MCP server enforces only the wire names it serves and ignores the rest; the API checks every allowlist entry against the union of the declared manifests, so a typo still fails a process at startup.
 
 ### 7.4 Audit
 
@@ -566,6 +569,17 @@ Some tools belong to the platform, not to a data source. They are served by an `
 ### 7.6 Why there is no sandbox
 
 Products such as Codex and Claude Code run model-written shell commands, so they need a sandbox (filesystem and network isolation, resource limits). Switchboard's tools are fixed functions whose arguments are validated against a schema; the model cannot execute code. The equivalent containment is already in place: a SELECT-only role, read-only transactions, statement timeout, row cap, a separate process and an audit log. A sandbox becomes necessary only if a tool that executes model-written code is added (for example Python for charts); that would need its own ADR.
+
+### 7.7 Second data source: reviews (v2, T3.08)
+
+`mcp_servers/reviews` is a TypeScript MCP server on Node 24 LTS using the official `@modelcontextprotocol/sdk` (pinned in `package.json`, `package-lock.json` committed) and `pg`. It serves streamable HTTP on port 8002 with `/mcp` and an unauthenticated `/health`, stateless like the Olist server. It reads `olist.order_reviews` joined to `olist.orders` and `olist.order_items`:
+
+| Tool | Arguments | Returns |
+| --- | --- | --- |
+| `review_summary@1` | `date_from`, `date_to`, `min_score?` | review count, average score, score distribution 1 to 5, count and share of scores at or below 2 |
+| `order_reviews@1` | `order_id` | that order's reviews with score, title, message, creation date and answer timestamp |
+
+Both are `risk: read`, `tenant_scoped: true`, and filter through `order_items`, so an order the token's tenant does not sell returns an empty result rather than another seller's data. The tenant comes only from the run token; the arguments schema is strict, so identity fields are a validation error instead of being ignored. Each call runs in a read-only transaction with `statement_timeout = 5s` and a 200-row cap, and appends a `tool_audit` row with the token's tenant and run id. The tool spans are created through the OpenTelemetry API, but no exporter is wired in this phase: the client-side `execute_tool` span from `McpToolSource` and the audit row are the trace evidence for a review call.
 
 ## 8. Model layer
 
@@ -755,7 +769,7 @@ Logical isolation, enforced at every layer:
 | API | `tenant_id` required on every request; unknown tenant is a 404. Not authenticated: the demo trusts the caller (requirements, non-goals) |
 | Config | `TenantContext` resolved once per run from `config/tenants.yaml` |
 | Agents | Supervisor only offers the tenant's allowed agents |
-| Tools | Allowlist on client and server; server takes the tenant from the signed run token; seller filter injected server-side; the free-form SQL tool reads one view whose seller filter is a transaction setting the server writes from the token's tenant |
+| Tools | Allowlist on client and server; server takes the tenant from the signed run token; seller filter injected server-side; the free-form SQL tool reads one view whose seller filter is a transaction setting the server writes from the token's tenant; both MCP servers apply the same tenant and seller rules from the shared file |
 | Retrieval | `WHERE tenant_id = $1` on every chunk query; tests assert no cross-tenant chunk ever appears |
 | Cache | tenant id in the key |
 | Traces and runs | tenant id attribute on every span; `GET /runs`, `GET /runs/{id}` and `GET /runs/{id}/trace` require `tenant_id` and filter on it, and another tenant's run answers 404 like a missing one |
@@ -774,7 +788,7 @@ The tenant schema (AC-11a):
 | `retrieval` | `k` (5), `min_score` (0.35), `rewrite` (false), `rewrite_mode` (`conditional` or `always`), `search` (`vector` keeps the Phase 1 path, `hybrid` adds full text and RRF) |
 | `cache` | `enabled` (false), `threshold` (0.92 default; the demo uses 0.94 from the cache report), `ttl_days` (7); implemented in v1 (10) |
 
-Unknown keys, malformed or versionless wire names, duplicates, a tool in both `allow` and `ask`, and an empty `seller_ids` list all fail at startup rather than during a run. Agent names are checked against the entry point registry and tool wire names against each tool source's manifest (`platform.yaml`), which the MCP server also reads to validate its own copy of the tenant file.
+Unknown keys, malformed or versionless wire names, duplicates, a tool in both `allow` and `ask`, and an empty `seller_ids` list all fail at startup rather than during a run. Agent names are checked against the entry point registry and tool wire names against the union of the manifests each tool source declares in `platform.yaml`. The MCP servers also read the same file, but each validates only the wire names it serves: the file lists tools from every server, and a server that rejected a foreign name would fail as soon as a tenant allowed a tool from another source. A typo is therefore still a startup error in the API, which owns the schema.
 
 The demo gives `seller_a` the same five synthetic policy documents as `default` (29 chunks) so retrieval isolation is tested against two real indexes:
 
@@ -877,7 +891,7 @@ See 7.4. The audit table is append-only (no UPDATE or DELETE grant for any appli
 | Boundary | What crosses it | Protection |
 | --- | --- | --- |
 | Client to API | query, tenant id | Input validation only; no end-user authentication (demo non-goal) |
-| API to tool server | tool calls | Signed run token, server-side allowlist and seller filter, audit |
+| API to tool servers | tool calls | Signed run token with the platform-wide audience, verified in each server; server-side allowlist and seller filter per source; audit |
 | Tool server to database | SQL | SELECT-only role, read-only transaction, timeout, row cap |
 | Tool results and documents to model | untrusted text | Data blocks, injection detector (v1), evidence checks (v1) |
 | API to model provider | prompts | Secrets in env, no tenant secrets in prompts |
@@ -1150,7 +1164,7 @@ switchboard/
 
 ## 19. Deployment
 
-Phase 1 and v1: `docker-compose.yml` with services `postgres` (pgvector image, volume, init SQL for roles and schema), `api` (uvicorn), `mcp-olist`, `web` (static build served by nginx or Vite preview). LM Studio runs on the host and is reached through `host.docker.internal`. Health checks on every service; `api` waits for `postgres` and `mcp-olist`. The SSE endpoint requires proxy buffering to be disabled in the `web` service's nginx config.
+Phase 1 and v1: `docker-compose.yml` with services `postgres` (pgvector image, volume, init SQL for roles and schema), `api` (uvicorn), `mcp-olist` (Python), `web` (static build served by nginx or Vite preview). v2 adds `mcp-reviews` (Node 24, port 8002) with the same secret and a read-only mount of the shared tenant file; the API waits for both MCP servers. LM Studio runs on the host and is reached through `host.docker.internal`. Health checks on every service; the API `/health` reports `postgres`, `mcp_olist`, `mcp_reviews` and `lmstudio`. The SSE endpoint requires proxy buffering to be disabled in the `web` service's nginx config.
 
 v2 (optional): Azure Container Apps for `api`, `mcp-olist` and `web`, Azure Database for PostgreSQL flexible server with pgvector, Key Vault for secrets, Terraform in `infra/`, GitHub Actions workflow that builds images on tag and applies Terraform with a manual approval environment.
 
@@ -1220,7 +1234,8 @@ This list is the allowlist referred to in the working agreements: a dependency n
 | Orchestration | langgraph | imported only in `adapters/orchestrator/langgraph_impl` |
 | Model clients | openai (official Python SDK) | for every OpenAI-compatible provider and embedder |
 | Answer judge (v2) | no new dependency: `switchboard.judges:llm` wraps a `ModelProvider` from the row above | one structured-output call per answer; prompt and schema live in the adapter |
-| MCP | mcp (official Python SDK), using `mcp.server.mcpserver.MCPServer` for the server and its streamable HTTP client for `McpToolSource` | SDK 2.x renamed FastMCP to MCPServer; not the separate `fastmcp` package, one SDK on both sides |
+| MCP | mcp (official Python SDK), using `mcp.server.mcpserver.MCPServer` for the server and its streamable HTTP client for `McpToolSource`; `mcp_servers/reviews` uses the official TypeScript SDK (`@modelcontextprotocol/sdk`) over the same transport | SDK 2.x renamed FastMCP to MCPServer; not the separate `fastmcp` package, one SDK on both sides |
+| Second MCP server (v2, T3.08) | Node 24 LTS, TypeScript, npm with a committed `package-lock.json`; runtime packages `@modelcontextprotocol/sdk`, `zod` (tool argument schemas the SDK requires), `pg` (Postgres client), `yaml` (shared tenant file), `@opentelemetry/api` (tool spans, no exporter yet); dev packages `typescript`, `@types/node`, `@types/pg` | no web framework: `node:http` plus the SDK's streamable HTTP transport; versions are pinned in `package.json` |
 | Database | asyncpg; PostgreSQL 16 with pgvector via the `pgvector/pgvector` image (pg16 tag) | no ORM |
 | Observability | opentelemetry-api, opentelemetry-sdk; v1 adds the official OTLP/HTTP exporter (opentelemetry-exporter-otlp-proto-http) | the OTLP exporter is used only when `tracing.exporter: otlp`; PostgreSQL stays the default |
 | Tokens | PyJWT | ADR 0014 |

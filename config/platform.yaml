@@ -8,6 +8,13 @@ tool_sources:
     # Lets the API check tenant tool allowlists against the wire names the
     # server actually serves (design.md sections 7.2 and 11).
     manifest: mcp_servers/olist/manifest.yaml
+  # Second data source, a TypeScript MCP server (T3.08). One run token with the
+  # platform-wide audience reaches both sources; each server enforces its own
+  # allowlist and seller scope from the shared tenants file.
+  - name: reviews
+    adapter: mcp
+    url: ${MCP_REVIEWS_URL}/mcp
+    manifest: mcp_servers/reviews/manifest.yaml
 retriever: pgvector
 # The Postgres semantic cache (design 10, ADR 0007). `none` keeps every lookup a
 # miss without dropping the adapter; a tenant only uses the cache when its own

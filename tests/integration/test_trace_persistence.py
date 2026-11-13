@@ -78,7 +78,7 @@ def mint(tenant_id: str, run_id: str) -> str:
     return jwt.encode(
         {
             "iss": "switchboard-api",
-            "aud": "mcp-olist",
+            "aud": "switchboard-mcp",
             "tenant_id": tenant_id,
             "run_id": run_id,
             "iat": now,

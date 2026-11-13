@@ -34,6 +34,7 @@ CONFIG_ENV = {
     "LMSTUDIO_MODEL": "qwen3-8b",
     "LMSTUDIO_EMBEDDING_MODEL": "bge-m3",
     "MCP_OLIST_URL": "http://test.invalid:8001",
+    "MCP_REVIEWS_URL": "http://test.invalid:8002",
 }
 QUERY = "How many orders were placed in March 2018?"
 

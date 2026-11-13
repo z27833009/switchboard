@@ -19,7 +19,7 @@ def token(**overrides: object) -> str:
     now = int(time.time())
     claims: dict[str, object] = {
         "iss": "switchboard-api",
-        "aud": "mcp-olist",
+        "aud": "switchboard-mcp",
         "tenant_id": "default",
         "run_id": str(uuid.uuid4()),
         "iat": now,
@@ -62,7 +62,7 @@ def test_forged_token_is_rejected() -> None:
     forged = jwt.encode(
         {
             "iss": "switchboard-api",
-            "aud": "mcp-olist",
+            "aud": "switchboard-mcp",
             "tenant_id": "default",
             "run_id": str(uuid.uuid4()),
             "iat": int(time.time()),

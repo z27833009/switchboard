@@ -578,7 +578,7 @@ def check_http(url: str) -> dict[str, str]:
 
 
 async def default_health() -> tuple[int, dict[str, Any]]:
-    """The T1.02 dependency report: postgres, mcp_olist, lmstudio."""
+    """The dependency report: postgres, both MCP servers, lmstudio (T1.02, T3.08)."""
     postgres = await check_postgres(os.environ.get("SWITCHBOARD_DATABASE_URL", ""))
     lmstudio = await asyncio.to_thread(check_lmstudio, os.environ.get("LMSTUDIO_BASE_URL", ""))
     tools_url = os.environ.get("SWITCHBOARD_TOOLS_URL", "")
@@ -586,9 +586,15 @@ async def default_health() -> tuple[int, dict[str, Any]]:
         mcp_olist = await asyncio.to_thread(check_http, tools_url.rstrip("/") + "/health")
     else:
         mcp_olist = {"status": "error", "detail": "SWITCHBOARD_TOOLS_URL is not set"}
+    reviews_url = os.environ.get("MCP_REVIEWS_URL", "")
+    if reviews_url:
+        mcp_reviews = await asyncio.to_thread(check_http, reviews_url.rstrip("/") + "/health")
+    else:
+        mcp_reviews = {"status": "error", "detail": "MCP_REVIEWS_URL is not set"}
     dependencies: dict[str, dict[str, Any]] = {
         "postgres": postgres,
         "mcp_olist": mcp_olist,
+        "mcp_reviews": mcp_reviews,
         "lmstudio": lmstudio,
     }
     healthy = all(item["status"] == "ok" for item in dependencies.values())

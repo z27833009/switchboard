@@ -180,6 +180,7 @@ judge:
 
 CONFIG_ENV = {
     "MCP_OLIST_URL": "http://localhost:8001",
+    "MCP_REVIEWS_URL": "http://localhost:8002",
     "LMSTUDIO_BASE_URL": "http://localhost:18080/v1",
     "LMSTUDIO_MODEL": "qwen3-8b",
     "LMSTUDIO_EMBEDDING_MODEL": "bge-m3",
@@ -274,6 +275,7 @@ def test_committed_config_files_load() -> None:
             "LMSTUDIO_MODEL": "qwen3-8b",
             "LMSTUDIO_EMBEDDING_MODEL": "bge-m3",
             "MCP_OLIST_URL": "http://localhost:8001",
+            "MCP_REVIEWS_URL": "http://localhost:8002",
         },
     )
     assert settings.platform.limits.fallback_plan == ["docs", "data"]

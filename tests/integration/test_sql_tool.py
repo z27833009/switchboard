@@ -41,6 +41,7 @@ from mcp_servers.olist.sql_guard import validate_readonly_sql
 
 from switchboard.adapters.tools.mcp_client import McpToolSource
 from switchboard.core.models import RunContext, TenantContext
+from switchboard.eval.manifest import load_tool_specs
 
 MCP_URL = os.environ.get("MCP_OLIST_URL", "").rstrip("/")
 TOOLS_URL = os.environ.get("SWITCHBOARD_TOOLS_DATABASE_URL", "")
@@ -49,6 +50,11 @@ APP_URL = os.environ.get("SWITCHBOARD_DATABASE_URL", "")
 SECRET = os.environ.get("SWITCHBOARD_RUN_TOKEN_SECRET", "")
 REPO = Path(__file__).resolve().parents[2]
 TENANTS_FILE = REPO / "config" / "tenants.yaml"
+# The tenants file is shared with mcp_servers/reviews, so this Olist-only test
+# compares against the part of each allowlist the Olist manifest serves.
+OLIST_TOOLS = {
+    spec.wire_name for spec in load_tool_specs(REPO / "mcp_servers" / "olist" / "manifest.yaml")
+}
 
 pytestmark = [
     pytest.mark.integration,
@@ -68,7 +74,7 @@ def mint(tenant_id: str = "default", ttl_s: int = 60) -> tuple[str, str]:
     token = jwt.encode(
         {
             "iss": "switchboard-api",
-            "aud": "mcp-olist",
+            "aud": "switchboard-mcp",
             "tenant_id": tenant_id,
             "run_id": run_id,
             "iat": now,
@@ -293,7 +299,7 @@ async def test_demo_tenants_do_not_list_the_sql_tool() -> None:
     source = McpToolSource(url=MCP_URL)
     assert len(demo_allowlist("default")) == 5
     for tenant_id in ("default", "seller_a"):
-        allowed = demo_allowlist(tenant_id)
+        allowed = demo_allowlist(tenant_id) & OLIST_TOOLS
         assert "query_readonly_sql@1" not in allowed
         context = RunContext(
             run_id=str(uuid.uuid4()),

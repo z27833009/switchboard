@@ -1,0 +1,37 @@
+tools:
+  - name: review_summary
+    version: "1"
+    description: Summarize customer reviews for a purchase-date range, optionally from a minimum score.
+    risk: read
+    tenant_scoped: true
+    sensitive_args: []
+    input_schema:
+      type: object
+      properties:
+        date_from:
+          type: string
+          format: date
+        date_to:
+          type: string
+          format: date
+        min_score:
+          type: integer
+          minimum: 1
+          maximum: 5
+      required: [date_from, date_to]
+      additionalProperties: false
+
+  - name: order_reviews
+    version: "1"
+    description: Return the reviews of one order, with score, title, message and dates.
+    risk: read
+    tenant_scoped: true
+    sensitive_args: []
+    input_schema:
+      type: object
+      properties:
+        order_id:
+          type: string
+          minLength: 1
+      required: [order_id]
+      additionalProperties: false

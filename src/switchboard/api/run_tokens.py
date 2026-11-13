@@ -17,7 +17,9 @@ from collections.abc import Mapping
 import jwt
 
 ISSUER = "switchboard-api"
-AUDIENCE = "mcp-olist"
+# Platform-wide audience (ADR 0014, T3.08): one run token is valid at every MCP
+# server, so the API mints one token per run instead of one per tool source.
+AUDIENCE = "switchboard-mcp"
 ALGORITHM = "HS256"
 MIN_SECRET_BYTES = 32
 TOKEN_TTL_MARGIN_S = 30

@@ -33,7 +33,7 @@ def test_claims_are_the_ones_the_server_requires() -> None:
         options={"require": ["exp", "iat", "iss", "aud", "tenant_id", "run_id", "jti"]},
     )
     assert claims["iss"] == "switchboard-api"
-    assert claims["aud"] == "mcp-olist"
+    assert claims["aud"] == AUDIENCE
     assert claims["tenant_id"] == "seller_a"
     assert claims["run_id"] == run_id
     assert claims["exp"] - claims["iat"] == 60 + TOKEN_TTL_MARGIN_S

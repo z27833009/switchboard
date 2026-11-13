@@ -1,9 +1,10 @@
 # Tenant configuration (design.md sections 7.3 and 11).
 #
 # `provider` and a non-empty `agents.allow` are required; the other keys have
-# defaults. Unknown keys are rejected at startup, as are unknown agent names
-# (the API) and unknown tool wire names (both the API and the MCP server,
-# checked against mcp_servers/olist/manifest.yaml).
+# Unknown keys are rejected at startup, as are unknown agent names (the API)
+# and unknown tool wire names (the API checks them against every manifest
+# declared in config/platform.yaml; each MCP server checks the names it
+# serves).
 #
 #   provider:  name of a provider in providers.yaml
 #   agents.allow: registered agent names the supervisor may plan with; clarify
@@ -23,7 +24,9 @@
 #                 measured false-hit rate is above the 2 percent target.
 #
 # Tools not listed under allow or ask are denied. The tool server takes the
-# tenant from the signed run token and never from request arguments.
+# tenant from the signed run token and never from request arguments. The two
+# review tools come from mcp_servers/reviews (TypeScript); only seller_a allows
+# them, so the default tenant and the eval tool lists stay unchanged.
 tenants:
   default:
     provider: lmstudio
@@ -61,6 +64,9 @@ tenants:
         - orders_summary@1
         - order_lookup@1
         - top_products@1
+        # Served by mcp_servers/reviews, not by mcp_servers/olist.
+        - review_summary@1
+        - order_reviews@1
       ask: []
     seller_ids: ["955fee9216a65b617aa5c0531780ce60"]
     retrieval:

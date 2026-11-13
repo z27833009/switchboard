@@ -128,13 +128,13 @@ docker compose up -d --build
 docker compose ps
 ```
 
-The first build installs Python and Node dependencies inside the images, so it can take a few minutes on a cold cache. Wait until all four services (`postgres`, `mcp-olist`, `api`, `web`) show `healthy`.
+The first build installs Python and Node dependencies inside the images, so it can take a few minutes on a cold cache. Wait until all five services (`postgres`, `mcp-olist`, `mcp-reviews`, `api`, `web`) show `healthy`.
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-Expect `"status":"ok"` and `ok` for `postgres`, `mcp_olist` and `lmstudio`. The endpoint returns 503 when any dependency is down, and names the failing one.
+Expect `"status":"ok"` and `ok` for `postgres`, `mcp_olist`, `mcp_reviews` and `lmstudio`. The endpoint returns 503 when any dependency is down, and names the failing one.
 
 If you already have a database volume from an earlier Phase 1 checkout, apply the later migrations once. Fresh volumes apply them automatically in filename order, and the files are idempotent:
 
@@ -168,7 +168,7 @@ uv run --env-file .env switchboard ingest data/documents --tenant default
 
 On a fresh database this reports `documents added 5, updated 0, unchanged 0` and `chunks written 29`. The command is idempotent: a second run reports zero changes.
 
-The cross-tenant demo uses a second tenant, `seller_a`, restricted to one seller. Give it the same documents with `uv run --env-file .env switchboard ingest data/documents --tenant seller_a`; retrieval, the run list and traces are then tenant isolated in the UI and the API.
+The cross-tenant demo uses a second tenant, `seller_a`, restricted to one seller. Give it the same documents with `uv run --env-file .env switchboard ingest data/documents --tenant seller_a`; retrieval, the run list and traces are then tenant isolated in the UI and the API. `seller_a` also allows the two review tools served by the second MCP server, `mcp-reviews` (TypeScript, port 8002): `review_summary@1` and `order_reviews@1`. The default tenant does not, so its tool list and the eval reports are unchanged. To try them, pick tenant `seller_a` in the UI and ask for the review score of an order, or run `uv run --env-file .env pytest tests/contracts/tools/test_mcp_reviews_source.py -q` against the running stack.
 
 ### 7. Open it
 
@@ -180,6 +180,7 @@ The cross-tenant demo uses a second tenant, `seller_a`, restricted to one seller
 | API health | http://localhost:8000/health |
 | Health through the web proxy | http://localhost:8080/api/health |
 | Tool server health | http://localhost:8001/health |
+| Reviews tool server health | http://localhost:8002/health |
 
 Open the chat page, keep tenant `default` and ask:
 
@@ -223,6 +224,7 @@ To return to the default, run `Remove-Item Env:SWITCHBOARD_TRACING_EXPORTER` in 
 
 - `/health` reports `lmstudio` as error: check that the server is on port 18080, that `--bind 0.0.0.0` is set, and that `curl http://localhost:18080/v1/models` works on the host.
 - `/health` reports `mcp_olist` as error: `docker compose logs mcp-olist`. The server refuses to start if `tool_audit` or `spans` is missing, which means the migrations in step 4 have not been applied to this volume.
+- `/health` reports `mcp_reviews` as error: `docker compose logs mcp-reviews`. The server needs `tool_audit` (same migrations) and reads the tenant file mounted from `config/tenants.yaml`; a tenant with an empty `tools.allow` is valid but sees no review tools.
 - A port is already in use: stop the other stack, or change the host side of the mapping in `docker-compose.yml` and the matching URL in `.env`.
 - `docker compose down` keeps the database volume. `docker compose down -v` deletes it, including the loaded data and runs.
 

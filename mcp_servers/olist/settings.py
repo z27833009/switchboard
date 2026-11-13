@@ -10,6 +10,7 @@ names against the manifest, the ask list, and the seller ids).
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -22,6 +23,10 @@ AGENT_KEYS = frozenset({"allow"})
 TOOL_KEYS = frozenset({"allow", "ask"})
 RETRIEVAL_KEYS = frozenset({"k", "min_score", "rewrite", "rewrite_mode", "search"})
 CACHE_KEYS = frozenset({"enabled", "threshold", "ttl_days"})
+# Wire names are name@major. A name this server does not serve belongs to
+# another MCP server (the tenants file is shared); the API checks every entry
+# against the union of the manifests in platform.yaml.
+WIRE_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*@[0-9]+$")
 
 
 class ServerConfigError(Exception):
@@ -116,17 +121,18 @@ def _names(value: Any, field: str) -> list[str]:
 
 
 def load_tenants(path: Path, manifest: Mapping[str, ToolDefinition]) -> dict[str, TenantSettings]:
-    """Load the tenant allowlists and seller scope, checked against the manifest.
+    """Load the tenant allowlists and seller scope, checked against this manifest.
 
-    An unknown tool wire name is a startup error rather than a run-time denial:
-    it means the file and the server disagree about what exists, and a typo in
-    an allowlist would otherwise silently narrow or widen access.
+    The tenants file is shared by every MCP server, so an allowlist entry this
+    server does not serve belongs to another server and is ignored here. Only
+    the shape of a wire name is checked locally; the API checks every entry
+    against the union of the manifests declared in platform.yaml, which is
+    where a typo fails at startup (design.md sections 7.2, 7.3 and 11).
     """
     payload = _read_yaml(path)
     entries = payload.get("tenants")
     if not isinstance(entries, dict) or not entries:
         raise ServerConfigError(f"{path} has no tenants mapping")
-    known_tools = sorted(manifest)
     tenants: dict[str, TenantSettings] = {}
     for raw_id, entry in entries.items():
         tenant_id = str(raw_id).strip()
@@ -150,11 +156,11 @@ def load_tenants(path: Path, manifest: Mapping[str, ToolDefinition]) -> dict[str
         allow = _names(tools.get("allow", []), f"tenant {tenant_id!r} tools.allow")
         ask = _names(tools.get("ask", []), f"tenant {tenant_id!r} tools.ask")
         for field_name, values in (("tools.allow", allow), ("tools.ask", ask)):
-            unknown = sorted(set(values) - set(known_tools))
-            if unknown:
+            malformed = sorted(name for name in values if not WIRE_NAME_PATTERN.match(name))
+            if malformed:
                 raise ServerConfigError(
-                    f"tenant {tenant_id!r} {field_name} names unknown tools "
-                    f"{unknown}; manifest tools: {known_tools}"
+                    f"tenant {tenant_id!r} {field_name} names malformed wire names "
+                    f"{malformed}; expected name@major"
                 )
         overlap = sorted(set(allow) & set(ask))
         if overlap:
@@ -188,8 +194,8 @@ def load_tenants(path: Path, manifest: Mapping[str, ToolDefinition]) -> dict[str
                 _known_keys(settings, allowed_keys, f"tenant {tenant_id!r} {field_name}")
 
         tenants[tenant_id] = TenantSettings(
-            allowed_tools=frozenset(allow),
+            allowed_tools=frozenset(name for name in allow if name in manifest),
             seller_ids=tuple(sellers) if seller_ids is not None else None,
-            ask_tools=frozenset(ask),
+            ask_tools=frozenset(name for name in ask if name in manifest),
         )
     return tenants

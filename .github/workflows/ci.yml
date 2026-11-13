@@ -38,6 +38,20 @@ jobs:
       - name: Build web
         working-directory: web
         run: npm run build
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: mcp_servers/reviews/package-lock.json
+      - name: Install reviews server dependencies
+        working-directory: mcp_servers/reviews
+        run: npm ci
+      - name: Type-check reviews server
+        working-directory: mcp_servers/reviews
+        run: npm run typecheck
+      - name: Test reviews server
+        working-directory: mcp_servers/reviews
+        run: npm test
 
   integration:
     runs-on: ubuntu-latest
@@ -70,6 +84,9 @@ jobs:
       SWITCHBOARD_TRACING_EXPORTER: postgres
       MCP_OLIST_URL: http://localhost:8001
       MCP_OLIST_PORT: "8001"
+      MCP_REVIEWS_URL: http://localhost:8002
+      MCP_REVIEWS_PORT: "8002"
+      SWITCHBOARD_REVIEWS_MANIFEST: mcp_servers/reviews/manifest.yaml
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: astral-sh/setup-uv@v10.3.3
@@ -99,6 +116,30 @@ jobs:
           done
           echo "the MCP server did not become healthy"
           cat mcp-olist.log
+          exit 1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "24"
+      - name: Build the reviews MCP server
+        working-directory: mcp_servers/reviews
+        run: |
+          npm ci
+          npm run build
+      - name: Start the reviews MCP server
+        run: |
+          nohup node mcp_servers/reviews/dist/src/index.js > mcp-reviews.log 2>&1 &
+          disown
+          echo "reviews MCP server started with pid $!"
+      - name: Wait for the reviews MCP server
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error http://localhost:8002/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "the reviews MCP server did not become healthy"
+          cat mcp-reviews.log
           exit 1
       - name: Integration tests
         # LMSTUDIO_BASE_URL is deliberately absent, so tests that need a model skip.

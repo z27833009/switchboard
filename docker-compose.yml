@@ -64,6 +64,43 @@ services:
       retries: 20
       start_period: 10s
 
+  mcp-reviews:
+    build:
+      context: ./mcp_servers/reviews
+      dockerfile: Dockerfile
+    image: switchboard-mcp-reviews:local
+    restart: unless-stopped
+    command: ["node", "dist/src/index.js"]
+    environment:
+      # The same secret and audience as the API and mcp-olist: one run token is
+      # valid at every MCP server (ADR 0014, T3.08).
+      SWITCHBOARD_RUN_TOKEN_SECRET: "${SWITCHBOARD_RUN_TOKEN_SECRET:?set SWITCHBOARD_RUN_TOKEN_SECRET in .env (at least 32 bytes)}"
+      SWITCHBOARD_TOOLS_DATABASE_URL: "postgresql://switchboard_tools:${SWITCHBOARD_TOOLS_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-switchboard}"
+      SWITCHBOARD_TENANTS_FILE: "/app/config/tenants.yaml"
+      SWITCHBOARD_REVIEWS_MANIFEST: "/app/manifest.yaml"
+      MCP_REVIEWS_PORT: "8002"
+    volumes:
+      # The tenant file is shared with the API and mcp-olist; a mount keeps one
+      # copy the source of truth instead of baking a second one into the image.
+      - ./config/tenants.yaml:/app/config/tenants.yaml:ro
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8002/health').then((r) => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1));",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
   api:
     <<: *app
     command:
@@ -80,6 +117,7 @@ services:
       SWITCHBOARD_DATABASE_URL: "postgresql://switchboard_app:${SWITCHBOARD_APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-switchboard}"
       SWITCHBOARD_TOOLS_URL: "http://mcp-olist:8001"
       MCP_OLIST_URL: "http://mcp-olist:8001"
+      MCP_REVIEWS_URL: "http://mcp-reviews:8002"
       LMSTUDIO_BASE_URL: "http://host.docker.internal:18080/v1"
       LMSTUDIO_MODEL: "${LMSTUDIO_MODEL:-qwen3-8b}"
       LMSTUDIO_EMBEDDING_MODEL: "${LMSTUDIO_EMBEDDING_MODEL:-bge-m3}"
@@ -96,6 +134,8 @@ services:
       postgres:
         condition: service_healthy
       mcp-olist:
+        condition: service_healthy
+      mcp-reviews:
         condition: service_healthy
     healthcheck:
       test:
