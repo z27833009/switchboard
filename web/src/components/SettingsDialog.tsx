@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { errorMessage, getJson, isAbortError, postJson } from "../api";
 import type { SettingsResponse, SettingsTool } from "../api";
-import { CloseIcon, ShieldIcon } from "./Icons";
+import { ChevronDownIcon, CloseIcon, ShieldIcon } from "./Icons";
 
 type SectionKey =
   | "account"
@@ -164,14 +164,19 @@ function McpServerForm({ onClose }: { onClose: () => void }) {
 
 function SectionBody({ section, data }: { section: SectionKey; data: SettingsResponse }) {
   const { platform, tenant, provider } = data;
-  const [selectedServer, setSelectedServer] = useState<string | null>(null);
+  const [expandedServers, setExpandedServers] = useState<ReadonlySet<string>>(new Set());
   const [addingServer, setAddingServer] = useState(false);
-  const activeServer =
-    selectedServer !== null && data.mcp_servers.some((server) => server.name === selectedServer)
-      ? selectedServer
-      : (data.mcp_servers[0]?.name ?? null);
-  const activeTools =
-    activeServer === null ? [] : data.tools.filter((tool) => tool.source === activeServer);
+  function toggleServer(name: string) {
+    setExpandedServers((current) => {
+      const next = new Set(current);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  }
   if (section === "account") {
     return (
       <>
@@ -325,23 +330,9 @@ function SectionBody({ section, data }: { section: SectionKey; data: SettingsRes
     return (
       <div className="mcp-groups">
         <div className="mcp-toolbar">
-          {data.mcp_servers.length === 0 ? (
-            <p className="muted small">No MCP server is configured yet.</p>
-          ) : (
-            <label className="field field-inline mcp-server-select">
-              <span className="field-label">MCP server</span>
-              <select
-                value={activeServer ?? ""}
-                onChange={(event) => setSelectedServer(event.target.value)}
-              >
-                {data.mcp_servers.map((server) => (
-                  <option key={server.name} value={server.name}>
-                    {server.name} ({server.tool_count} tool{server.tool_count === 1 ? "" : "s"})
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+          <p className="muted small">
+            {data.mcp_servers.length} MCP server{data.mcp_servers.length === 1 ? "" : "s"} configured
+          </p>
           <button
             type="button"
             className="button button-quiet"
@@ -353,18 +344,40 @@ function SectionBody({ section, data }: { section: SectionKey; data: SettingsRes
         {addingServer ? (
           <McpServerForm onClose={() => setAddingServer(false)} />
         ) : null}
-        {data.mcp_servers.length === 0 ? null : (
-          <section className="mcp-group" role="tabpanel">
-            {activeTools.length === 0 ? (
-              <p className="muted small">
-                No manifest tool is exposed by this server. Add a manifest or restart after adding
-                the server.
-              </p>
-            ) : (
-              <ToolCards tools={activeTools} />
-            )}
-          </section>
-        )}
+        <div className="mcp-server-list">
+          {data.mcp_servers.map((server) => {
+            const open = expandedServers.has(server.name);
+            const tools = data.tools.filter((tool) => tool.source === server.name);
+            return (
+              <section key={server.name} className={`mcp-server-card${open ? " open" : ""}`}>
+                <button
+                  type="button"
+                  className="mcp-server-card-head"
+                  aria-expanded={open}
+                  onClick={() => toggleServer(server.name)}
+                >
+                  <span className="mcp-server-card-title">
+                    <code>{server.name}</code>
+                    <span className="muted small">{server.adapter}</span>
+                  </span>
+                  <span className="mcp-server-card-meta">
+                    {server.tool_count} tool{server.tool_count === 1 ? "" : "s"}
+                    <ChevronDownIcon className={`mcp-server-chevron${open ? " is-open" : ""}`} />
+                  </span>
+                </button>
+                {open ? (
+                  <div className="mcp-server-card-body">
+                    {tools.length === 0 ? (
+                      <p className="muted small">No manifest tool is exposed by this server.</p>
+                    ) : (
+                      <ToolCards tools={tools} />
+                    )}
+                  </div>
+                ) : null}
+              </section>
+            );
+          })}
+        </div>
       </div>
     );
   }

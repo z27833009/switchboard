@@ -1754,12 +1754,68 @@ dialog::backdrop {
   margin-bottom: 14px;
 }
 
-.mcp-server-select {
-  min-width: min(260px, 100%);
+.mcp-server-list {
+  display: grid;
+  gap: 10px;
 }
 
-.mcp-server-select select {
-  min-width: 180px;
+.mcp-server-card {
+  overflow: clip;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+.mcp-server-card.open {
+  border-color: var(--border-strong);
+}
+
+.mcp-server-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mcp-server-card-head:hover {
+  background: var(--hover);
+}
+
+.mcp-server-card-title,
+.mcp-server-card-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mcp-server-card-meta {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.mcp-server-chevron {
+  width: 14px;
+  height: 14px;
+  transition: transform 120ms ease;
+}
+
+.mcp-server-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.mcp-server-card-body {
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-sidebar);
 }
 
 .mcp-group > .settings-subheading {
