@@ -2064,6 +2064,12 @@ dialog::backdrop {
   justify-content: flex-end;
 }
 
+.agent-toggle-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
 .agent-toggle {
   display: inline-flex;
   align-items: center;

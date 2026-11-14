@@ -206,6 +206,74 @@ class SettingsStore:
             "tenants", document, actor=actor, note=f"update tenant {tenant_id}"
         )
 
+    async def create_tenant(
+        self,
+        tenant_id: str,
+        *,
+        name: str,
+        provider: str,
+        agents_allow: list[str],
+        tools_allow: list[str] | None,
+        tools_ask: list[str] | None,
+        seller_ids: list[str] | None,
+        actor: str,
+    ) -> int:
+        """Create one tenant in the control plane and its database row."""
+        rows = await self._db.fetch("SELECT kind, payload FROM public.settings_documents")
+        documents = {str(row["kind"]): _as_mapping(row["payload"]) for row in rows}
+        if set(documents) != set(CONFIG_KINDS):
+            raise ConfigError("cannot create a tenant before the control plane is seeded")
+        tenants_document = copy.deepcopy(documents["tenants"])
+        tenants = dict(tenants_document.get("tenants", {}))
+        if tenant_id in tenants:
+            raise ConfigError(f"tenant {tenant_id!r} already exists")
+        providers = _as_mapping(documents["providers"]).get("providers", {})
+        if provider not in providers:
+            raise ConfigError(f"unknown provider {provider!r}")
+        tenants[tenant_id] = {
+            "provider": provider,
+            "agents": {"allow": list(agents_allow)},
+            "tools": {"allow": list(tools_allow or []), "ask": list(tools_ask or [])},
+            "seller_ids": seller_ids,
+        }
+        tenants_document["tenants"] = tenants
+        documents["tenants"] = tenants_document
+        settings_from_documents(documents, env=self._env, label="settings_documents/tenants")
+        async with self._db.transaction():
+            inserted = await self._db.fetchval(
+                "INSERT INTO public.tenants (id, name) VALUES ($1, $2) "
+                "ON CONFLICT (id) DO NOTHING RETURNING id",
+                tenant_id,
+                name,
+            )
+            if inserted is None:
+                raise ConfigError(f"tenant {tenant_id!r} already has a database row")
+            revision = await self._db.fetchval(
+                """
+                UPDATE public.settings_documents
+                   SET payload = $2::jsonb,
+                       revision = revision + 1,
+                       updated_at = now(),
+                       updated_by = $3
+                 WHERE kind = $1
+                 RETURNING revision
+                """,
+                "tenants",
+                _json(tenants_document),
+                actor,
+            )
+            if revision is None:  # pragma: no cover - seed guarantees the row
+                raise ConfigError("tenants document disappeared during create")
+            await self._append_revision(
+                "tenants",
+                int(revision),
+                tenants_document,
+                f"create tenant {tenant_id}",
+                actor=actor,
+                action="create_tenant",
+            )
+        return int(revision)
+
     async def update_provider_model(self, provider_name: str, model: str, *, actor: str) -> int:
         """Change the model on one provider without touching its secret."""
         document = await self._read_document("providers")

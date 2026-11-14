@@ -62,6 +62,7 @@ from switchboard.api.schemas import (
     SessionSummary,
     SettingsResponse,
     SettingsRevision,
+    TenantCreation,
     TenantSettingsUpdate,
     TraceResponse,
     UserCreate,
@@ -819,6 +820,36 @@ async def add_mcp_server(request: Request, submission: McpServerSubmission) -> M
         status="ok",
         revision=revision,
         note="restart the API to build and expose the new MCP server",
+    )
+
+
+@router.post("/settings/tenants", response_model=SettingsRevision, status_code=201)
+async def create_tenant_settings(request: Request, payload: TenantCreation) -> SettingsRevision:
+    """Create a tenant, its database row and its allowlists in one revision."""
+    deps = _deps(request.app)
+    store = deps.settings_store
+    if store is None:
+        raise HTTPException(
+            status_code=503,
+            detail="the settings control plane is not available; set SWITCHBOARD_CONFIG_SOURCE=db",
+        )
+    try:
+        revision = await store.create_tenant(
+            payload.tenant_id,
+            name=payload.name.strip(),
+            provider=payload.provider,
+            agents_allow=payload.agents_allow,
+            tools_allow=payload.tools_allow,
+            tools_ask=payload.tools_ask,
+            seller_ids=payload.seller_ids,
+            actor="local:admin",
+        )
+    except ConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return SettingsRevision(
+        status="ok",
+        revision=revision,
+        note="restart the API to build and expose the new tenant",
     )
 
 

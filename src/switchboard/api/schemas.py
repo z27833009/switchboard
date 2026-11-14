@@ -613,6 +613,18 @@ class SettingsRevision(BaseModel):
     note: str
 
 
+class TenantCreation(BaseModel):
+    """Create a tenant from the control plane (V3.02/V3.08)."""
+
+    tenant_id: str = Field(pattern=r"^[a-z][a-z0-9_-]{1,63}$")
+    name: str = Field(min_length=1, max_length=120)
+    provider: str = Field(min_length=1, max_length=64)
+    agents_allow: list[str] = Field(default_factory=lambda: ["direct", "docs"], min_length=1)
+    tools_allow: list[str] = Field(default_factory=list)
+    tools_ask: list[str] = Field(default_factory=list)
+    seller_ids: list[str] | None = None
+
+
 class TenantSettingsUpdate(BaseModel):
     """Writable tenant allowlists for the first V3.03 settings slice."""
 
@@ -704,6 +716,7 @@ __all__ = [
     "SettingsRevision",
     "SettingsTenant",
     "SettingsTool",
+    "TenantCreation",
     "TenantSettingsUpdate",
     "TraceResponse",
     "TraceSpan",

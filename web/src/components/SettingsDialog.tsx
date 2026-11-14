@@ -23,6 +23,7 @@ import type {
   DocumentSummary,
   SessionsResponse,
   SessionSummary,
+  SettingsAgent,
   SettingsResponse,
   SettingsTool,
   UsersResponse,
@@ -40,7 +41,8 @@ type SectionKey =
   | "cache"
   | "knowledge"
   | "conversations"
-  | "users";
+  | "users"
+  | "tenants";
 
 const SECTIONS: Array<{ key: SectionKey; label: string }> = [
   { key: "account", label: "Account" },
@@ -53,6 +55,7 @@ const SECTIONS: Array<{ key: SectionKey; label: string }> = [
   { key: "knowledge", label: "Knowledge" },
   { key: "conversations", label: "Conversations" },
   { key: "users", label: "Users" },
+  { key: "tenants", label: "Tenants" },
 ];
 
 function Value({ label, children }: { label: string; children: ReactNode }) {
@@ -669,6 +672,132 @@ function UsersSection({ tenantId }: { tenantId: string }) {
   );
 }
 
+function TenantsSection({
+  tenants,
+  defaultProvider,
+  agents,
+}: {
+  tenants: string[];
+  defaultProvider: string;
+  agents: SettingsAgent[];
+}) {
+  const [tenantId, setTenantId] = useState("");
+  const [name, setName] = useState("");
+  const [provider, setProvider] = useState(defaultProvider);
+  const [selectedAgents, setSelectedAgents] = useState<string[]>(["direct", "docs"]);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function toggleAgent(value: string) {
+    setSelectedAgents((current) =>
+      current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value],
+    );
+  }
+
+  async function createTenant(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const result = await postJson<{ revision: number; note: string }>("/settings/tenants", {
+        tenant_id: tenantId,
+        name,
+        provider,
+        agents_allow: selectedAgents,
+      });
+      setMessage(`Saved revision ${result.revision}. ${result.note}.`);
+      setTenantId("");
+      setName("");
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <p className="muted small">
+        {tenants.length} tenant{tenants.length === 1 ? "" : "s"} in the control plane. Creating a
+        tenant writes its database row and allowlists; restart the API to build it.
+      </p>
+      <ul className="card-list">
+        {tenants.map((tenant) => (
+          <li key={tenant} className="card">
+            <div className="card-head">
+              <code className="card-title">{tenant}</code>
+              <span className="tag tag-neutral">tenant</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <form className="settings-edit" onSubmit={createTenant}>
+        <h4 className="settings-subheading">Create a tenant</h4>
+        <label className="field">
+          <span className="field-label">Tenant id</span>
+          <input
+            value={tenantId}
+            onChange={(event) => setTenantId(event.target.value)}
+            placeholder="acme"
+            pattern="[a-z][a-z0-9_-]{1,63}"
+            disabled={busy}
+            required
+          />
+        </label>
+        <label className="field">
+          <span className="field-label">Name</span>
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            disabled={busy}
+            required
+          />
+        </label>
+        <label className="field">
+          <span className="field-label">Provider</span>
+          <input
+            value={provider}
+            onChange={(event) => setProvider(event.target.value)}
+            disabled={busy}
+            required
+          />
+        </label>
+        <div className="field">
+          <span className="field-label">Allowed agents</span>
+          <div className="agent-toggle-list">
+            {agents.map((agent) => (
+              <label key={agent.name} className="agent-toggle">
+                <input
+                  type="checkbox"
+                  checked={selectedAgents.includes(agent.name)}
+                  onChange={() => toggleAgent(agent.name)}
+                  disabled={busy}
+                />
+                {agent.name}
+              </label>
+            ))}
+          </div>
+        </div>
+        <div className="settings-edit-actions">
+          <button type="submit" className="button button-primary" disabled={busy}>
+            {busy ? "Creating..." : "Create tenant"}
+          </button>
+        </div>
+        {message === null ? null : <p className="muted small">{message}</p>}
+        {error === null ? null : (
+          <p className="error-text small" role="alert">
+            {error}
+          </p>
+        )}
+      </form>
+    </div>
+  );
+}
+
 function SectionBody({
   section,
   data,
@@ -885,6 +1014,16 @@ function SectionBody({
 
   if (section === "users") {
     return <UsersSection tenantId={tenant.tenant_id} />;
+  }
+
+  if (section === "tenants") {
+    return (
+      <TenantsSection
+        tenants={data.tenants}
+        defaultProvider={provider.name}
+        agents={data.agents}
+      />
+    );
   }
 
   if (section === "model") {

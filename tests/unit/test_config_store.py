@@ -29,6 +29,7 @@ class FakeDB:
         self.documents: dict[str, dict[str, Any]] = {}
         self.revisions: list[dict[str, Any]] = []
         self.audits: list[dict[str, Any]] = []
+        self.tenants: dict[str, str] = {}
 
     @asynccontextmanager
     async def transaction(self) -> AsyncIterator[None]:
@@ -47,6 +48,12 @@ class FakeDB:
                 "updated_by": actor,
             }
             return 1
+        if "INSERT INTO public.tenants" in query:
+            tenant_id, name = args
+            if tenant_id in self.tenants:
+                return None
+            self.tenants[tenant_id] = name
+            return tenant_id
         if "UPDATE public.settings_documents" in query:
             kind, payload, actor = args
             if kind not in self.documents:
@@ -232,3 +239,49 @@ async def test_update_tenant_and_provider_documents() -> None:
     assert db.documents["providers"]["payload"]["providers"]["lmstudio"]["model"] == "qwen3-8b-next"
     with pytest.raises(ConfigError, match="unknown provider"):
         await store.update_provider_model("ghost", "model", actor="test:admin")
+
+
+@pytest.mark.asyncio
+async def test_create_tenant_writes_both_the_document_and_the_database_row() -> None:
+    db = FakeDB()
+    store = SettingsStore(db, REPO / "config", CONFIG_ENV)
+    await store.seed_if_empty()
+
+    revision = await store.create_tenant(
+        "acme",
+        name="Acme",
+        provider="lmstudio",
+        agents_allow=["direct", "docs"],
+        tools_allow=[],
+        tools_ask=[],
+        seller_ids=None,
+        actor="test:admin",
+    )
+    assert revision == 2
+    assert db.tenants == {"acme": "Acme"}
+    settings = await store.load()
+    assert settings.tenants.tenants["acme"].provider == "lmstudio"
+    assert settings.tenants.tenants["acme"].agents.allow == ["direct", "docs"]
+
+    with pytest.raises(ConfigError, match="already exists"):
+        await store.create_tenant(
+            "acme",
+            name="Acme again",
+            provider="lmstudio",
+            agents_allow=["direct"],
+            tools_allow=[],
+            tools_ask=[],
+            seller_ids=None,
+            actor="test:admin",
+        )
+    with pytest.raises(ConfigError, match="unknown provider"):
+        await store.create_tenant(
+            "beta",
+            name="Beta",
+            provider="ghost",
+            agents_allow=["direct"],
+            tools_allow=[],
+            tools_ask=[],
+            seller_ids=None,
+            actor="test:admin",
+        )
