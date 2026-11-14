@@ -107,10 +107,13 @@ async def ingest_directory(
         raise ValueError(f"unknown tenant {tenant_id!r}; run docker/postgres/init/03-documents.sql")
 
     files = sorted(
-        path for path in root.glob("*.md") if path.is_file() and path.name.lower() != "readme.md"
+        path
+        for pattern in ("*.md", "*.txt")
+        for path in root.glob(pattern)
+        if path.is_file() and path.name.lower() not in {"readme.md", "readme.txt"}
     )
     if not files:
-        raise ValueError(f"no markdown documents in {root}")
+        raise ValueError(f"no markdown or text documents in {root}")
 
     added = updated = unchanged = chunks_written = changes = 0
     for path in files:

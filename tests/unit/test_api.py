@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import json
 import uuid
+from dataclasses import replace
 from datetime import UTC
 from typing import Any
 
+from httpx import ASGITransport, AsyncClient
 from opentelemetry.sdk.trace import TracerProvider
 from tests.fakes import (
     AppHarness,
@@ -23,6 +25,8 @@ from tests.fakes import (
     make_provider,
 )
 
+from switchboard.adapters.retrievers.ingest import IngestResult
+from switchboard.api.app import create_app
 from switchboard.api.step_events import StepEventPublisher
 from switchboard.core.config import TenantsConfig
 from switchboard.core.models import Usage
@@ -143,6 +147,50 @@ async def test_documents_list_and_delete(harness: AppHarness) -> None:
         f"/documents/{document_id}", params={"tenant_id": "default"}
     )
     assert missing.status_code == 404
+
+
+async def test_document_upload_chunks_and_returns_counts(harness: AppHarness) -> None:
+    async def fake_ingest(tenant_id: str, filename: str, content: str) -> IngestResult:
+        assert tenant_id == "default"
+        assert filename == "faq.md"
+        assert content == "# FAQ\n\nReturns are accepted within 30 days."
+        return IngestResult(added=1, updated=0, unchanged=0, chunks_written=2, index_version=3)
+
+    app = create_app(deps=replace(harness.deps, ingest_document=fake_ingest))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/documents",
+            json={
+                "tenant_id": "default",
+                "filename": "faq.md",
+                "content": "# FAQ\n\nReturns are accepted within 30 days.",
+            },
+        )
+        assert response.status_code == 201
+        assert response.json() == {
+            "status": "ok",
+            "added": 1,
+            "updated": 0,
+            "unchanged": 0,
+            "chunks_written": 2,
+            "index_version": 3,
+        }
+        bad_name = await client.post(
+            "/documents",
+            json={"tenant_id": "default", "filename": "../secret.md", "content": "x"},
+        )
+        assert bad_name.status_code == 422
+        unknown = await client.post(
+            "/documents",
+            json={"tenant_id": "acme", "filename": "faq.md", "content": "x"},
+        )
+        assert unknown.status_code == 404
+
+    unavailable = await harness.client.post(
+        "/documents",
+        json={"tenant_id": "default", "filename": "faq.md", "content": "x"},
+    )
+    assert unavailable.status_code == 503
 
 
 async def test_runs_list_and_one_run(harness: AppHarness) -> None:

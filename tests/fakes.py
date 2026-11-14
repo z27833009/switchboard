@@ -589,6 +589,7 @@ def build_harness(
     history_turns: int = 3,
     settings_snapshot: Mapping[str, Mapping[str, Any]] | None = None,
     replay_orchestrators: Mapping[tuple[str, str], Any] | None = None,
+    ingest_document: Any = None,
 ) -> AppHarness:
     """Build an app with fakes and a client bound to it (no lifespan, no IO)."""
     deps = AppDeps(
@@ -605,6 +606,7 @@ def build_harness(
         health=fake_health,
         sensitive_args=sensitive_args or {},
         settings_snapshot=settings_snapshot,
+        ingest_document=ingest_document,
     )
     app = create_app(deps=deps)
     harness = AppHarness(

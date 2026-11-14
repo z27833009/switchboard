@@ -14,6 +14,7 @@ import os
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, Protocol, cast
 
 import asyncpg
@@ -21,6 +22,7 @@ import asyncpg
 from switchboard.adapters.embedders.factory import create_embedder
 from switchboard.adapters.judges.factory import create_judge
 from switchboard.adapters.providers.factory import create_provider
+from switchboard.adapters.retrievers.ingest import IngestResult, ingest_directory
 from switchboard.api.audit import AuditStore, PgAuditStore, load_sensitive_args
 from switchboard.api.run_tokens import require_run_token_secret
 from switchboard.api.settings import build_settings_snapshots
@@ -83,6 +85,9 @@ class AppDeps:
     # The database control-plane writer (V3.03). None with YAML or an injected
     # test app; the write route answers 503 rather than guessing a database.
     settings_store: Any | None = None
+    # Uploaded markdown/text ingestion (V3.05). None in a test app, so the
+    # upload route answers 503 instead of pretending to embed.
+    ingest_document: Any | None = None
 
     def orchestrator_for(self, tenant_provider: str, name: str | None = None) -> Orchestrator:
         """The default orchestrator, or a named replay target when ``name`` is set.
@@ -165,6 +170,21 @@ def build_cache(settings: Settings, registry: Registry, pool: asyncpg.Pool, embe
     return factory(pool=pool, embedder=embedder)
 
 
+DocumentIngester = Callable[[str, str, str], Awaitable[IngestResult]]
+
+
+def build_document_ingester(pool: asyncpg.Pool, embedder: Any) -> DocumentIngester:
+    """Ingest one uploaded text document through the same chunker as the corpus."""
+
+    async def ingest(tenant_id: str, filename: str, content: str) -> IngestResult:
+        with TemporaryDirectory(prefix="switchboard-upload-") as directory:
+            root = Path(directory)
+            (root / filename).write_text(content, encoding="utf-8")
+            return await ingest_directory(pool, embedder, root, tenant_id)
+
+    return ingest
+
+
 @dataclass(frozen=True)
 class BuiltOrchestrators:
     """The default orchestrator per provider plus the optional replay targets.
@@ -180,6 +200,7 @@ class BuiltOrchestrators:
     default: dict[str, Orchestrator]
     replay: dict[tuple[str, str], Orchestrator]
     cache: Any = None
+    embedder: Any = None
 
 
 def build_orchestrator_set(
@@ -277,7 +298,7 @@ def build_orchestrator_set(
                     provider_name,
                     exc,
                 )
-    return BuiltOrchestrators(default=default, replay=replay, cache=cache)
+    return BuiltOrchestrators(default=default, replay=replay, cache=cache, embedder=embedder)
 
 
 def build_orchestrators(
@@ -421,6 +442,7 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
         sensitive_args=load_sensitive_args(settings.platform.tool_sources),
         settings_snapshot=settings_snapshot,
         settings_store=settings_store,
+        ingest_document=build_document_ingester(pool, built.embedder),
     )
 
 
@@ -428,10 +450,12 @@ __all__ = [
     "AppDeps",
     "AuditStore",
     "BuiltOrchestrators",
+    "DocumentIngester",
     "HealthCheck",
     "PgAuditStore",
     "build_app_deps",
     "build_cache",
+    "build_document_ingester",
     "build_orchestrator_set",
     "build_orchestrators",
     "build_retriever",

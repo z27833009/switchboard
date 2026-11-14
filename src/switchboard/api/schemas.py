@@ -430,6 +430,35 @@ class DocumentsResponse(BaseModel):
     count: int = 0
 
 
+class DocumentUpload(BaseModel):
+    """A markdown or text file the local administrator uploads (V3.05)."""
+
+    tenant_id: str = Field(min_length=1)
+    filename: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1, max_length=500_000)
+
+    @field_validator("filename")
+    @classmethod
+    def safe_markdown_filename(cls, value: str) -> str:
+        name = value.strip()
+        if "/" in name or "\\" in name or name in {".", ".."}:
+            raise ValueError("filename must be one file name without a path")
+        if not name.lower().endswith((".md", ".txt")):
+            raise ValueError("filename must end with .md or .txt")
+        return name
+
+
+class DocumentIngestResult(BaseModel):
+    """What one upload changed in the tenant's index."""
+
+    status: str
+    added: int
+    updated: int
+    unchanged: int
+    chunks_written: int
+    index_version: int
+
+
 class SettingsPrice(BaseModel):
     """One price row as the settings dialog shows it (design.md section 12.4).
 
@@ -576,7 +605,9 @@ __all__ = [
     "AuditRow",
     "AuditStatus",
     "ChatResponse",
+    "DocumentIngestResult",
     "DocumentSummary",
+    "DocumentUpload",
     "DocumentsResponse",
     "FeedbackRating",
     "FeedbackSubmission",

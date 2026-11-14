@@ -41,8 +41,10 @@ from switchboard.api.schemas import (
     AuditRow,
     AuditStatus,
     ChatResponse,
+    DocumentIngestResult,
     DocumentsResponse,
     DocumentSummary,
+    DocumentUpload,
     FeedbackSubmission,
     FeedbackSummary,
     McpServerResult,
@@ -64,7 +66,7 @@ from switchboard.api.step_events import RUN_FINISHED, StepEvent
 from switchboard.api.store import parse_run_id, rows_are_complete
 from switchboard.api.trace import assemble_trace
 from switchboard.core.config import tenant_context
-from switchboard.core.errors import ApprovalUnavailable, ConfigError
+from switchboard.core.errors import ApprovalUnavailable, ConfigError, ProviderTransientError
 from switchboard.core.models import (
     ApprovalDecision,
     ChatRequest,
@@ -408,6 +410,35 @@ async def list_documents(
         tenant_id=tenant.tenant_id,
         documents=[DocumentSummary.from_row(row) for row in rows],
         count=len(rows),
+    )
+
+
+@router.post("/documents", response_model=DocumentIngestResult, status_code=201)
+async def upload_document(request: Request, payload: DocumentUpload) -> DocumentIngestResult:
+    """Chunk, embed and upsert one uploaded markdown or text document."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, payload.tenant_id)
+    if deps.ingest_document is None:
+        raise HTTPException(
+            status_code=503,
+            detail="document ingestion is not available in this process",
+        )
+    try:
+        result = await deps.ingest_document(tenant.tenant_id, payload.filename, payload.content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ProviderTransientError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"the embedder is unavailable, so the document was not indexed: {exc}",
+        ) from exc
+    return DocumentIngestResult(
+        status="ok",
+        added=result.added,
+        updated=result.updated,
+        unchanged=result.unchanged,
+        chunks_written=result.chunks_written,
+        index_version=result.index_version,
     )
 
 

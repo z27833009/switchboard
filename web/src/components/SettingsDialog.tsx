@@ -14,6 +14,7 @@ import {
   postJson,
   updateProviderModel,
   updateTenantSettings,
+  uploadDocument,
 } from "../api";
 import type { DocumentSummary, SettingsResponse, SettingsTool } from "../api";
 import { ChevronDownIcon, CloseIcon, ShieldIcon } from "./Icons";
@@ -203,6 +204,9 @@ function KnowledgeSection({ tenantId }: { tenantId: string }) {
   const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -224,17 +228,70 @@ function KnowledgeSection({ tenantId }: { tenantId: string }) {
 
   async function remove(document: DocumentSummary) {
     setBusy(document.document_id);
-    setError(null);
+    setUploadError(null);
     try {
       await deleteDocument(document.document_id, tenantId);
       setConfirming(null);
       setReload((value) => value + 1);
     } catch (caught) {
-      setError(errorMessage(caught));
+      setUploadError(errorMessage(caught));
     } finally {
       setBusy(null);
     }
   }
+
+  async function upload(file: File) {
+    if (!/\.(md|txt)$/i.test(file.name)) {
+      setUploadError("Upload a .md or .txt file.");
+      return;
+    }
+    setUploading(true);
+    setUploadError(null);
+    setUploadNotice(null);
+    try {
+      const result = await uploadDocument(tenantId, file.name, await file.text());
+      setUploadNotice(
+        `Revision ${result.index_version}: ${result.added} added, ${result.updated} updated, ${result.chunks_written} chunks written.`,
+      );
+      setReload((value) => value + 1);
+    } catch (caught) {
+      setUploadError(errorMessage(caught));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const uploadPanel = (
+    <div className="settings-edit">
+      <h4 className="settings-subheading">Upload a document</h4>
+      <label className="field">
+        <span className="field-label">Markdown or text file</span>
+        <input
+          type="file"
+          accept=".md,.txt,text/markdown,text/plain"
+          disabled={uploading}
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = "";
+            if (file !== undefined) {
+              void upload(file);
+            }
+          }}
+        />
+      </label>
+      <p className="muted small">
+        The file is chunked, embedded and upserted by file name. Uploading the same name replaces
+        its chunks; other tenants never see it.
+      </p>
+      {uploading ? <p className="muted small">Embedding chunks...</p> : null}
+      {uploadNotice === null ? null : <p className="muted small">{uploadNotice}</p>}
+      {uploadError === null ? null : (
+        <p className="error-text small" role="alert">
+          {uploadError}
+        </p>
+      )}
+    </div>
+  );
 
   if (documents === null && error === null) {
     return <p className="muted">Loading documents...</p>;
@@ -257,17 +314,15 @@ function KnowledgeSection({ tenantId }: { tenantId: string }) {
   if (documents === null || documents.length === 0) {
     return (
       <div>
+        {uploadPanel}
         <p className="muted">No document is ingested for this tenant.</p>
-        <p className="muted small">
-          The ingestion command writes documents and chunks. Upload and reindex are the next
-          V3.05 slices.
-        </p>
       </div>
     );
   }
 
   return (
     <div>
+      {uploadPanel}
       <p className="muted small">
         {documents.length} document{documents.length === 1 ? "" : "s"}. Deleting a document removes
         its chunks and bumps the tenant index version, so the next retrieval rebuilds from what

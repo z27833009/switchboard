@@ -341,6 +341,28 @@ export async function listDocuments(
   );
 }
 
+export interface DocumentIngestResult {
+  status: string;
+  added: number;
+  updated: number;
+  unchanged: number;
+  chunks_written: number;
+  index_version: number;
+}
+
+export async function uploadDocument(
+  tenantId: string,
+  filename: string,
+  content: string,
+  signal?: AbortSignal,
+): Promise<DocumentIngestResult> {
+  return postJson<DocumentIngestResult>(
+    "/documents",
+    { tenant_id: tenantId, filename, content },
+    signal,
+  );
+}
+
 export async function deleteDocument(
   documentId: string,
   tenantId: string,
