@@ -64,6 +64,8 @@ class MemoryRunStore:
         self.spans: list[dict[str, Any]] = []
         self.audit_rows: list[dict[str, Any]] = []
         self.feedback: list[dict[str, Any]] = []
+        self.session_titles: dict[tuple[str, str], str] = {}
+        self.deleted_sessions: set[tuple[str, str]] = set()
 
     async def start_run(
         self,
@@ -184,8 +186,39 @@ class MemoryRunStore:
                 current["last_query"] = row["query"]
                 current["status"] = row["status"]
                 current["plan"] = row["plan"]
-        rows = sorted(grouped.values(), key=lambda row: row["last_run_at"], reverse=True)
+        rows = [
+            row
+            for row in sorted(
+                grouped.values(), key=lambda row: row["last_run_at"], reverse=True
+            )
+            if (tenant_id, row["session_id"]) not in self.deleted_sessions
+        ]
+        for row in rows:
+            override = self.session_titles.get((tenant_id, row["session_id"]))
+            if override is not None:
+                row["title"] = override
         return rows[:limit]
+
+    async def rename_session(
+        self, *, tenant_id: str, session_id: str, title: str
+    ) -> bool:
+        if not any(
+            row["tenant_id"] == tenant_id and row["session_id"] == session_id
+            for row in self.runs.values()
+        ):
+            return False
+        self.session_titles[(tenant_id, session_id)] = title
+        self.deleted_sessions.discard((tenant_id, session_id))
+        return True
+
+    async def delete_session(self, *, tenant_id: str, session_id: str) -> bool:
+        if not any(
+            row["tenant_id"] == tenant_id and row["session_id"] == session_id
+            for row in self.runs.values()
+        ):
+            return False
+        self.deleted_sessions.add((tenant_id, session_id))
+        return True
 
     async def aggregate_runs(
         self, *, tenant_id: str, group_by: Literal["day", "provider"]

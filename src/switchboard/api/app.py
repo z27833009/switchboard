@@ -25,7 +25,7 @@ from datetime import UTC, datetime
 from typing import Annotated, Any, Literal, cast
 
 import asyncpg
-from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
+from fastapi import APIRouter, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.telemetry import TelemetryConfig
 
@@ -49,6 +49,7 @@ from switchboard.api.schemas import (
     RunAggregateRow,
     RunsResponse,
     RunSummary,
+    SessionRename,
     SessionsResponse,
     SessionSummary,
     SettingsResponse,
@@ -359,6 +360,38 @@ async def list_sessions(
         sessions=[SessionSummary.from_row(row) for row in rows],
         count=len(rows),
     )
+
+
+@router.patch("/sessions/{session_id}", status_code=204)
+async def rename_session(
+    request: Request, session_id: str, payload: SessionRename
+) -> Response:
+    """Rename one conversation without changing its runs or traces."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, payload.tenant_id)
+    renamed = await deps.store.rename_session(
+        tenant_id=tenant.tenant_id, session_id=session_id, title=payload.title
+    )
+    if not renamed:
+        raise HTTPException(status_code=404, detail="session not found")
+    return Response(status_code=204)
+
+
+@router.delete("/sessions/{session_id}", status_code=204)
+async def delete_session(
+    request: Request,
+    session_id: str,
+    tenant_id: str = Query(min_length=1),
+) -> Response:
+    """Hide one conversation from the sidebar; runs and traces remain stored."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, tenant_id)
+    deleted = await deps.store.delete_session(
+        tenant_id=tenant.tenant_id, session_id=session_id
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="session not found")
+    return Response(status_code=204)
 
 
 @router.get("/runs", response_model=RunsResponse | RunAggregateResponse)

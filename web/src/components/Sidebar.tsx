@@ -1,7 +1,8 @@
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { FormEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useEffect, useId, useRef, useState } from "react";
 
 import type { HealthState, SessionSummary } from "../api";
+import { deleteSession, errorMessage, renameSession } from "../api";
 import { TENANTS } from "../config";
 import { formatWhen } from "../format";
 import { chatHref } from "../routes";
@@ -70,6 +71,208 @@ function recentMeta(session: SessionSummary): string {
   return [session.plan ?? "no plan", formatWhen(session.last_run_at), turns].join(" · ");
 }
 
+function RecentItem({
+  session,
+  tenant,
+  active,
+  onNavigate,
+  onChanged,
+}: {
+  session: SessionSummary;
+  tenant: string;
+  active: boolean;
+  onNavigate?: () => void;
+  onChanged: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [draft, setDraft] = useState(session.title);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (menuRef.current?.contains(target) || triggerRef.current?.contains(target)) {
+        return;
+      }
+      setMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        setConfirmingDelete(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
+
+  async function saveRename(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const title = draft.trim();
+    if (!title) {
+      setError("Title cannot be blank.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await renameSession(session.session_id, tenant, title);
+      setEditing(false);
+      setMenuOpen(false);
+      onChanged();
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteSession(session.session_id, tenant);
+      setConfirmingDelete(false);
+      setMenuOpen(false);
+      onChanged();
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li className="recent-row">
+      {editing ? (
+        <form className="recent-edit" onSubmit={saveRename}>
+          <input
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            aria-label="Conversation title"
+            autoFocus
+            disabled={busy}
+          />
+          <button type="submit" className="button button-primary" disabled={busy}>
+            Save
+          </button>
+          <button
+            type="button"
+            className="button button-quiet"
+            onClick={() => {
+              setEditing(false);
+              setDraft(session.title);
+              setError(null);
+            }}
+            disabled={busy}
+          >
+            Cancel
+          </button>
+        </form>
+      ) : (
+        <>
+          <a
+            className={`recent-item${active ? " is-active" : ""}`}
+            href={recentHref(session)}
+            onClick={() => {
+              setMenuOpen(false);
+              onNavigate?.();
+            }}
+          >
+            <span className="recent-query">{session.title}</span>
+            <span className="recent-meta">
+              <span
+                className={`recent-dot recent-dot-${statusTone(session.status)}`}
+                aria-hidden="true"
+              />
+              {recentMeta(session)}
+            </span>
+          </a>
+          <button
+            ref={triggerRef}
+            type="button"
+            className="recent-actions"
+            aria-label={`Actions for ${session.title}`}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((value) => !value)}
+          >
+            <span aria-hidden="true">⋯</span>
+          </button>
+          {menuOpen ? (
+            <div ref={menuRef} className="recent-menu" role="menu">
+              {confirmingDelete ? (
+                <div className="recent-confirm" role="group" aria-label="Confirm delete">
+                  <span>Delete this conversation?</span>
+                  <div>
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      onClick={remove}
+                      disabled={busy}
+                    >
+                      Delete
+                    </button>
+                    <button
+                      type="button"
+                      className="button button-quiet"
+                      onClick={() => setConfirmingDelete(false)}
+                      disabled={busy}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setDraft(session.title);
+                      setEditing(true);
+                      setMenuOpen(false);
+                      setError(null);
+                    }}
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="recent-menu-danger"
+                    onClick={() => setConfirmingDelete(true)}
+                  >
+                    Delete
+                  </button>
+                </>
+              )}
+            </div>
+          ) : null}
+        </>
+      )}
+      {error === null ? null : (
+        <p className="recent-error" role="alert">
+          {error}
+        </p>
+      )}
+    </li>
+  );
+}
+
 interface SidebarProps {
   tenant: string;
   health: HealthState;
@@ -81,6 +284,7 @@ interface SidebarProps {
   onOpenSettings: () => void;
   onTenantChange: (tenant: string) => void;
   onNavigate?: () => void;
+  onSessionsChanged: () => void;
 }
 
 function ProfileMenu({
@@ -276,6 +480,7 @@ export function Sidebar({
   onOpenSettings,
   onTenantChange,
   onNavigate,
+  onSessionsChanged,
 }: SidebarProps) {
   const recentHeadingId = useId();
   return (
@@ -311,24 +516,14 @@ export function Sidebar({
         {recent.length > 0 ? (
           <ul className="recent-list">
             {recent.map((session) => (
-              <li key={session.session_id}>
-                <a
-                  className={`recent-item${
-                    activeKey === session.session_id ? " is-active" : ""
-                  }`}
-                  href={recentHref(session)}
-                  onClick={onNavigate}
-                >
-                  <span className="recent-query">{session.title}</span>
-                  <span className="recent-meta">
-                    <span
-                      className={`recent-dot recent-dot-${statusTone(session.status)}`}
-                      aria-hidden="true"
-                    />
-                    {recentMeta(session)}
-                  </span>
-                </a>
-              </li>
+              <RecentItem
+                key={session.session_id}
+                session={session}
+                tenant={tenant}
+                active={activeKey === session.session_id}
+                onNavigate={onNavigate}
+                onChanged={onSessionsChanged}
+              />
             ))}
           </ul>
         ) : null}

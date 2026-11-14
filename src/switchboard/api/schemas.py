@@ -262,6 +262,21 @@ class SessionsResponse(BaseModel):
     count: int
 
 
+class SessionRename(BaseModel):
+    """The body of ``PATCH /sessions/{session_id}``."""
+
+    tenant_id: str = Field(min_length=1)
+    title: str = Field(min_length=1, max_length=200)
+
+    @field_validator("title")
+    @classmethod
+    def _trim_title(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("title must not be blank")
+        return cleaned
+
+
 class RunAggregateRow(BaseModel):
     """One day or provider bucket of ``GET /runs?group_by=`` (AC-19b).
 
@@ -516,6 +531,7 @@ __all__ = [
     "RunAggregateRow",
     "RunSummary",
     "RunsResponse",
+    "SessionRename",
     "SettingsAgent",
     "SettingsMcpServer",
     "SettingsPlatform",

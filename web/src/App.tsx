@@ -278,6 +278,7 @@ export default function App() {
           onNewChat={startNewChat}
           onOpenSettings={() => setSettingsOpen(true)}
           onTenantChange={switchTenant}
+          onSessionsChanged={() => setRecentKey((value) => value + 1)}
         />
         <SidebarRail
           tenant={tenant}
@@ -287,6 +288,7 @@ export default function App() {
           onNewChat={startNewChat}
           onOpenSettings={() => setSettingsOpen(true)}
           onTenantChange={switchTenant}
+          onSessionsChanged={() => setRecentKey((value) => value + 1)}
         />
       </aside>
 
@@ -390,6 +392,7 @@ export default function App() {
             }}
             onTenantChange={switchTenant}
             onNavigate={() => setDrawerOpen(false)}
+            onSessionsChanged={() => setRecentKey((value) => value + 1)}
           />
         ) : null}
       </dialog>

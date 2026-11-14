@@ -400,6 +400,55 @@ async def test_the_run_list_can_be_narrowed_to_one_session(harness: AppHarness) 
     assert len(listed) == 4
 
 
+async def test_a_conversation_can_be_renamed_and_hidden_without_deleting_runs(
+    harness: AppHarness,
+) -> None:
+    session = str(uuid.uuid4())
+    await post_chat(harness, "original title", session_id=session)
+
+    renamed = await harness.client.patch(
+        f"/sessions/{session}",
+        json={"tenant_id": "default", "title": "  Renamed conversation  "},
+    )
+    assert renamed.status_code == 204, renamed.text
+
+    listed = await harness.client.get(
+        "/sessions", params={"tenant_id": "default", "limit": 20}
+    )
+    assert listed.status_code == 200, listed.text
+    row = next(item for item in listed.json()["sessions"] if item["session_id"] == session)
+    assert row["title"] == "Renamed conversation"
+
+    hidden = await harness.client.delete(
+        f"/sessions/{session}", params={"tenant_id": "default"}
+    )
+    assert hidden.status_code == 204, hidden.text
+
+    after = await harness.client.get(
+        "/sessions", params={"tenant_id": "default", "limit": 20}
+    )
+    assert after.status_code == 200
+    assert all(item["session_id"] != session for item in after.json()["sessions"])
+
+    # The hidden conversation's runs are still stored and remain readable.
+    runs = await harness.client.get(
+        "/runs", params={"tenant_id": "default", "session_id": session}
+    )
+    assert runs.status_code == 200
+    assert runs.json()["count"] == 1
+    assert runs.json()["runs"][0]["query"] == "original title"
+
+    missing = await harness.client.delete(
+        f"/sessions/{uuid.uuid4()}", params={"tenant_id": "default"}
+    )
+    assert missing.status_code == 404
+    blank = await harness.client.patch(
+        f"/sessions/{session}",
+        json={"tenant_id": "default", "title": "   "},
+    )
+    assert blank.status_code == 422
+
+
 async def test_a_clarify_run_finished_event_carries_the_status() -> None:
     store = MemoryRunStore()
     publisher = StepEventPublisher()

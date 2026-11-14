@@ -160,6 +160,8 @@ docker compose exec -T postgres psql -U switchboard -d switchboard \
   -f /docker-entrypoint-initdb.d/08-hitl.sql
 docker compose exec -T postgres psql -U switchboard -d switchboard \
   -f /docker-entrypoint-initdb.d/09-settings.sql
+docker compose exec -T postgres psql -U switchboard -d switchboard \
+  -f /docker-entrypoint-initdb.d/10-sessions.sql
 ```
 
 ### 5. Load data

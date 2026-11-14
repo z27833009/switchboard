@@ -97,13 +97,36 @@ counts AS (
     WHERE tenant_id = $1 AND session_id IS NOT NULL
     GROUP BY session_id
 )
-SELECT f.session_id, f.tenant_id, f.title, l.last_query, l.status, l.plan,
-       c.run_count, f.started_at, l.last_run_at
+SELECT f.session_id, f.tenant_id, COALESCE(m.title, f.title) AS title,
+       l.last_query, l.status, l.plan, c.run_count, f.started_at, l.last_run_at
 FROM firsts f
 JOIN lasts l USING (session_id)
 JOIN counts c USING (session_id)
+LEFT JOIN public.session_metadata m
+       ON m.tenant_id = f.tenant_id AND m.session_id = f.session_id
+WHERE m.deleted_at IS NULL
 ORDER BY l.last_run_at DESC, f.session_id DESC
 LIMIT $2
+"""
+
+SESSION_EXISTS_SQL = """
+SELECT 1 FROM public.runs
+WHERE tenant_id = $1 AND session_id = $2
+LIMIT 1
+"""
+
+RENAME_SESSION_SQL = """
+INSERT INTO public.session_metadata (tenant_id, session_id, title, updated_at)
+VALUES ($1, $2, $3, now())
+ON CONFLICT (tenant_id, session_id) DO UPDATE
+SET title = EXCLUDED.title, deleted_at = NULL, updated_at = now()
+"""
+
+DELETE_SESSION_SQL = """
+INSERT INTO public.session_metadata (tenant_id, session_id, deleted_at, updated_at)
+VALUES ($1, $2, now(), now())
+ON CONFLICT (tenant_id, session_id) DO UPDATE
+SET deleted_at = now(), updated_at = now()
 """
 
 # Aggregation for `GET /runs?group_by=`. Days are UTC because started_at is a
@@ -295,6 +318,12 @@ class RunStore(Protocol):
 
     async def list_sessions(self, *, tenant_id: str, limit: int = 20) -> list[dict[str, Any]]: ...
 
+    async def rename_session(
+        self, *, tenant_id: str, session_id: str, title: str
+    ) -> bool: ...
+
+    async def delete_session(self, *, tenant_id: str, session_id: str) -> bool: ...
+
     async def aggregate_runs(
         self, *, tenant_id: str, group_by: Literal["day", "provider"]
     ) -> list[dict[str, Any]]: ...
@@ -387,6 +416,28 @@ class PgRunStore:
     async def list_sessions(self, *, tenant_id: str, limit: int = 20) -> list[dict[str, Any]]:
         rows = await self._pool.fetch(LIST_SESSIONS_SQL, tenant_id, limit)
         return [dict(row) for row in rows]
+
+    async def rename_session(
+        self, *, tenant_id: str, session_id: str, title: str
+    ) -> bool:
+        async with self._pool.acquire() as connection, connection.transaction():
+            exists = await connection.fetchval(
+                SESSION_EXISTS_SQL, tenant_id, session_id
+            )
+            if exists is None:
+                return False
+            await connection.execute(RENAME_SESSION_SQL, tenant_id, session_id, title)
+        return True
+
+    async def delete_session(self, *, tenant_id: str, session_id: str) -> bool:
+        async with self._pool.acquire() as connection, connection.transaction():
+            exists = await connection.fetchval(
+                SESSION_EXISTS_SQL, tenant_id, session_id
+            )
+            if exists is None:
+                return False
+            await connection.execute(DELETE_SESSION_SQL, tenant_id, session_id)
+        return True
 
     async def aggregate_runs(
         self, *, tenant_id: str, group_by: Literal["day", "provider"]

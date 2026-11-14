@@ -32,6 +32,7 @@ SQL_FILES = (
     "07-sql-tool.sql",
     "08-hitl.sql",
     "09-settings.sql",
+    "10-sessions.sql",
 )
 ROLES = (
     ("switchboard_app", "SWITCHBOARD_APP_DB_PASSWORD"),

@@ -316,6 +316,40 @@ export async function decideApproval(
   return (await response.json()) as ChatResponse;
 }
 
+export async function renameSession(
+  sessionId: string,
+  tenantId: string,
+  title: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "PATCH",
+    signal,
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ tenant_id: tenantId, title }),
+  });
+  if (!response.ok) {
+    throw new ApiError(await describeHttpError(response), response.status);
+  }
+}
+
+export async function deleteSession(
+  sessionId: string,
+  tenantId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/sessions/${encodeURIComponent(sessionId)}?tenant_id=${encodeURIComponent(tenantId)}`,
+    { method: "DELETE", signal, headers: { Accept: "application/json" } },
+  );
+  if (!response.ok) {
+    throw new ApiError(await describeHttpError(response), response.status);
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
