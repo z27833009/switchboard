@@ -328,21 +328,19 @@ function SectionBody({ section, data }: { section: SectionKey; data: SettingsRes
           {data.mcp_servers.length === 0 ? (
             <p className="muted small">No MCP server is configured yet.</p>
           ) : (
-            <div className="mcp-server-tabs" role="tablist" aria-label="MCP servers">
-              {data.mcp_servers.map((server) => (
-                <button
-                  key={server.name}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeServer === server.name}
-                  className={`mcp-server-tab${activeServer === server.name ? " active" : ""}`}
-                  onClick={() => setSelectedServer(server.name)}
-                >
-                  <code>{server.name}</code>
-                  <span>{server.tool_count}</span>
-                </button>
-              ))}
-            </div>
+            <label className="field field-inline mcp-server-select">
+              <span className="field-label">MCP server</span>
+              <select
+                value={activeServer ?? ""}
+                onChange={(event) => setSelectedServer(event.target.value)}
+              >
+                {data.mcp_servers.map((server) => (
+                  <option key={server.name} value={server.name}>
+                    {server.name} ({server.tool_count} tool{server.tool_count === 1 ? "" : "s"})
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
           <button
             type="button"
