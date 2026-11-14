@@ -65,19 +65,29 @@ function SpanToggle({
   );
 }
 
-function TreeGuides({ row }: { row: FlatSpan }) {
-  if (row.depth === 0) {
-    return null;
-  }
+function TreeGuides({
+  row,
+  expanded,
+}: {
+  row: FlatSpan;
+  expanded: ReadonlySet<string>;
+}) {
   // YouTube-style thread: the line continues below the elbow only while the
   // current node still has a later sibling at this depth.
   const continueLine = !row.isLast;
+  const hasVisibleChildren =
+    row.span.children.length > 0 && expanded.has(row.span.span_id);
   return (
     <span className="tree-guides" aria-hidden="true">
-      {row.guides.slice(0, -1).map((hasLine, index) => (
-        <span key={index} className={`tree-guide${hasLine ? " has-line" : ""}`} />
-      ))}
-      <span className={`tree-branch${continueLine ? " continue" : ""}`} />
+      {row.depth > 0
+        ? row.guides.slice(0, -1).map((hasLine, index) => (
+            <span key={index} className={`tree-guide${hasLine ? " has-line" : ""}`} />
+          ))
+        : null}
+      {row.depth > 0 ? (
+        <span className={`tree-branch${continueLine ? " continue" : ""}`} />
+      ) : null}
+      {hasVisibleChildren ? <span className="tree-child-stem" /> : null}
     </span>
   );
 }
@@ -103,7 +113,7 @@ function TreeRow({
   const markers = spanMarkers(span);
   return (
     <div className={`span-row${selectedId === span.span_id ? " selected" : ""}`}>
-      <TreeGuides row={row} />
+      <TreeGuides row={row} expanded={expanded} />
       <SpanToggle span={span} expanded={expanded} onToggle={onToggle} />
       <button type="button" className="span-select" onClick={() => onSelect(span.span_id)}>
         <span className="span-name">{span.name}</span>

@@ -2039,52 +2039,69 @@ dialog::backdrop {
   align-self: stretch;
 }
 
-/* YouTube-style comment thread: one vertical trunk per ancestor, a straight
-   elbow into each row, and a trunk that stops at the last sibling. */
+/* YouTube comment thread: one continuous trunk per ancestor, a rounded elbow
+   into each reply, and a trunk that stops at the last sibling. The negative
+   block insets bridge the row padding so the line never looks segmented. */
 .tree-guides {
+  --thread: color-mix(in srgb, var(--text-secondary) 30%, var(--bg));
+  --tree-step: 28px;
+  --tree-half: 14px;
+  position: relative;
   display: flex;
   flex: none;
   align-self: stretch;
 }
 
+/* The parent row owns the half-row drop to its first visible child. Without
+   it the child elbow starts at the next row and the trunk looks segmented. */
+.tree-child-stem {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-block-end: -2px;
+  inset-inline-start: calc(100% + var(--tree-half));
+  border-inline-start: 1px solid var(--thread);
+}
+
 .tree-guide,
 .tree-branch {
   position: relative;
-  inline-size: 18px;
-  min-inline-size: 18px;
+  inline-size: var(--tree-step);
+  min-inline-size: var(--tree-step);
   align-self: stretch;
 }
 
 .tree-guide.has-line::before {
   position: absolute;
-  inset-block: 0;
-  inset-inline-start: 9px;
-  inline-size: 1px;
-  background: color-mix(in srgb, var(--text-secondary) 40%, var(--bg));
+  inset-block: -2px;
+  inset-inline-start: var(--tree-half);
+  border-inline-start: 1px solid var(--thread);
   content: "";
 }
 
 .tree-branch::before {
   position: absolute;
-  inset-block-start: 0;
-  inset-inline-start: 9px;
+  inset-block-start: -2px;
+  inset-inline-start: var(--tree-half);
   inline-size: 1px;
-  block-size: 50%;
-  background: color-mix(in srgb, var(--text-secondary) 40%, var(--bg));
+  block-size: calc(50% - 12px);
+  background: var(--thread);
   content: "";
 }
 
 .tree-branch.continue::before {
-  block-size: 100%;
+  inset-block-end: -2px;
+  block-size: auto;
 }
 
 .tree-branch::after {
   position: absolute;
-  inset-block-start: 50%;
-  inset-inline-start: 9px;
-  inline-size: 9px;
-  block-size: 1px;
-  background: color-mix(in srgb, var(--text-secondary) 40%, var(--bg));
+  inset-block-start: calc(50% - 12px);
+  inset-inline-start: var(--tree-half);
+  inline-size: var(--tree-half);
+  block-size: 12px;
+  border-block-end: 1px solid var(--thread);
+  border-inline-start: 1px solid var(--thread);
+  border-end-start-radius: 12px;
   content: "";
 }
 
