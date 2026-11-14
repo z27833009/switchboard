@@ -11,7 +11,13 @@ import {
   postChatStream,
   toChatResponse,
 } from "../api";
-import type { ChatResponse, RunSummary, RunsResponse, StepEvent } from "../api";
+import type {
+  ChatResponse,
+  RunSummary,
+  RunsResponse,
+  SettingsResponse,
+  StepEvent,
+} from "../api";
 import { CitationChips, ErrorList, StatusBadge, Tag, statusTone } from "../components/Badges";
 import { AlertIcon, ClockIcon, CloseIcon, PaperclipIcon } from "../components/Icons";
 import { Markdown } from "../components/Markdown";
@@ -400,6 +406,8 @@ export function ChatPage({
   const [query, setQuery] = useState("");
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [preset, setPreset] = useState<"auto" | "direct" | "docs" | "data">("auto");
+  const [modelLabel, setModelLabel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(routeSessionId !== null);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -415,6 +423,28 @@ export function ChatPage({
   useEffect(() => {
     onSessionChange(sessionId);
   }, [onSessionChange, sessionId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getJson<SettingsResponse>(
+      `/settings?tenant_id=${encodeURIComponent(tenant)}`,
+      controller.signal,
+    )
+      .then((settings) => {
+        if (!controller.signal.aborted) {
+          const model = settings.provider.model;
+          setModelLabel(
+            model === null ? settings.provider.name : `${settings.provider.name} / ${model}`,
+          );
+        }
+      })
+      .catch((caught) => {
+        if (!isAbortError(caught)) {
+          setModelLabel(null);
+        }
+      });
+    return () => controller.abort();
+  }, [tenant]);
 
   useEffect(() => {
     if (routeSessionId === null) {
@@ -523,6 +553,7 @@ export function ChatPage({
           tenant_id: tenant,
           session_id: sessionId,
           attachments: sentAttachments,
+          preset,
         },
         (step) => {
           if (step.type === "run.finished") {
@@ -662,6 +693,23 @@ export function ChatPage({
                 }}
               />
             </label>
+            <label className="visually-hidden" htmlFor="composer-preset">
+              Agent preset
+            </label>
+            <select
+              id="composer-preset"
+              className="composer-preset"
+              value={preset}
+              onChange={(event) =>
+                setPreset(event.target.value as "auto" | "direct" | "docs" | "data")
+              }
+              disabled={busy}
+            >
+              <option value="auto">Auto</option>
+              <option value="direct">Direct</option>
+              <option value="docs">Docs</option>
+              <option value="data">Data</option>
+            </select>
             <label className="visually-hidden" htmlFor="composer-input">
               Message
             </label>
@@ -684,8 +732,9 @@ export function ChatPage({
             </button>
           </form>
           <p id="composer-hint" className="muted small composer-hint">
-            Enter sends, Shift+Enter adds a line. This build has no sign-in; the tenant is{" "}
-            <code>{tenant}</code>.
+            Enter sends, Shift+Enter adds a line. Model{" "}
+            <code>{modelLabel ?? "not loaded"}</code>; preset{" "}
+            <code>{preset}</code>; tenant <code>{tenant}</code>. This build has no sign-in.
           </p>
         </div>
       </div>

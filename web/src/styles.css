@@ -1637,6 +1637,19 @@ textarea {
   outline-offset: 2px;
 }
 
+.composer-preset {
+  flex: none;
+  block-size: 32px;
+  max-width: 92px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+}
+
 .composer-input {
   flex: 1;
   min-width: 0;

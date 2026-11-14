@@ -477,6 +477,22 @@ async def test_bulk_delete_hides_present_sessions_and_reports_missing_ones(
     assert second not in ids
 
 
+async def test_a_preset_skips_the_supervisor_and_runs_one_agent() -> None:
+    provider = ScriptedProvider(["docs"])
+    data = RecordingAgent("data")
+    orchestrator = make_orchestrator(provider, [data])
+    result = await orchestrator.run(
+        ChatRequest(query="How many were late?", tenant_id="default", preset="data"),
+        run_context({"data", "docs"}),
+    )
+    assert result.status == "ok"
+    assert result.plan is not None
+    assert result.plan.agents == ["data"]
+    assert result.plan.reason == "User preset data."
+    assert provider.requests == []
+    assert data.tasks[0].query == "How many were late?"
+
+
 async def test_a_clarify_run_finished_event_carries_the_status() -> None:
     store = MemoryRunStore()
     publisher = StepEventPublisher()

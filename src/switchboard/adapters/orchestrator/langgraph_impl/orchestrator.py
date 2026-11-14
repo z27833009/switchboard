@@ -313,6 +313,19 @@ class LangGraphOrchestrator:
         if not available:
             raise PlanValidationError(["no agents are available for this tenant"])
         specs = {spec.name: spec for spec in available}
+        if request.preset != "auto":
+            if request.preset not in specs:
+                raise PlanValidationError(
+                    [f"agent {request.preset!r} is not allowed for this tenant"]
+                )
+            return {
+                "plan": RoutingDecision(
+                    agents=[request.preset], reason=f"User preset {request.preset}."
+                ),
+                "supervisor_usage": zero_usage(),
+                "supervisor_cost": None,
+                "errors": [],
+            }
         schema = plan_schema([spec.name for spec in available], self._limits.max_plan_size)
         messages = [
             Message(role="system", content=SUPERVISOR_SYSTEM),

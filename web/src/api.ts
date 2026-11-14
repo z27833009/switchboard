@@ -598,6 +598,7 @@ export async function postChatStream(
     tenant_id: string;
     session_id?: string | null;
     attachments?: Array<{ name: string; content: string }>;
+    preset?: "auto" | "direct" | "docs" | "data";
   },
   onEvent: (event: StepEvent) => void,
   signal?: AbortSignal,
