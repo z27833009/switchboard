@@ -69,8 +69,9 @@ function TreeGuides({ row }: { row: FlatSpan }) {
   if (row.depth === 0) {
     return null;
   }
-  const parentHasNext = row.guides[row.guides.length - 1] === true;
-  const continueLine = !row.isLast || parentHasNext;
+  // YouTube-style thread: the line continues below the elbow only while the
+  // current node still has a later sibling at this depth.
+  const continueLine = !row.isLast;
   return (
     <span className="tree-guides" aria-hidden="true">
       {row.guides.slice(0, -1).map((hasLine, index) => (

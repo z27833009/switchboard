@@ -1987,7 +1987,7 @@ dialog::backdrop {
 .span-row {
   display: flex;
   align-items: stretch;
-  gap: 2px;
+  gap: 0;
   padding-top: 1px;
   padding-bottom: 1px;
   border-radius: 6px;
@@ -2039,8 +2039,8 @@ dialog::backdrop {
   align-self: stretch;
 }
 
-/* A real tree: one column per ancestor, a vertical line while that ancestor
-   has a later sibling, and an elbow into the current row. */
+/* YouTube-style comment thread: one vertical trunk per ancestor, a straight
+   elbow into each row, and a trunk that stops at the last sibling. */
 .tree-guides {
   display: flex;
   flex: none;
@@ -2050,46 +2050,41 @@ dialog::backdrop {
 .tree-guide,
 .tree-branch {
   position: relative;
-  width: 18px;
-  min-width: 18px;
+  inline-size: 18px;
+  min-inline-size: 18px;
   align-self: stretch;
 }
 
 .tree-guide.has-line::before {
   position: absolute;
-  top: -2px;
-  bottom: -2px;
-  left: 9px;
-  border-left: 1px solid color-mix(in srgb, var(--text-secondary) 30%, var(--bg));
+  inset-block: 0;
+  inset-inline-start: 9px;
+  inline-size: 1px;
+  background: color-mix(in srgb, var(--text-secondary) 40%, var(--bg));
   content: "";
 }
 
 .tree-branch::before {
   position: absolute;
-  top: -2px;
-  left: 9px;
-  width: 1px;
-  height: calc(50% - 8px);
-  background: color-mix(in srgb, var(--text-secondary) 30%, var(--bg));
+  inset-block-start: 0;
+  inset-inline-start: 9px;
+  inline-size: 1px;
+  block-size: 50%;
+  background: color-mix(in srgb, var(--text-secondary) 40%, var(--bg));
   content: "";
 }
 
 .tree-branch.continue::before {
-  bottom: -2px;
-  height: auto;
+  block-size: 100%;
 }
 
-/* The branch curves into the node instead of meeting it at a hard right
-   angle. The box draws the quarter circle; the vertical line above meets it. */
 .tree-branch::after {
   position: absolute;
-  top: calc(50% - 8px);
-  left: 9px;
-  width: 9px;
-  height: 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--text-secondary) 30%, var(--bg));
-  border-left: 1px solid color-mix(in srgb, var(--text-secondary) 30%, var(--bg));
-  border-bottom-left-radius: 8px;
+  inset-block-start: 50%;
+  inset-inline-start: 9px;
+  inline-size: 9px;
+  block-size: 1px;
+  background: color-mix(in srgb, var(--text-secondary) 40%, var(--bg));
   content: "";
 }
 
