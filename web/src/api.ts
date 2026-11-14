@@ -133,6 +133,20 @@ export interface SessionsResponse {
   count: number;
 }
 
+export interface UserSummary {
+  user_id: string;
+  email: string;
+  display_name: string;
+  role: "admin" | "member";
+  created_at: string;
+}
+
+export interface UsersResponse {
+  tenant_id: string;
+  users: UserSummary[];
+  count: number;
+}
+
 export interface SpanEvent {
   name: string;
   time: string;

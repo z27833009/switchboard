@@ -25,6 +25,8 @@ import type {
   SessionSummary,
   SettingsResponse,
   SettingsTool,
+  UsersResponse,
+  UserSummary,
 } from "../api";
 import { ChevronDownIcon, CloseIcon, ShieldIcon } from "./Icons";
 
@@ -37,7 +39,8 @@ type SectionKey =
   | "retrieval"
   | "cache"
   | "knowledge"
-  | "conversations";
+  | "conversations"
+  | "users";
 
 const SECTIONS: Array<{ key: SectionKey; label: string }> = [
   { key: "account", label: "Account" },
@@ -49,6 +52,7 @@ const SECTIONS: Array<{ key: SectionKey; label: string }> = [
   { key: "cache", label: "Cache" },
   { key: "knowledge", label: "Knowledge" },
   { key: "conversations", label: "Conversations" },
+  { key: "users", label: "Users" },
 ];
 
 function Value({ label, children }: { label: string; children: ReactNode }) {
@@ -543,6 +547,128 @@ function ConversationsSection({ tenantId }: { tenantId: string }) {
   );
 }
 
+function UsersSection({ tenantId }: { tenantId: string }) {
+  const [users, setUsers] = useState<UserSummary[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [role, setRole] = useState<"admin" | "member">("member");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setUsers(null);
+    setError(null);
+    getJson<UsersResponse>(
+      `/users?tenant_id=${encodeURIComponent(tenantId)}`,
+      controller.signal,
+    )
+      .then((payload) => {
+        if (!controller.signal.aborted) {
+          setUsers(payload.users);
+        }
+      })
+      .catch((caught) => {
+        if (!isAbortError(caught)) {
+          setError(errorMessage(caught));
+        }
+      });
+    return () => controller.abort();
+  }, [tenantId, reload]);
+
+  async function addUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await postJson<UserSummary>("/users", {
+        tenant_id: tenantId,
+        email,
+        display_name: displayName,
+        role,
+      });
+      setEmail("");
+      setDisplayName("");
+      setRole("member");
+      setReload((value) => value + 1);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <p className="muted small">
+        Users belong to a tenant through a membership. This slice stores the directory and role;
+        sign-in and role enforcement are the next V3.02 slice.
+      </p>
+      {users === null ? <p className="muted">Loading users...</p> : null}
+      {error === null ? null : (
+        <div className="error-box" role="alert">
+          <strong>Users could not be loaded or saved</strong>
+          <p>{error}</p>
+        </div>
+      )}
+      {users === null || users.length === 0 ? (
+        <p className="muted">No user belongs to this tenant yet.</p>
+      ) : (
+        <ul className="card-list">
+          {users.map((user) => (
+            <li key={user.user_id} className="card">
+              <div className="card-head">
+                <code className="card-title">{user.display_name}</code>
+                <span className="tag tag-neutral">{user.role}</span>
+              </div>
+              <p className="card-text">{user.email}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form className="settings-edit" onSubmit={addUser}>
+        <h4 className="settings-subheading">Add a user to this tenant</h4>
+        <label className="field">
+          <span className="field-label">Email</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            disabled={busy}
+            required
+          />
+        </label>
+        <label className="field">
+          <span className="field-label">Display name</span>
+          <input
+            value={displayName}
+            onChange={(event) => setDisplayName(event.target.value)}
+            disabled={busy}
+            required
+          />
+        </label>
+        <label className="field">
+          <span className="field-label">Role</span>
+          <select
+            value={role}
+            onChange={(event) => setRole(event.target.value as "admin" | "member")}
+            disabled={busy}
+          >
+            <option value="member">member</option>
+            <option value="admin">admin</option>
+          </select>
+        </label>
+        <div className="settings-edit-actions">
+          <button type="submit" className="button button-primary" disabled={busy}>
+            {busy ? "Saving..." : "Add user"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function SectionBody({
   section,
   data,
@@ -755,6 +881,10 @@ function SectionBody({
 
   if (section === "conversations") {
     return <ConversationsSection tenantId={tenant.tenant_id} />;
+  }
+
+  if (section === "users") {
+    return <UsersSection tenantId={tenant.tenant_id} />;
   }
 
   if (section === "model") {

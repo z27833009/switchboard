@@ -110,6 +110,27 @@ ORDER BY l.last_run_at DESC, f.session_id DESC
 LIMIT $2
 """
 
+LIST_USERS_SQL = """
+SELECT u.id, u.email, u.display_name, u.created_at, m.role
+FROM public.users u
+JOIN public.memberships m ON m.user_id = u.id
+WHERE m.tenant_id = $1
+ORDER BY u.display_name ASC, u.email ASC
+"""
+
+UPSERT_USER_SQL = """
+INSERT INTO public.users (id, email, display_name)
+VALUES ($1, $2, $3)
+ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name
+RETURNING id, email, display_name, created_at
+"""
+
+UPSERT_MEMBERSHIP_SQL = """
+INSERT INTO public.memberships (tenant_id, user_id, role)
+VALUES ($1, $2, $3)
+ON CONFLICT (tenant_id, user_id) DO UPDATE SET role = EXCLUDED.role
+"""
+
 LIST_DOCUMENTS_SQL = """
 SELECT d.id::text AS id, d.source, d.title, d.content_hash, d.ingested_at,
        count(c.id)::int AS chunks
@@ -365,6 +386,17 @@ class RunStore(Protocol):
 
     async def restore_session(self, *, tenant_id: str, session_id: str) -> bool: ...
 
+    async def list_users(self, *, tenant_id: str) -> list[dict[str, Any]]: ...
+
+    async def create_user(
+        self,
+        *,
+        tenant_id: str,
+        email: str,
+        display_name: str,
+        role: Literal["admin", "member"],
+    ) -> dict[str, Any]: ...
+
     async def list_documents(self, *, tenant_id: str) -> list[dict[str, Any]]: ...
 
     async def list_document_chunks(
@@ -488,6 +520,27 @@ class PgRunStore:
         row = await self._pool.fetchrow(RESTORE_SESSION_SQL, tenant_id, session_id)
         return row is not None
 
+    async def list_users(self, *, tenant_id: str) -> list[dict[str, Any]]:
+        rows = await self._pool.fetch(LIST_USERS_SQL, tenant_id)
+        return [dict(row) for row in rows]
+
+    async def create_user(
+        self,
+        *,
+        tenant_id: str,
+        email: str,
+        display_name: str,
+        role: Literal["admin", "member"],
+    ) -> dict[str, Any]:
+        async with self._pool.acquire() as connection, connection.transaction():
+            row = await connection.fetchrow(UPSERT_USER_SQL, str(uuid.uuid4()), email, display_name)
+            if row is None:  # pragma: no cover - RETURNING always yields the row
+                raise RuntimeError("the user row was not returned")
+            await connection.execute(UPSERT_MEMBERSHIP_SQL, tenant_id, row["id"], role)
+            result = dict(row)
+            result["role"] = role
+            return result
+
     async def list_documents(self, *, tenant_id: str) -> list[dict[str, Any]]:
         rows = await self._pool.fetch(LIST_DOCUMENTS_SQL, tenant_id)
         return [dict(row) for row in rows]
@@ -575,7 +628,10 @@ __all__ = [
     "DELETE_DOCUMENT_SQL",
     "LIST_DOCUMENTS_SQL",
     "LIST_DOCUMENT_CHUNKS_SQL",
+    "LIST_USERS_SQL",
     "SESSION_TURNS_SQL",
+    "UPSERT_MEMBERSHIP_SQL",
+    "UPSERT_USER_SQL",
     "PgRunStore",
     "RunStore",
     "aggregate_row",

@@ -439,6 +439,58 @@ class DocumentsResponse(BaseModel):
     count: int = 0
 
 
+class UserSummary(BaseModel):
+    """One user and the role they hold in the requested tenant (V3.02)."""
+
+    user_id: str
+    email: str
+    display_name: str
+    role: Literal["admin", "member"]
+    created_at: datetime
+
+    @classmethod
+    def from_row(cls, row: Mapping[str, Any]) -> UserSummary:
+        return cls(
+            user_id=str(row["id"]),
+            email=str(row["email"]),
+            display_name=str(row["display_name"]),
+            role=cast(Literal["admin", "member"], row["role"]),
+            created_at=cast(datetime, row["created_at"]),
+        )
+
+
+class UsersResponse(BaseModel):
+    tenant_id: str
+    users: list[UserSummary] = Field(default_factory=list)
+    count: int = 0
+
+
+class UserCreate(BaseModel):
+    """The body of ``POST /users``: one user plus their membership."""
+
+    tenant_id: str = Field(min_length=1)
+    email: str = Field(min_length=3, max_length=320)
+    display_name: str = Field(min_length=1, max_length=120)
+    role: Literal["admin", "member"] = "member"
+
+    @field_validator("email")
+    @classmethod
+    def email_looks_like_an_address(cls, value: str) -> str:
+        cleaned = value.strip().lower()
+        local, separator, domain = cleaned.partition("@")
+        if separator == "" or local == "" or "." not in domain:
+            raise ValueError("email must look like user@example.com")
+        return cleaned
+
+    @field_validator("display_name")
+    @classmethod
+    def display_name_is_not_blank(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("display_name must not be blank")
+        return cleaned
+
+
 class DocumentChunk(BaseModel):
     """One stored chunk of a document, ordered by its ordinal."""
 
@@ -655,4 +707,7 @@ __all__ = [
     "TenantSettingsUpdate",
     "TraceResponse",
     "TraceSpan",
+    "UserCreate",
+    "UserSummary",
+    "UsersResponse",
 ]

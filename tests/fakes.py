@@ -67,6 +67,8 @@ class MemoryRunStore:
         self.session_titles: dict[tuple[str, str], str] = {}
         self.deleted_sessions: set[tuple[str, str]] = set()
         self.documents: dict[str, dict[str, Any]] = {}
+        self.users: dict[str, dict[str, Any]] = {}
+        self.memberships: dict[tuple[str, str], str] = {}
 
     async def start_run(
         self,
@@ -227,6 +229,37 @@ class MemoryRunStore:
             return False
         self.deleted_sessions.remove(key)
         return True
+
+    async def list_users(self, *, tenant_id: str) -> list[dict[str, Any]]:
+        rows = []
+        for user_id, user in self.users.items():
+            role = self.memberships.get((tenant_id, user_id))
+            if role is None:
+                continue
+            rows.append({**dict(user), "role": role})
+        rows.sort(key=lambda row: (row["display_name"], row["email"]))
+        return rows
+
+    async def create_user(
+        self,
+        *,
+        tenant_id: str,
+        email: str,
+        display_name: str,
+        role: Literal["admin", "member"],
+    ) -> dict[str, Any]:
+        existing = next(
+            (user_id for user_id, row in self.users.items() if row["email"] == email), None
+        )
+        user_id = existing or str(uuid.uuid4())
+        self.users[user_id] = {
+            "id": user_id,
+            "email": email,
+            "display_name": display_name,
+            "created_at": datetime.now(UTC),
+        }
+        self.memberships[(tenant_id, user_id)] = role
+        return {**dict(self.users[user_id]), "role": role}
 
     async def list_documents(self, *, tenant_id: str) -> list[dict[str, Any]]:
         rows = [dict(row) for row in self.documents.values() if row["tenant_id"] == tenant_id]

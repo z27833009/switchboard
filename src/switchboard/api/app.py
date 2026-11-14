@@ -64,6 +64,9 @@ from switchboard.api.schemas import (
     SettingsRevision,
     TenantSettingsUpdate,
     TraceResponse,
+    UserCreate,
+    UsersResponse,
+    UserSummary,
 )
 from switchboard.api.step_events import RUN_FINISHED, StepEvent
 from switchboard.api.store import parse_run_id, rows_are_complete
@@ -436,6 +439,36 @@ async def bulk_delete_sessions(
         "deleted": [value for value in payload.session_ids if value not in missing],
         "missing": missing,
     }
+
+
+@router.get("/users", response_model=UsersResponse)
+async def list_users(
+    request: Request,
+    tenant_id: str = Query(min_length=1, description="Tenant whose members to list."),
+) -> UsersResponse:
+    """The users who belong to one tenant and the role each holds."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, tenant_id)
+    rows = await deps.store.list_users(tenant_id=tenant.tenant_id)
+    return UsersResponse(
+        tenant_id=tenant.tenant_id,
+        users=[UserSummary.from_row(row) for row in rows],
+        count=len(rows),
+    )
+
+
+@router.post("/users", response_model=UserSummary, status_code=201)
+async def create_user(request: Request, payload: UserCreate) -> UserSummary:
+    """Create a user, or add an existing email, to one tenant with a role."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, payload.tenant_id)
+    row = await deps.store.create_user(
+        tenant_id=tenant.tenant_id,
+        email=payload.email,
+        display_name=payload.display_name,
+        role=payload.role,
+    )
+    return UserSummary.from_row(row)
 
 
 @router.get("/documents", response_model=DocumentsResponse)

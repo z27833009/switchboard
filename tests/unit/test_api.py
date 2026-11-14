@@ -232,6 +232,34 @@ async def test_document_upload_chunks_and_returns_counts(harness: AppHarness) ->
     assert unavailable.status_code == 503
 
 
+async def test_users_are_created_and_listed_per_tenant(harness: AppHarness) -> None:
+    created = await harness.client.post(
+        "/users",
+        json={
+            "tenant_id": "default",
+            "email": "  Ana@Example.com ",
+            "display_name": "  Ana Silva  ",
+            "role": "admin",
+        },
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["email"] == "ana@example.com"
+    assert body["display_name"] == "Ana Silva"
+    assert body["role"] == "admin"
+
+    listed = await harness.client.get("/users", params={"tenant_id": "default"})
+    assert listed.status_code == 200
+    assert [row["user_id"] for row in listed.json()["users"]] == [body["user_id"]]
+    other = await harness.client.get("/users", params={"tenant_id": "seller_a"})
+    assert other.json()["count"] == 0
+    bad_email = await harness.client.post(
+        "/users",
+        json={"tenant_id": "default", "email": "not-an-email", "display_name": "Bad"},
+    )
+    assert bad_email.status_code == 422
+
+
 async def test_runs_list_and_one_run(harness: AppHarness) -> None:
     first = (
         await harness.client.post("/chat", json={"query": "first question", "tenant_id": "default"})
@@ -697,6 +725,7 @@ async def test_openapi_and_docs_render(harness: AppHarness) -> None:
         "/settings/mcp-servers",
         "/settings/providers/{provider_name}",
         "/settings/tenants/{tenant_id}",
+        "/users",
     }
     docs = await harness.client.get("/docs")
     assert docs.status_code == 200
