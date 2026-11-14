@@ -400,6 +400,36 @@ class TraceResponse(BaseModel):
     spans: list[TraceSpan] = Field(default_factory=list)
 
 
+class DocumentSummary(BaseModel):
+    """One ingested RAG document, for the settings knowledge list (V3.05)."""
+
+    document_id: str
+    source: str
+    title: str
+    content_hash: str
+    chunks: int
+    ingested_at: datetime
+
+    @classmethod
+    def from_row(cls, row: Mapping[str, Any]) -> DocumentSummary:
+        return cls(
+            document_id=str(row["id"]),
+            source=str(row["source"]),
+            title=str(row["title"]),
+            content_hash=str(row["content_hash"]),
+            chunks=int(row.get("chunks", 0)),
+            ingested_at=cast(datetime, row["ingested_at"]),
+        )
+
+
+class DocumentsResponse(BaseModel):
+    """The tenant's ingested documents, newest first."""
+
+    tenant_id: str
+    documents: list[DocumentSummary] = Field(default_factory=list)
+    count: int = 0
+
+
 class SettingsPrice(BaseModel):
     """One price row as the settings dialog shows it (design.md section 12.4).
 
@@ -546,6 +576,8 @@ __all__ = [
     "AuditRow",
     "AuditStatus",
     "ChatResponse",
+    "DocumentSummary",
+    "DocumentsResponse",
     "FeedbackRating",
     "FeedbackSubmission",
     "FeedbackSummary",

@@ -41,6 +41,8 @@ from switchboard.api.schemas import (
     AuditRow,
     AuditStatus,
     ChatResponse,
+    DocumentsResponse,
+    DocumentSummary,
     FeedbackSubmission,
     FeedbackSummary,
     McpServerResult,
@@ -390,6 +392,37 @@ async def delete_session(
     deleted = await deps.store.delete_session(tenant_id=tenant.tenant_id, session_id=session_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="session not found")
+    return Response(status_code=204)
+
+
+@router.get("/documents", response_model=DocumentsResponse)
+async def list_documents(
+    request: Request,
+    tenant_id: str = Query(min_length=1, description="Tenant whose documents to list."),
+) -> DocumentsResponse:
+    """The tenant's ingested RAG documents, newest first, with their chunk counts."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, tenant_id)
+    rows = await deps.store.list_documents(tenant_id=tenant.tenant_id)
+    return DocumentsResponse(
+        tenant_id=tenant.tenant_id,
+        documents=[DocumentSummary.from_row(row) for row in rows],
+        count=len(rows),
+    )
+
+
+@router.delete("/documents/{document_id}", status_code=204)
+async def delete_document(
+    request: Request,
+    document_id: str,
+    tenant_id: str = Query(min_length=1),
+) -> Response:
+    """Delete one document and its chunks, and invalidate the tenant's index version."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, tenant_id)
+    deleted = await deps.store.delete_document(tenant_id=tenant.tenant_id, document_id=document_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="document not found")
     return Response(status_code=204)
 
 

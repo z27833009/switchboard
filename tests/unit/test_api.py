@@ -102,6 +102,49 @@ async def test_unknown_tenant_is_404(harness: AppHarness) -> None:
     assert harness.store.runs == {}
 
 
+async def test_documents_list_and_delete(harness: AppHarness) -> None:
+    from datetime import datetime
+
+    document_id = str(uuid.uuid4())
+    harness.store.documents[document_id] = {
+        "id": document_id,
+        "tenant_id": "default",
+        "source": "data/documents/faq.md",
+        "title": "FAQ",
+        "content_hash": "abc123",
+        "chunks": 4,
+        "ingested_at": datetime(2026, 11, 15, tzinfo=UTC),
+    }
+    listed = await harness.client.get("/documents", params={"tenant_id": "default"})
+    assert listed.status_code == 200
+    body = listed.json()
+    assert body["count"] == 1
+    assert body["documents"][0] == {
+        "document_id": document_id,
+        "source": "data/documents/faq.md",
+        "title": "FAQ",
+        "content_hash": "abc123",
+        "chunks": 4,
+        "ingested_at": "2026-11-15T00:00:00Z",
+    }
+
+    other_tenant = await harness.client.delete(
+        f"/documents/{document_id}", params={"tenant_id": "seller_a"}
+    )
+    assert other_tenant.status_code == 404
+    assert document_id in harness.store.documents
+
+    deleted = await harness.client.delete(
+        f"/documents/{document_id}", params={"tenant_id": "default"}
+    )
+    assert deleted.status_code == 204
+    assert harness.store.documents == {}
+    missing = await harness.client.delete(
+        f"/documents/{document_id}", params={"tenant_id": "default"}
+    )
+    assert missing.status_code == 404
+
+
 async def test_runs_list_and_one_run(harness: AppHarness) -> None:
     first = (
         await harness.client.post("/chat", json={"query": "first question", "tenant_id": "default"})
@@ -558,6 +601,8 @@ async def test_openapi_and_docs_render(harness: AppHarness) -> None:
         "/runs/{run_id}/reject",
         "/runs/{run_id}/trace",
         "/health",
+        "/documents",
+        "/documents/{document_id}",
         "/settings",
         "/settings/mcp-servers",
         "/settings/providers/{provider_name}",

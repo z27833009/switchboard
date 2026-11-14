@@ -109,6 +109,29 @@ ORDER BY l.last_run_at DESC, f.session_id DESC
 LIMIT $2
 """
 
+LIST_DOCUMENTS_SQL = """
+SELECT d.id::text AS id, d.source, d.title, d.content_hash, d.ingested_at,
+       count(c.id)::int AS chunks
+FROM public.documents d
+LEFT JOIN public.chunks c
+       ON c.document_id = d.id AND c.tenant_id = d.tenant_id
+WHERE d.tenant_id = $1
+GROUP BY d.id, d.source, d.title, d.content_hash, d.ingested_at
+ORDER BY d.ingested_at DESC, d.source ASC
+"""
+
+DELETE_DOCUMENT_SQL = """
+DELETE FROM public.documents
+WHERE id = $1 AND tenant_id = $2
+RETURNING id
+"""
+
+BUMP_DOC_INDEX_SQL = """
+UPDATE public.tenants
+SET doc_index_version = doc_index_version + 1
+WHERE id = $1
+"""
+
 SESSION_EXISTS_SQL = """
 SELECT 1 FROM public.runs
 WHERE tenant_id = $1 AND session_id = $2
@@ -322,6 +345,10 @@ class RunStore(Protocol):
 
     async def delete_session(self, *, tenant_id: str, session_id: str) -> bool: ...
 
+    async def list_documents(self, *, tenant_id: str) -> list[dict[str, Any]]: ...
+
+    async def delete_document(self, *, tenant_id: str, document_id: str) -> bool: ...
+
     async def aggregate_runs(
         self, *, tenant_id: str, group_by: Literal["day", "provider"]
     ) -> list[dict[str, Any]]: ...
@@ -431,6 +458,23 @@ class PgRunStore:
             await connection.execute(DELETE_SESSION_SQL, tenant_id, session_id)
         return True
 
+    async def list_documents(self, *, tenant_id: str) -> list[dict[str, Any]]:
+        rows = await self._pool.fetch(LIST_DOCUMENTS_SQL, tenant_id)
+        return [dict(row) for row in rows]
+
+    async def delete_document(self, *, tenant_id: str, document_id: str) -> bool:
+        """Delete one document and its chunks, then invalidate the tenant index version."""
+        try:
+            parsed = uuid.UUID(document_id)
+        except ValueError:
+            return False
+        async with self._pool.acquire() as connection, connection.transaction():
+            row = await connection.fetchrow(DELETE_DOCUMENT_SQL, parsed, tenant_id)
+            if row is None:
+                return False
+            await connection.execute(BUMP_DOC_INDEX_SQL, tenant_id)
+        return True
+
     async def aggregate_runs(
         self, *, tenant_id: str, group_by: Literal["day", "provider"]
     ) -> list[dict[str, Any]]:
@@ -486,7 +530,10 @@ def rows_are_complete(name_rows: Sequence[Mapping[str, Any]]) -> bool:
 
 __all__ = [
     "AGGREGATE_RUNS_SQL",
+    "BUMP_DOC_INDEX_SQL",
     "CLAIM_APPROVAL_SQL",
+    "DELETE_DOCUMENT_SQL",
+    "LIST_DOCUMENTS_SQL",
     "SESSION_TURNS_SQL",
     "PgRunStore",
     "RunStore",

@@ -316,6 +316,45 @@ export async function decideApproval(
   return (await response.json()) as ChatResponse;
 }
 
+export interface DocumentSummary {
+  document_id: string;
+  source: string;
+  title: string;
+  content_hash: string;
+  chunks: number;
+  ingested_at: string;
+}
+
+export interface DocumentsResponse {
+  tenant_id: string;
+  documents: DocumentSummary[];
+  count: number;
+}
+
+export async function listDocuments(
+  tenantId: string,
+  signal?: AbortSignal,
+): Promise<DocumentsResponse> {
+  return getJson<DocumentsResponse>(
+    `/documents?tenant_id=${encodeURIComponent(tenantId)}`,
+    signal,
+  );
+}
+
+export async function deleteDocument(
+  documentId: string,
+  tenantId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/documents/${encodeURIComponent(documentId)}?tenant_id=${encodeURIComponent(tenantId)}`,
+    { method: "DELETE", signal, headers: { Accept: "application/json" } },
+  );
+  if (!response.ok) {
+    throw new ApiError(await describeHttpError(response), response.status);
+  }
+}
+
 export interface SettingsRevision {
   status: string;
   revision: number;

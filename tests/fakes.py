@@ -66,6 +66,7 @@ class MemoryRunStore:
         self.feedback: list[dict[str, Any]] = []
         self.session_titles: dict[tuple[str, str], str] = {}
         self.deleted_sessions: set[tuple[str, str]] = set()
+        self.documents: dict[str, dict[str, Any]] = {}
 
     async def start_run(
         self,
@@ -214,6 +215,19 @@ class MemoryRunStore:
         ):
             return False
         self.deleted_sessions.add((tenant_id, session_id))
+        return True
+
+    async def list_documents(self, *, tenant_id: str) -> list[dict[str, Any]]:
+        rows = [dict(row) for row in self.documents.values() if row["tenant_id"] == tenant_id]
+        rows.sort(key=lambda row: row["source"])
+        rows.sort(key=lambda row: row["ingested_at"], reverse=True)
+        return rows
+
+    async def delete_document(self, *, tenant_id: str, document_id: str) -> bool:
+        row = self.documents.get(document_id)
+        if row is None or row["tenant_id"] != tenant_id:
+            return False
+        del self.documents[document_id]
         return True
 
     async def aggregate_runs(

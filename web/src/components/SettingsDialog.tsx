@@ -6,14 +6,16 @@ import type {
 import { useEffect, useRef, useState } from "react";
 
 import {
+  deleteDocument,
   errorMessage,
   getJson,
   isAbortError,
+  listDocuments,
   postJson,
   updateProviderModel,
   updateTenantSettings,
 } from "../api";
-import type { SettingsResponse, SettingsTool } from "../api";
+import type { DocumentSummary, SettingsResponse, SettingsTool } from "../api";
 import { ChevronDownIcon, CloseIcon, ShieldIcon } from "./Icons";
 
 type SectionKey =
@@ -23,7 +25,8 @@ type SectionKey =
   | "tools"
   | "agents"
   | "retrieval"
-  | "cache";
+  | "cache"
+  | "knowledge";
 
 const SECTIONS: Array<{ key: SectionKey; label: string }> = [
   { key: "account", label: "Account" },
@@ -33,6 +36,7 @@ const SECTIONS: Array<{ key: SectionKey; label: string }> = [
   { key: "agents", label: "Agents" },
   { key: "retrieval", label: "Retrieval" },
   { key: "cache", label: "Cache" },
+  { key: "knowledge", label: "Knowledge" },
 ];
 
 function Value({ label, children }: { label: string; children: ReactNode }) {
@@ -190,6 +194,133 @@ function McpServerForm({ onClose }: { onClose: () => void }) {
         </p>
       )}
     </form>
+  );
+}
+
+function KnowledgeSection({ tenantId }: { tenantId: string }) {
+  const [documents, setDocuments] = useState<DocumentSummary[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setDocuments(null);
+    setError(null);
+    listDocuments(tenantId, controller.signal)
+      .then((payload) => {
+        if (!controller.signal.aborted) {
+          setDocuments(payload.documents);
+        }
+      })
+      .catch((caught) => {
+        if (!isAbortError(caught)) {
+          setError(errorMessage(caught));
+        }
+      });
+    return () => controller.abort();
+  }, [tenantId, reload]);
+
+  async function remove(document: DocumentSummary) {
+    setBusy(document.document_id);
+    setError(null);
+    try {
+      await deleteDocument(document.document_id, tenantId);
+      setConfirming(null);
+      setReload((value) => value + 1);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (documents === null && error === null) {
+    return <p className="muted">Loading documents...</p>;
+  }
+  if (error !== null) {
+    return (
+      <div className="error-box" role="alert">
+        <strong>Documents could not be loaded</strong>
+        <p>{error}</p>
+        <button
+          type="button"
+          className="button button-quiet"
+          onClick={() => setReload((value) => value + 1)}
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+  if (documents === null || documents.length === 0) {
+    return (
+      <div>
+        <p className="muted">No document is ingested for this tenant.</p>
+        <p className="muted small">
+          The ingestion command writes documents and chunks. Upload and reindex are the next
+          V3.05 slices.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="muted small">
+        {documents.length} document{documents.length === 1 ? "" : "s"}. Deleting a document removes
+        its chunks and bumps the tenant index version, so the next retrieval rebuilds from what
+        remains.
+      </p>
+      <ul className="card-list">
+        {documents.map((document) => (
+          <li key={document.document_id} className="card">
+            <div className="card-head">
+              <code className="card-title">{document.title}</code>
+              <span className="tag tag-neutral">{document.chunks} chunks</span>
+            </div>
+            <p className="card-text">{document.source}</p>
+            <p className="card-meta">
+              <span className="muted">
+                hash {document.content_hash.slice(0, 12)}, ingested{" "}
+                {new Date(document.ingested_at).toLocaleString()}
+              </span>
+            </p>
+            <div className="settings-edit-actions">
+              {confirming === document.document_id ? (
+                <>
+                  <button
+                    type="button"
+                    className="button button-quiet"
+                    onClick={() => setConfirming(null)}
+                    disabled={busy !== null}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-danger"
+                    onClick={() => void remove(document)}
+                    disabled={busy !== null}
+                  >
+                    {busy === document.document_id ? "Deleting..." : "Delete document"}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  onClick={() => setConfirming(document.document_id)}
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -397,6 +528,10 @@ function SectionBody({
         <Value label="session history turns">{platform.limits.history_turns}</Value>
       </dl>
     );
+  }
+
+  if (section === "knowledge") {
+    return <KnowledgeSection tenantId={tenant.tenant_id} />;
   }
 
   if (section === "model") {
@@ -847,9 +982,10 @@ export function SettingsDialog({
         <p className="read-only-note">
           <ShieldIcon className="read-only-icon" />
           <span>
-            Runtime settings. MCP servers, the provider model and agent allowlists can be edited
-            here; tool allowlists and credentials are next. Changes apply after an API restart. No
-            API key or base URL is sent to the browser.
+            Runtime settings. MCP servers, the provider model, agent and tool allowlists can be
+            edited here; ingested documents can be reviewed and deleted. Credentials and hot apply
+            are next. Settings changes apply after an API restart. No API key or base URL is sent to
+            the browser.
           </span>
         </p>
 
