@@ -433,6 +433,14 @@ class SettingsTenant(BaseModel):
     cache: CacheSettings
 
 
+class SettingsMcpServer(BaseModel):
+    """One configured tool source, used to group tools by MCP server."""
+
+    name: str
+    adapter: str
+    tool_count: int
+
+
 class SettingsTool(BaseModel):
     """One tool manifest entry, with whether this tenant may call it."""
 
@@ -442,6 +450,7 @@ class SettingsTool(BaseModel):
     description: str
     risk: Literal["read", "write"]
     tenant_scoped: bool
+    source: str
     allowed: bool
 
 
@@ -467,6 +476,7 @@ class SettingsResponse(BaseModel):
     platform: SettingsPlatform
     tenant: SettingsTenant
     provider: SettingsProvider
+    mcp_servers: list[SettingsMcpServer] = Field(default_factory=list)
     tools: list[SettingsTool] = Field(default_factory=list)
     agents: list[SettingsAgent] = Field(default_factory=list)
     tenants: list[str] = Field(default_factory=list)
@@ -491,6 +501,7 @@ __all__ = [
     "RunSummary",
     "RunsResponse",
     "SettingsAgent",
+    "SettingsMcpServer",
     "SettingsPlatform",
     "SettingsPrice",
     "SettingsProvider",

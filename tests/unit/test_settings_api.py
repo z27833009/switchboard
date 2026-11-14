@@ -318,6 +318,8 @@ async def test_known_tenant_returns_the_expected_shape(
         "query_readonly_sql@1",
         "top_products@1",
     }
+    assert body["mcp_servers"] == [{"name": "olist", "adapter": "mcp", "tool_count": 7}]
+    assert {tool["source"] for tool in body["tools"]} == {"olist"}
     assert tools["orders_summary@1"]["allowed"] is True
     assert tools["order_lookup@1"]["allowed"] is False
     # The write tool is listed, is a write, and the default tenant does not

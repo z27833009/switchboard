@@ -2,7 +2,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { errorMessage, getJson, isAbortError } from "../api";
-import type { SettingsResponse } from "../api";
+import type { SettingsResponse, SettingsTool } from "../api";
 import { CloseIcon, ShieldIcon } from "./Icons";
 
 type SectionKey =
@@ -49,6 +49,31 @@ function Chips({ values, empty }: { values: string[]; empty: string }) {
         </span>
       ))}
     </span>
+  );
+}
+
+function ToolCards({ tools }: { tools: SettingsTool[] }) {
+  return (
+    <ul className="card-list">
+      {tools.map((tool) => (
+        <li key={tool.wire_name} className="card">
+          <div className="card-head">
+            <code className="card-title">{tool.wire_name}</code>
+            <BooleanTag value={tool.allowed} yes="allowed" no="denied" />
+          </div>
+          <p className="card-text">{tool.description}</p>
+          <p className="card-meta">
+            <span className="tag tag-neutral">{tool.risk}</span>
+            <span className="tag tag-neutral">
+              {tool.tenant_scoped ? "tenant scoped" : "not tenant scoped"}
+            </span>
+            <span className="muted">
+              name {tool.name}, version {tool.version}
+            </span>
+          </p>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -212,24 +237,26 @@ function SectionBody({ section, data }: { section: SectionKey; data: SettingsRes
       );
     }
     return (
-      <ul className="card-list">
-        {data.tools.map((tool) => (
-          <li key={tool.wire_name} className="card">
-            <div className="card-head">
-              <code className="card-title">{tool.wire_name}</code>
-              <BooleanTag value={tool.allowed} yes="allowed" no="denied" />
-            </div>
-            <p className="card-text">{tool.description}</p>
-            <p className="card-meta">
-              <span className="tag tag-neutral">{tool.risk}</span>
-              <span className="tag tag-neutral">
-                {tool.tenant_scoped ? "tenant scoped" : "not tenant scoped"}
-              </span>
-              <span className="muted">name {tool.name}, version {tool.version}</span>
-            </p>
-          </li>
-        ))}
-      </ul>
+      <div className="mcp-groups">
+        {data.mcp_servers.map((server) => {
+          const tools = data.tools.filter((tool) => tool.source === server.name);
+          return (
+            <section key={server.name} className="mcp-group">
+              <h4 className="settings-subheading">
+                <code>{server.name}</code>
+                <span className="muted small">
+                  {server.adapter}, {server.tool_count} tool{server.tool_count === 1 ? "" : "s"}
+                </span>
+              </h4>
+              {tools.length === 0 ? (
+                <p className="muted small">No manifest tool is exposed by this server.</p>
+              ) : (
+                <ToolCards tools={tools} />
+              )}
+            </section>
+          );
+        })}
+      </div>
     );
   }
 

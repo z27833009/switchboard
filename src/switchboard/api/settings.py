@@ -67,6 +67,23 @@ def load_manifest_tool_specs(settings: Settings) -> list[ToolSpec]:
     return sorted(specs.values(), key=lambda spec: spec.wire_name)
 
 
+def load_manifest_tool_sources(settings: Settings) -> dict[str, str]:
+    """Wire name to the configured tool source that declares it.
+
+    The settings dialog groups tools by MCP server, so the snapshot must carry
+    the source name, not only a flat list. A wire name declared by two sources
+    keeps the first source in ``platform.tool_sources`` order, matching
+    ``load_manifest_tool_specs``.
+    """
+    sources: dict[str, str] = {}
+    for source in settings.platform.tool_sources:
+        if not source.manifest:
+            continue
+        for spec in load_tool_specs(Path(source.manifest)):
+            sources.setdefault(spec.wire_name, source.name)
+    return sources
+
+
 def _price_payload(entry: PriceEntry | None, verified_on: str | None) -> dict[str, Any] | None:
     if entry is None:
         return None
@@ -87,6 +104,7 @@ def _tenant_payload(
     tenant: TenantConfig,
     agent_specs: list[AgentSpec],
     tool_specs: list[ToolSpec],
+    tool_sources: Mapping[str, str],
     available_orchestrators: Sequence[str] | None,
 ) -> dict[str, Any]:
     provider = settings.providers.providers[tenant.provider]
@@ -132,6 +150,16 @@ def _tenant_payload(
                 price, settings.prices.verified_on.isoformat() if price is not None else None
             ),
         },
+        "mcp_servers": [
+            {
+                "name": source.name,
+                "adapter": source.adapter,
+                "tool_count": sum(
+                    1 for wire_name, owner in tool_sources.items() if owner == source.name
+                ),
+            }
+            for source in settings.platform.tool_sources
+        ],
         "tools": [
             {
                 "name": spec.name,
@@ -140,6 +168,7 @@ def _tenant_payload(
                 "description": spec.description,
                 "risk": spec.risk,
                 "tenant_scoped": spec.tenant_scoped,
+                "source": tool_sources.get(spec.wire_name, "unknown"),
                 "allowed": spec.wire_name in tenant.tools.allow,
             }
             for spec in tool_specs
@@ -178,6 +207,7 @@ def build_settings_snapshots(
     """
     agent_specs = load_agent_specs(registry)
     tool_specs = load_manifest_tool_specs(settings)
+    tool_sources = load_manifest_tool_sources(settings)
     return {
         tenant_id: _tenant_payload(
             settings,
@@ -185,6 +215,7 @@ def build_settings_snapshots(
             tenant,
             agent_specs,
             tool_specs,
+            tool_sources,
             None
             if available_orchestrators is None
             else available_orchestrators.get(tenant.provider),

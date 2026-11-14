@@ -1741,6 +1741,18 @@ dialog::backdrop {
   font-weight: 600;
 }
 
+.mcp-group + .mcp-group {
+  margin-top: 18px;
+}
+
+.mcp-group > .settings-subheading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .kv-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

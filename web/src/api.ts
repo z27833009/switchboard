@@ -240,6 +240,12 @@ export interface SettingsProvider {
   price: SettingsPrice | null;
 }
 
+export interface SettingsMcpServer {
+  name: string;
+  adapter: string;
+  tool_count: number;
+}
+
 export interface SettingsTool {
   name: string;
   version: string;
@@ -247,6 +253,7 @@ export interface SettingsTool {
   description: string;
   risk: "read" | "write";
   tenant_scoped: boolean;
+  source: string;
   allowed: boolean;
 }
 
@@ -263,6 +270,7 @@ export interface SettingsResponse {
   platform: SettingsPlatform;
   tenant: SettingsTenant;
   provider: SettingsProvider;
+  mcp_servers: SettingsMcpServer[];
   tools: SettingsTool[];
   agents: SettingsAgent[];
   tenants: string[];
