@@ -127,6 +127,52 @@ def validate_tenant_permissions(
                 )
 
 
+def validate_settings(settings: Settings, label: str) -> Settings:
+    """Apply the startup checks shared by YAML and database configuration."""
+    try:
+        # The aggregate model checks references between the four documents.
+        settings = Settings.model_validate(settings)
+    except ValueError as exc:
+        raise ConfigError(f"{label}: {exc}") from exc
+    validate_tenant_permissions(
+        settings,
+        agent_names=Registry().names(AGENTS),
+        tool_names=declared_tool_names(settings),
+        tool_risks=declared_tool_risks(settings),
+    )
+    return settings
+
+
+def settings_from_documents(
+    documents: Mapping[str, Mapping[str, Any]],
+    *,
+    env: Mapping[str, str] | None = None,
+    label: str = "settings",
+) -> Settings:
+    """Validate the four database documents with the same models as YAML.
+
+    ``documents`` maps ``platform``, ``providers``, ``tenants`` and ``prices``
+    to their raw JSON objects. Environment substitution happens here, at the
+    process boundary, so a stored document can keep ``${VAR}`` placeholders.
+    """
+    source = dict(os.environ) if env is None else dict(env)
+    missing = sorted({"platform", "providers", "tenants", "prices"} - set(documents))
+    if missing:
+        raise ConfigError(f"{label}: missing documents {missing}")
+    try:
+        platform = PlatformConfig.model_validate(substitute_env(documents["platform"], source))
+        providers = ProvidersConfig.model_validate(substitute_env(documents["providers"], source))
+        tenants = TenantsConfig.model_validate(substitute_env(documents["tenants"], source))
+        prices = PricesConfig.model_validate(substitute_env(documents["prices"], source))
+    except ValueError as exc:
+        raise ConfigError(f"{label}: {exc}") from exc
+    try:
+        settings = Settings(platform=platform, providers=providers, tenants=tenants, prices=prices)
+    except ValueError as exc:
+        raise ConfigError(f"{label}: {exc}") from exc
+    return validate_settings(settings, label)
+
+
 def load_settings(config_dir: Path, env: Mapping[str, str] | None = None) -> Settings:
     """Read platform.yaml, providers.yaml, tenants.yaml and prices.yaml, then validate."""
     source = dict(os.environ) if env is None else dict(env)
@@ -138,10 +184,4 @@ def load_settings(config_dir: Path, env: Mapping[str, str] | None = None) -> Set
         settings = Settings(platform=platform, providers=providers, tenants=tenants, prices=prices)
     except ValueError as exc:
         raise ConfigError(f"{config_dir}: {exc}") from exc
-    validate_tenant_permissions(
-        settings,
-        agent_names=Registry().names(AGENTS),
-        tool_names=declared_tool_names(settings),
-        tool_risks=declared_tool_risks(settings),
-    )
-    return settings
+    return validate_settings(settings, str(config_dir))

@@ -27,6 +27,7 @@ from switchboard.api.settings import build_settings_snapshots
 from switchboard.api.step_events import StepEventProcessor, StepEventPublisher
 from switchboard.api.store import PgRunStore, RunStore
 from switchboard.config import load_settings
+from switchboard.config_store import SettingsStore
 from switchboard.core.config import PriceEntry, Settings, TenantsConfig
 from switchboard.core.context import ClearOldestToolResults
 from switchboard.core.errors import ConfigError
@@ -317,14 +318,32 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
     source = dict(os.environ) if env is None else dict(env)
     secret = require_run_token_secret(source)
     config_dir = Path(source.get("SWITCHBOARD_CONFIG_DIR", "config"))
-    settings = load_settings(config_dir, source)
     dsn = source.get("SWITCHBOARD_DATABASE_URL", "")
     if not dsn:
         raise RuntimeError("SWITCHBOARD_DATABASE_URL must be set")
 
+    # V3.01: the database is the runtime source of truth. The YAML files are
+    # still the first boot seed and the export format; a deployment that has
+    # not opted in keeps the old YAML path, which is also what unit tests use.
+    config_source = source.get("SWITCHBOARD_CONFIG_SOURCE", "yaml").strip().lower()
+    if config_source == "db":
+        connection = await asyncpg.connect(dsn=dsn)
+        try:
+            settings = await SettingsStore(connection, config_dir, source).load()
+        finally:
+            await connection.close()
+    elif config_source == "yaml":
+        settings = load_settings(config_dir, source)
+    else:
+        raise ConfigError(
+            f"SWITCHBOARD_CONFIG_SOURCE must be 'db' or 'yaml', got {config_source!r}"
+        )
+
     # The exporter comes from tracing.exporter in platform.yaml, resolved the
     # same way in this process and in the MCP server (design 12.2). The
-    # environment is only the substitution input, not a second switch.
+    # environment is only the substitution input, not a second switch. The
+    # exporter is bootstrap-only and intentionally stays on the YAML file until
+    # a later task changes process startup.
     tracing_options = load_tracing_options(config_dir / "platform.yaml", source)
     tracing = configure_tracing(
         service_name="switchboard-api",

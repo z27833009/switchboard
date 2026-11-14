@@ -133,6 +133,8 @@ The first build installs Python and Node dependencies inside the images, so it c
 
 The `valkey` service is the second cache store from the v2 comparison. The default config keeps `cache: pg_semantic`, so nothing depends on it and the API never contacts it; leave it running (it is idle and small) or stop it with `docker compose stop valkey`. Switching the semantic cache to it is `cache: valkey_semantic` in `config/platform.yaml` plus `VALKEY_URL`, and the measured comparison is in [evals/reports/cache-adapters.md](evals/reports/cache-adapters.md).
 
+V3.01 moves runtime settings into PostgreSQL. On the first API start the four committed YAML files are validated and seeded into `public.settings_documents` with revision 1; later starts read the database, and every replacement writes `settings_revisions` plus `config_audit`. Compose sets `SWITCHBOARD_CONFIG_SOURCE=db`; set it to `yaml` to use the old path. Export the current control plane with `uv run --env-file .env switchboard config export --out config/exported`; seed an empty control plane explicitly with `switchboard config seed --dir config`. The HTTP write route and settings editor are V3.03.
+
 ```bash
 curl http://localhost:8000/health
 ```
@@ -150,6 +152,14 @@ docker compose exec -T postgres psql -U switchboard -d switchboard \
   -f /docker-entrypoint-initdb.d/04-runs-spans.sql
 docker compose exec -T postgres psql -U switchboard -d switchboard \
   -f /docker-entrypoint-initdb.d/05-feedback.sql
+docker compose exec -T postgres psql -U switchboard -d switchboard \
+  -f /docker-entrypoint-initdb.d/06-cache.sql
+docker compose exec -T postgres psql -U switchboard -d switchboard \
+  -f /docker-entrypoint-initdb.d/07-sql-tool.sql
+docker compose exec -T postgres psql -U switchboard -d switchboard \
+  -f /docker-entrypoint-initdb.d/08-hitl.sql
+docker compose exec -T postgres psql -U switchboard -d switchboard \
+  -f /docker-entrypoint-initdb.d/09-settings.sql
 ```
 
 ### 5. Load data

@@ -20,6 +20,7 @@ from switchboard.adapters.providers.factory import create_provider
 from switchboard.adapters.providers.mock import MockProvider
 from switchboard.adapters.retrievers.ingest import IngestResult, embed_in_batches, ingest_directory
 from switchboard.config import load_settings
+from switchboard.config_store import SettingsStore
 from switchboard.core.config import PriceEntry, ProviderConfig, Settings
 from switchboard.core.errors import ConfigError, SwitchboardError
 from switchboard.core.models import AgentSpec, EvalCase, ToolSpec
@@ -87,8 +88,10 @@ from switchboard.eval.suites.cache import prepare_case
 from switchboard.registry import CACHES, EVAL_SUITES, ORCHESTRATORS, Registry
 
 app = typer.Typer(help="Switchboard command line.", no_args_is_help=True)
+config_app = typer.Typer(help="Runtime settings commands (V3.01).", no_args_is_help=True)
 data_app = typer.Typer(help="Dataset commands.", no_args_is_help=True)
 eval_app = typer.Typer(help="Evaluation commands.", no_args_is_help=True)
+app.add_typer(config_app, name="config")
 app.add_typer(data_app, name="data")
 app.add_typer(eval_app, name="eval")
 
@@ -1184,6 +1187,82 @@ def eval_harvest(
     typer.echo(f"tenant: {result.tenant_id or 'all tenants'}")
     typer.echo(f"negative candidates: {result.candidates}")
     typer.echo(f"wrote {result.path}")
+
+
+@config_app.command("seed")
+def config_seed(
+    config_dir: Annotated[
+        Path, typer.Option("--dir", help="Directory with the four YAML files.")
+    ] = Path("config"),
+    database_url: Annotated[
+        str,
+        typer.Option(
+            "--database-url",
+            envvar="SWITCHBOARD_DATABASE_URL",
+            help="Application-role database URL.",
+        ),
+    ] = "",
+) -> None:
+    """Seed settings_documents from YAML when the control plane is empty."""
+    try:
+        url = require_database_url(database_url)
+    except ConfigError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    async def run_seed() -> bool:
+        connection = await asyncpg.connect(dsn=url)
+        try:
+            return await SettingsStore(connection, Path(config_dir)).seed_if_empty()
+        finally:
+            await connection.close()
+
+    try:
+        seeded = asyncio.run(run_seed())
+    except (SwitchboardError, OSError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    if seeded:
+        typer.echo(f"seeded settings_documents from {config_dir}")
+    else:
+        typer.echo("settings_documents already has rows; nothing changed")
+
+
+@config_app.command("export")
+def config_export(
+    target_dir: Annotated[
+        Path, typer.Option("--out", help="Directory to write the four YAML files.")
+    ] = Path("config/exported"),
+    database_url: Annotated[
+        str,
+        typer.Option(
+            "--database-url",
+            envvar="SWITCHBOARD_DATABASE_URL",
+            help="Application-role database URL.",
+        ),
+    ] = "",
+) -> None:
+    """Export the database settings documents to YAML for review or rollback."""
+    try:
+        url = require_database_url(database_url)
+    except ConfigError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    async def run_export() -> list[Path]:
+        connection = await asyncpg.connect(dsn=url)
+        try:
+            return await SettingsStore(connection, Path("config")).export_yaml(Path(target_dir))
+        finally:
+            await connection.close()
+
+    try:
+        paths = asyncio.run(run_export())
+    except (SwitchboardError, OSError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    for path in paths:
+        typer.echo(f"wrote {path}")
 
 
 if __name__ == "__main__":

@@ -115,6 +115,9 @@ services:
     environment:
       SWITCHBOARD_RUN_TOKEN_SECRET: "${SWITCHBOARD_RUN_TOKEN_SECRET:?set SWITCHBOARD_RUN_TOKEN_SECRET in .env (at least 32 bytes)}"
       SWITCHBOARD_DATABASE_URL: "postgresql://switchboard_app:${SWITCHBOARD_APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-switchboard}"
+      # V3.01: runtime settings come from public.settings_documents, seeded
+      # from the mounted YAML on the first boot. Set yaml for the old path.
+      SWITCHBOARD_CONFIG_SOURCE: "${SWITCHBOARD_CONFIG_SOURCE:-db}"
       SWITCHBOARD_TOOLS_URL: "http://mcp-olist:8001"
       MCP_OLIST_URL: "http://mcp-olist:8001"
       MCP_REVIEWS_URL: "http://mcp-reviews:8002"
