@@ -84,19 +84,23 @@ function RecentItem({
   onNavigate?: () => void;
   onChanged: () => void;
 }) {
+  const dialogTitleId = useId();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
+  const [dialogMode, setDialogMode] = useState<"rename" | "delete" | null>(null);
   const [draft, setDraft] = useState(session.title);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!menuOpen) {
       return;
     }
+    const closeMenu = () => setMenuOpen(false);
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
       if (menuRef.current?.contains(target) || triggerRef.current?.contains(target)) {
@@ -107,17 +111,64 @@ function RecentItem({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setMenuOpen(false);
-        setConfirmingDelete(false);
         triggerRef.current?.focus();
       }
     };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("resize", closeMenu);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("resize", closeMenu);
     };
   }, [menuOpen]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog === null) {
+      return;
+    }
+    if (dialogMode !== null && !dialog.open) {
+      dialog.showModal();
+      if (dialogMode === "rename") {
+        window.setTimeout(() => inputRef.current?.focus(), 0);
+      }
+    } else if (dialogMode === null && dialog.open) {
+      dialog.close();
+    }
+  }, [dialogMode]);
+
+  function openMenu() {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect === undefined) {
+      return;
+    }
+    setMenuPosition({
+      top: rect.bottom + 4,
+      right: Math.max(8, window.innerWidth - rect.right),
+    });
+    setMenuOpen((value) => !value);
+  }
+
+  function openRename() {
+    setMenuOpen(false);
+    setDraft(session.title);
+    setError(null);
+    setDialogMode("rename");
+  }
+
+  function openDelete() {
+    setMenuOpen(false);
+    setError(null);
+    setDialogMode("delete");
+  }
+
+  function closeDialog() {
+    dialogRef.current?.close();
+  }
 
   async function saveRename(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -130,8 +181,7 @@ function RecentItem({
     setError(null);
     try {
       await renameSession(session.session_id, tenant, title);
-      setEditing(false);
-      setMenuOpen(false);
+      closeDialog();
       onChanged();
     } catch (caught) {
       setError(errorMessage(caught));
@@ -145,8 +195,7 @@ function RecentItem({
     setError(null);
     try {
       await deleteSession(session.session_id, tenant);
-      setConfirmingDelete(false);
-      setMenuOpen(false);
+      closeDialog();
       onChanged();
     } catch (caught) {
       setError(errorMessage(caught));
@@ -157,118 +206,132 @@ function RecentItem({
 
   return (
     <li className="recent-row">
-      {editing ? (
-        <form className="recent-edit" onSubmit={saveRename}>
-          <input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            aria-label="Conversation title"
-            autoFocus
-            disabled={busy}
+      <a
+        className={`recent-item${active ? " is-active" : ""}`}
+        href={recentHref(session)}
+        onClick={() => {
+          setMenuOpen(false);
+          onNavigate?.();
+        }}
+      >
+        <span className="recent-query">{session.title}</span>
+        <span className="recent-meta">
+          <span
+            className={`recent-dot recent-dot-${statusTone(session.status)}`}
+            aria-hidden="true"
           />
-          <button type="submit" className="button button-primary" disabled={busy}>
-            Save
+          {recentMeta(session)}
+        </span>
+      </a>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="recent-actions"
+        aria-label={`Actions for ${session.title}`}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        onClick={openMenu}
+      >
+        <span className="recent-actions-dots" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
+      </button>
+      {menuOpen && menuPosition !== null ? (
+        <div
+          ref={menuRef}
+          className="recent-menu"
+          role="menu"
+          style={{ top: menuPosition.top, right: menuPosition.right }}
+        >
+          <button type="button" role="menuitem" onClick={openRename}>
+            Rename
           </button>
           <button
             type="button"
-            className="button button-quiet"
-            onClick={() => {
-              setEditing(false);
-              setDraft(session.title);
-              setError(null);
-            }}
-            disabled={busy}
+            role="menuitem"
+            className="recent-menu-danger"
+            onClick={openDelete}
           >
-            Cancel
+            Delete
           </button>
-        </form>
-      ) : (
-        <>
-          <a
-            className={`recent-item${active ? " is-active" : ""}`}
-            href={recentHref(session)}
-            onClick={() => {
-              setMenuOpen(false);
-              onNavigate?.();
-            }}
-          >
-            <span className="recent-query">{session.title}</span>
-            <span className="recent-meta">
-              <span
-                className={`recent-dot recent-dot-${statusTone(session.status)}`}
-                aria-hidden="true"
+        </div>
+      ) : null}
+      <dialog
+        ref={dialogRef}
+        className="recent-dialog"
+        aria-labelledby={dialogTitleId}
+        onClose={() => {
+          setDialogMode(null);
+          setError(null);
+        }}
+      >
+        {dialogMode === "rename" ? (
+          <form className="recent-dialog-body" onSubmit={saveRename}>
+            <h2 id={dialogTitleId}>Rename conversation</h2>
+            <label className="field">
+              <span className="field-label">Title</span>
+              <input
+                ref={inputRef}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                maxLength={200}
+                disabled={busy}
               />
-              {recentMeta(session)}
-            </span>
-          </a>
-          <button
-            ref={triggerRef}
-            type="button"
-            className="recent-actions"
-            aria-label={`Actions for ${session.title}`}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((value) => !value)}
-          >
-            <span aria-hidden="true">⋯</span>
-          </button>
-          {menuOpen ? (
-            <div ref={menuRef} className="recent-menu" role="menu">
-              {confirmingDelete ? (
-                <div className="recent-confirm" role="group" aria-label="Confirm delete">
-                  <span>Delete this conversation?</span>
-                  <div>
-                    <button
-                      type="button"
-                      className="button button-primary"
-                      onClick={remove}
-                      disabled={busy}
-                    >
-                      Delete
-                    </button>
-                    <button
-                      type="button"
-                      className="button button-quiet"
-                      onClick={() => setConfirmingDelete(false)}
-                      disabled={busy}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setDraft(session.title);
-                      setEditing(true);
-                      setMenuOpen(false);
-                      setError(null);
-                    }}
-                  >
-                    Rename
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="recent-menu-danger"
-                    onClick={() => setConfirmingDelete(true)}
-                  >
-                    Delete
-                  </button>
-                </>
-              )}
+            </label>
+            {error === null ? null : (
+              <p className="recent-error" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="recent-dialog-actions">
+              <button
+                type="button"
+                className="button button-quiet"
+                onClick={closeDialog}
+                disabled={busy}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="button button-primary" disabled={busy}>
+                Save
+              </button>
             </div>
-          ) : null}
-        </>
-      )}
-      {error === null ? null : (
-        <p className="recent-error" role="alert">
-          {error}
-        </p>
-      )}
+          </form>
+        ) : dialogMode === "delete" ? (
+          <div className="recent-dialog-body">
+            <h2 id={dialogTitleId}>Delete conversation?</h2>
+            <p className="muted">
+              <strong>{session.title}</strong> will be hidden from Recent. Its runs and traces stay
+              stored.
+            </p>
+            {error === null ? null : (
+              <p className="recent-error" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="recent-dialog-actions">
+              <button
+                type="button"
+                className="button button-quiet"
+                onClick={closeDialog}
+                disabled={busy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={remove}
+                disabled={busy}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </dialog>
     </li>
   );
 }

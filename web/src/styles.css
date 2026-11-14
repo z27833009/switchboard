@@ -434,10 +434,21 @@ p {
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-secondary);
-  font-size: 18px;
-  line-height: 1;
   cursor: pointer;
   opacity: 0;
+}
+
+.recent-actions-dots {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.recent-actions-dots span {
+  inline-size: 2px;
+  block-size: 2px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .recent-row:hover .recent-actions,
@@ -452,12 +463,15 @@ p {
 }
 
 .recent-menu {
+  position: fixed;
+  z-index: 60;
   display: grid;
-  margin: 2px 4px 6px 30px;
+  min-inline-size: 150px;
   padding: 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
 }
 
 .recent-menu > button {
@@ -480,36 +494,52 @@ p {
   color: var(--error);
 }
 
-.recent-confirm {
-  display: grid;
-  gap: 8px;
-  padding: 8px;
-  font-size: 12px;
+.recent-dialog {
+  inline-size: min(380px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: var(--shadow-dialog);
 }
 
-.recent-confirm > div {
+.recent-dialog::backdrop {
+  background: rgb(0 0 0 / 0.22);
+}
+
+.recent-dialog-body {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.recent-dialog-body h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.recent-dialog-body p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.recent-dialog-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
-}
-
-.recent-edit {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 4px;
-  padding: 4px;
-}
-
-.recent-edit input {
-  min-inline-size: 0;
-  padding: 5px 6px;
-  font-size: 12px;
+  gap: 8px;
 }
 
 .recent-error {
   margin: 2px 6px 6px;
   color: var(--error);
   font-size: 11px;
+}
+
+.recent-dialog .recent-error {
+  margin: 0;
+  font-size: 12px;
 }
 
 @media (max-width: 1023px) {
