@@ -21,7 +21,14 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 
-from switchboard.core.models import CompletionRequest, Message, RoutingDecision, ToolSpec, Turn
+from switchboard.core.models import (
+    Attachment,
+    CompletionRequest,
+    Message,
+    RoutingDecision,
+    ToolSpec,
+    Turn,
+)
 
 # Request purpose of every loop step. The mock provider keys fixtures by it, so
 # a recorded loop fixture and a replayed one are the same call. The adapter
@@ -64,6 +71,7 @@ def loop_messages(
     query: str,
     history: Sequence[Turn] | None = None,
     feedback: str | None = None,
+    attachments: Sequence[Attachment] | None = None,
 ) -> list[Message]:
     """Static prompt, static instructions, history, gate feedback, the query.
 
@@ -85,6 +93,13 @@ def loop_messages(
                     "The previous answer was rejected for this reason: "
                     f"{feedback}. Answer again, fixing that problem."
                 ),
+            )
+        )
+    for attachment in attachments or []:
+        messages.append(
+            Message(
+                role="user",
+                content=f"[Attached file: {attachment.name}]\n{attachment.content}",
             )
         )
     messages.append(Message(role="user", content=query))

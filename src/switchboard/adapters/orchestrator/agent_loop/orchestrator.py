@@ -252,7 +252,9 @@ class AgentLoopOrchestrator:
             feedback=feedback,
             budget=self._budget(),
         )
-        trace = _LoopTrace(messages=loop_messages(request.query, request.history, feedback))
+        trace = _LoopTrace(
+            messages=loop_messages(request.query, request.history, feedback, request.attachments)
+        )
         usage = zero_usage()
         cost: float | None = None
         last_text = ""

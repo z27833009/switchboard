@@ -513,6 +513,7 @@ class LangGraphOrchestrator:
                 AgentTask(
                     query=request.query,
                     history=request.history,
+                    attachments=request.attachments,
                     feedback=branch.get("feedback"),
                     budget=budget,
                     query_embedding=branch.get("query_embedding"),

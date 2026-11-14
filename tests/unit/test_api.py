@@ -91,6 +91,24 @@ async def test_chat_validates_the_core_models(harness: AppHarness) -> None:
         },
     )
     assert bad_history.status_code == 422
+    too_many_attachments = await harness.client.post(
+        "/chat",
+        json={
+            "query": "summarize these",
+            "tenant_id": "default",
+            "attachments": [{"name": f"file-{index}.md", "content": "text"} for index in range(4)],
+        },
+    )
+    assert too_many_attachments.status_code == 422
+    with_attachment = await harness.client.post(
+        "/chat",
+        json={
+            "query": "summarize this",
+            "tenant_id": "default",
+            "attachments": [{"name": "notes.md", "content": "The window is 30 days."}],
+        },
+    )
+    assert with_attachment.status_code == 200
 
 
 async def test_unknown_tenant_is_404(harness: AppHarness) -> None:

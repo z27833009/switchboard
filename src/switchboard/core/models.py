@@ -226,9 +226,17 @@ class Budget(BaseModel):
     max_tokens: int = Field(default=4096, ge=1)
 
 
+class Attachment(BaseModel):
+    """One text file the user attached to a question (V3.06)."""
+
+    name: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1, max_length=100_000)
+
+
 class AgentTask(BaseModel):
     query: str
     history: list[Turn] = Field(default_factory=list)
+    attachments: list[Attachment] = Field(default_factory=list, max_length=3)
     feedback: str | None = None
     budget: Budget = Field(default_factory=Budget)
     # The query embedding the semantic cache computed for this run, when one
@@ -357,6 +365,7 @@ class ChatRequest(BaseModel):
     tenant_id: str = Field(min_length=1)
     session_id: str | None = None
     history: list[Turn] = Field(default_factory=list)
+    attachments: list[Attachment] = Field(default_factory=list, max_length=3)
     # Run this request on a registered orchestrator by name instead of the
     # platform default (T3.07). None keeps the default path unchanged.
     orchestrator: str | None = Field(default=None, min_length=1)

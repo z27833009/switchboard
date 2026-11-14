@@ -36,6 +36,14 @@ export function PlusIcon({ className }: IconProps) {
   );
 }
 
+export function PaperclipIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M10.8 4.9 6.1 9.6a1.8 1.8 0 0 0 2.5 2.5l4.7-4.7a3.2 3.2 0 0 0-4.5-4.5L4 7.1a4.2 4.2 0 0 0 5.9 5.9l3.6-3.6" />
+    </Svg>
+  );
+}
+
 export function ChatIcon({ className }: IconProps) {
   return (
     <Svg className={className}>

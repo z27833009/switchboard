@@ -13,11 +13,16 @@ import {
 } from "../api";
 import type { ChatResponse, RunSummary, RunsResponse, StepEvent } from "../api";
 import { CitationChips, ErrorList, StatusBadge, Tag, statusTone } from "../components/Badges";
-import { AlertIcon, ClockIcon } from "../components/Icons";
+import { AlertIcon, ClockIcon, CloseIcon, PaperclipIcon } from "../components/Icons";
 import { Markdown } from "../components/Markdown";
 import { formatCostDetail, formatDuration, formatLatency, formatTokens } from "../format";
 import { runHref, traceHref } from "../routes";
 import { newSessionId } from "../session";
+
+interface ComposerAttachment {
+  name: string;
+  content: string;
+}
 
 function stepSummary(step: StepEvent): string {
   switch (step.type) {
@@ -393,6 +398,8 @@ export function ChatPage({
   const [sessionId, setSessionId] = useState<string>(() => routeSessionId ?? newSessionId());
   const [turns, setTurns] = useState<TurnView[]>([]);
   const [query, setQuery] = useState("");
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(routeSessionId !== null);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -461,6 +468,26 @@ export function ChatPage({
     onTitleChange(firstQuestion === null ? null : firstQuestion.trim() || null);
   }, [firstQuestion, onTitleChange]);
 
+  async function handleAttach(files: File[] | null) {
+    if (files === null || files.length === 0) {
+      return;
+    }
+    setAttachmentError(null);
+    const accepted: ComposerAttachment[] = [];
+    for (const file of files) {
+      if (!/\.(md|txt)$/i.test(file.name)) {
+        setAttachmentError("Attach a .md or .txt file.");
+        continue;
+      }
+      if (file.size > 100_000) {
+        setAttachmentError(`${file.name} is larger than 100 KB.`);
+        continue;
+      }
+      accepted.push({ name: file.name, content: await file.text() });
+    }
+    setAttachments((current) => [...current, ...accepted].slice(0, 3));
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmed = query.trim();
@@ -470,8 +497,11 @@ export function ChatPage({
     const controller = new AbortController();
     controllerRef.current = controller;
     const turnId = newId();
+    const sentAttachments = attachments;
     setBusy(true);
     setQuery("");
+    setAttachments([]);
+    setAttachmentError(null);
     setTurns((current) => [
       ...current,
       {
@@ -488,7 +518,12 @@ export function ChatPage({
     let sawRunFinished = false;
     try {
       await postChatStream(
-        { query: trimmed, tenant_id: tenant, session_id: sessionId },
+        {
+          query: trimmed,
+          tenant_id: tenant,
+          session_id: sessionId,
+          attachments: sentAttachments,
+        },
         (step) => {
           if (step.type === "run.finished") {
             sawRunFinished = true;
@@ -583,7 +618,50 @@ export function ChatPage({
       <div className="chat-footer">
         <div className="chat-column">
           {latest !== null ? <RunSummaryBar turn={latest} /> : null}
+          {attachments.length > 0 ? (
+            <ul className="composer-attachments" aria-label="Attached files">
+              {attachments.map((attachment) => (
+                <li key={attachment.name} className="composer-attachment">
+                  <PaperclipIcon />
+                  <span>{attachment.name}</span>
+                  <button
+                    type="button"
+                    className="composer-attachment-remove"
+                    onClick={() =>
+                      setAttachments((current) =>
+                        current.filter((item) => item.name !== attachment.name),
+                      )
+                    }
+                  >
+                    <CloseIcon />
+                    <span className="visually-hidden">Remove {attachment.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {attachmentError === null ? null : (
+            <p className="error-text small" role="alert">
+              {attachmentError}
+            </p>
+          )}
           <form className="composer" onSubmit={handleSubmit}>
+            <label className="composer-attach" title="Attach a .md or .txt file">
+              <PaperclipIcon />
+              <span className="visually-hidden">Attach a file</span>
+              <input
+                type="file"
+                accept=".md,.txt,text/markdown,text/plain"
+                multiple
+                disabled={busy}
+                onChange={(event) => {
+                  const chosen = event.currentTarget.files;
+                  const files = chosen === null ? null : Array.from(chosen);
+                  event.currentTarget.value = "";
+                  void handleAttach(files);
+                }}
+              />
+            </label>
             <label className="visually-hidden" htmlFor="composer-input">
               Message
             </label>

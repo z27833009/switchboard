@@ -44,6 +44,13 @@ class BaseAgent:
                     ),
                 )
             )
+        for attachment in task.attachments:
+            messages.append(
+                Message(
+                    role="user",
+                    content=f"[Attached file: {attachment.name}]\n{attachment.content}",
+                )
+            )
         messages.append(Message(role="user", content=task.query))
         return messages
 

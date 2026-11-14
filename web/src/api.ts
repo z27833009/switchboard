@@ -542,7 +542,12 @@ function parseStepEvent(raw: string): StepEvent | null {
  * caller, never replaced by a made-up result.
  */
 export async function postChatStream(
-  payload: { query: string; tenant_id: string; session_id?: string | null },
+  payload: {
+    query: string;
+    tenant_id: string;
+    session_id?: string | null;
+    attachments?: Array<{ name: string; content: string }>;
+  },
   onEvent: (event: StepEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {

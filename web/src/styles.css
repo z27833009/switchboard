@@ -1660,6 +1660,72 @@ textarea {
   outline: none;
 }
 
+.composer-attach {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  inline-size: 32px;
+  block-size: 32px;
+  margin-bottom: 0;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.composer-attach:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.composer-attach input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.composer-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: var(--chat-width);
+  margin: 0 auto 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.composer-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.composer-attachment-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.composer-attachment-remove:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
 .composer-send {
   flex: none;
   min-height: 32px;

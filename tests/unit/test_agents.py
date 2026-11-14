@@ -18,6 +18,7 @@ from switchboard.core.errors import ToolPermissionError, ToolValidationError
 from switchboard.core.models import (
     AgentResult,
     AgentTask,
+    Attachment,
     Budget,
     Citation,
     CompletionResponse,
@@ -470,3 +471,14 @@ def test_clean_question_keeps_one_line_and_one_question() -> None:
     assert clean_question('  "Which seller?"  ') == "Which seller?"
     assert clean_question("Tell me the month.") == "Tell me the month?"
     assert clean_question("\n\n") == ""
+
+
+def test_attachment_is_injected_before_the_question() -> None:
+    messages = DirectAgent().build_messages(
+        AgentTask(
+            query="Summarize the file",
+            attachments=[Attachment(name="notes.md", content="The return window is 30 days.")],
+        )
+    )
+    assert messages[-2].content == ("[Attached file: notes.md]\nThe return window is 30 days.")
+    assert messages[-1].content == "Summarize the file"
