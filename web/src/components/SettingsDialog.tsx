@@ -81,7 +81,7 @@ function ToolCards({ tools }: { tools: SettingsTool[] }) {
   );
 }
 
-function McpServerForm() {
+function McpServerForm({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [manifest, setManifest] = useState("");
@@ -145,6 +145,9 @@ function McpServerForm() {
         />
       </label>
       <div className="mcp-add-actions">
+        <button type="button" className="button button-quiet" onClick={onClose}>
+          Cancel
+        </button>
         <button type="submit" className="button button-primary" disabled={busy}>
           {busy ? "Saving..." : "Add server"}
         </button>
@@ -161,6 +164,14 @@ function McpServerForm() {
 
 function SectionBody({ section, data }: { section: SectionKey; data: SettingsResponse }) {
   const { platform, tenant, provider } = data;
+  const [selectedServer, setSelectedServer] = useState<string | null>(null);
+  const [addingServer, setAddingServer] = useState(false);
+  const activeServer =
+    selectedServer !== null && data.mcp_servers.some((server) => server.name === selectedServer)
+      ? selectedServer
+      : (data.mcp_servers[0]?.name ?? null);
+  const activeTools =
+    activeServer === null ? [] : data.tools.filter((tool) => tool.source === activeServer);
   if (section === "account") {
     return (
       <>
@@ -311,34 +322,51 @@ function SectionBody({ section, data }: { section: SectionKey; data: SettingsRes
   }
 
   if (section === "tools") {
-    if (data.tools.length === 0) {
-      return (
-        <p className="muted">
-          No configured tool source declares a manifest, so there is no tool spec to show.
-        </p>
-      );
-    }
     return (
       <div className="mcp-groups">
-        {data.mcp_servers.map((server) => {
-          const tools = data.tools.filter((tool) => tool.source === server.name);
-          return (
-            <section key={server.name} className="mcp-group">
-              <h4 className="settings-subheading">
-                <code>{server.name}</code>
-                <span className="muted small">
-                  {server.adapter}, {server.tool_count} tool{server.tool_count === 1 ? "" : "s"}
-                </span>
-              </h4>
-              {tools.length === 0 ? (
-                <p className="muted small">No manifest tool is exposed by this server.</p>
-              ) : (
-                <ToolCards tools={tools} />
-              )}
-            </section>
-          );
-        })}
-        <McpServerForm />
+        <div className="mcp-toolbar">
+          {data.mcp_servers.length === 0 ? (
+            <p className="muted small">No MCP server is configured yet.</p>
+          ) : (
+            <div className="mcp-server-tabs" role="tablist" aria-label="MCP servers">
+              {data.mcp_servers.map((server) => (
+                <button
+                  key={server.name}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeServer === server.name}
+                  className={`mcp-server-tab${activeServer === server.name ? " active" : ""}`}
+                  onClick={() => setSelectedServer(server.name)}
+                >
+                  <code>{server.name}</code>
+                  <span>{server.tool_count}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            className="button button-quiet"
+            onClick={() => setAddingServer((value) => !value)}
+          >
+            {addingServer ? "Close" : "Add MCP server"}
+          </button>
+        </div>
+        {addingServer ? (
+          <McpServerForm onClose={() => setAddingServer(false)} />
+        ) : null}
+        {data.mcp_servers.length === 0 ? null : (
+          <section className="mcp-group" role="tabpanel">
+            {activeTools.length === 0 ? (
+              <p className="muted small">
+                No manifest tool is exposed by this server. Add a manifest or restart after adding
+                the server.
+              </p>
+            ) : (
+              <ToolCards tools={activeTools} />
+            )}
+          </section>
+        )}
       </div>
     );
   }
@@ -588,8 +616,9 @@ export function SettingsDialog({
         <p className="read-only-note">
           <ShieldIcon className="read-only-icon" />
           <span>
-            Read only. These are the values this process loaded at startup; there is no route that
-            changes them, and no API key or base URL is sent to the browser.
+            Runtime settings. MCP servers can be added below; provider, model and agent values are
+            still read-only in this slice and apply on restart. No API key or base URL is sent to
+            the browser.
           </span>
         </p>
 

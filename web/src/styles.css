@@ -1745,6 +1745,45 @@ dialog::backdrop {
   margin-top: 18px;
 }
 
+.mcp-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.mcp-server-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mcp-server-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.mcp-server-tab span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.mcp-server-tab.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .mcp-group > .settings-subheading {
   display: flex;
   align-items: baseline;
@@ -1768,6 +1807,7 @@ dialog::backdrop {
 .mcp-add-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
 }
 
 .error-text {
