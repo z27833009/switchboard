@@ -41,6 +41,8 @@ from switchboard.api.schemas import (
     AuditRow,
     AuditStatus,
     ChatResponse,
+    DocumentChunk,
+    DocumentChunksResponse,
     DocumentIngestResult,
     DocumentsResponse,
     DocumentSummary,
@@ -409,6 +411,25 @@ async def list_documents(
     return DocumentsResponse(
         tenant_id=tenant.tenant_id,
         documents=[DocumentSummary.from_row(row) for row in rows],
+        count=len(rows),
+    )
+
+
+@router.get("/documents/{document_id}/chunks", response_model=DocumentChunksResponse)
+async def list_document_chunks(
+    request: Request,
+    document_id: str,
+    tenant_id: str = Query(min_length=1),
+) -> DocumentChunksResponse:
+    """The ordered chunks of one document, for a read-only preview."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, tenant_id)
+    rows = await deps.store.list_document_chunks(
+        tenant_id=tenant.tenant_id, document_id=document_id
+    )
+    return DocumentChunksResponse(
+        document_id=document_id,
+        chunks=[DocumentChunk(ordinal=int(row["ordinal"]), text=str(row["text"])) for row in rows],
         count=len(rows),
     )
 

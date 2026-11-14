@@ -2065,6 +2065,41 @@ dialog::backdrop {
   font-size: 11px;
 }
 
+.document-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.chunk-preview {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+.chunk-preview-item {
+  display: grid;
+  gap: 2px;
+}
+
+.chunk-preview-item p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.chunk-ordinal {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 .mcp-add > .settings-subheading {
   margin: 0;
 }

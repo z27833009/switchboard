@@ -136,6 +136,10 @@ async def test_documents_list_and_delete(harness: AppHarness) -> None:
         "content_hash": "abc123",
         "chunks": 4,
         "ingested_at": datetime(2026, 11, 15, tzinfo=UTC),
+        "chunk_rows": [
+            {"ordinal": 0, "text": "Returns are accepted within 30 days."},
+            {"ordinal": 1, "text": "The customer pays return shipping."},
+        ],
     }
     listed = await harness.client.get("/documents", params={"tenant_id": "default"})
     assert listed.status_code == 200
@@ -149,6 +153,23 @@ async def test_documents_list_and_delete(harness: AppHarness) -> None:
         "chunks": 4,
         "ingested_at": "2026-11-15T00:00:00Z",
     }
+
+    chunks = await harness.client.get(
+        f"/documents/{document_id}/chunks", params={"tenant_id": "default"}
+    )
+    assert chunks.status_code == 200
+    assert chunks.json() == {
+        "document_id": document_id,
+        "chunks": [
+            {"ordinal": 0, "text": "Returns are accepted within 30 days."},
+            {"ordinal": 1, "text": "The customer pays return shipping."},
+        ],
+        "count": 2,
+    }
+    other_chunks = await harness.client.get(
+        f"/documents/{document_id}/chunks", params={"tenant_id": "seller_a"}
+    )
+    assert other_chunks.json()["count"] == 0
 
     other_tenant = await harness.client.delete(
         f"/documents/{document_id}", params={"tenant_id": "seller_a"}
@@ -669,6 +690,7 @@ async def test_openapi_and_docs_render(harness: AppHarness) -> None:
         "/health",
         "/documents",
         "/documents/{document_id}",
+        "/documents/{document_id}/chunks",
         "/settings",
         "/settings/mcp-servers",
         "/settings/providers/{provider_name}",

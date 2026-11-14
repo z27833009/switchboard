@@ -430,6 +430,19 @@ class DocumentsResponse(BaseModel):
     count: int = 0
 
 
+class DocumentChunk(BaseModel):
+    """One stored chunk of a document, ordered by its ordinal."""
+
+    ordinal: int
+    text: str
+
+
+class DocumentChunksResponse(BaseModel):
+    document_id: str
+    chunks: list[DocumentChunk] = Field(default_factory=list)
+    count: int = 0
+
+
 class DocumentUpload(BaseModel):
     """A markdown or text file the local administrator uploads (V3.05)."""
 
@@ -605,6 +618,8 @@ __all__ = [
     "AuditRow",
     "AuditStatus",
     "ChatResponse",
+    "DocumentChunk",
+    "DocumentChunksResponse",
     "DocumentIngestResult",
     "DocumentSummary",
     "DocumentUpload",

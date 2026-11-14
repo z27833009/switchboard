@@ -331,6 +331,28 @@ export interface DocumentsResponse {
   count: number;
 }
 
+export interface DocumentChunk {
+  ordinal: number;
+  text: string;
+}
+
+export interface DocumentChunksResponse {
+  document_id: string;
+  chunks: DocumentChunk[];
+  count: number;
+}
+
+export async function getDocumentChunks(
+  documentId: string,
+  tenantId: string,
+  signal?: AbortSignal,
+): Promise<DocumentChunksResponse> {
+  return getJson<DocumentChunksResponse>(
+    `/documents/${encodeURIComponent(documentId)}/chunks?tenant_id=${encodeURIComponent(tenantId)}`,
+    signal,
+  );
+}
+
 export async function listDocuments(
   tenantId: string,
   signal?: AbortSignal,

@@ -223,6 +223,14 @@ class MemoryRunStore:
         rows.sort(key=lambda row: row["ingested_at"], reverse=True)
         return rows
 
+    async def list_document_chunks(
+        self, *, tenant_id: str, document_id: str
+    ) -> list[dict[str, Any]]:
+        row = self.documents.get(document_id)
+        if row is None or row["tenant_id"] != tenant_id:
+            return []
+        return [dict(chunk) for chunk in row.get("chunk_rows", [])]
+
     async def delete_document(self, *, tenant_id: str, document_id: str) -> bool:
         row = self.documents.get(document_id)
         if row is None or row["tenant_id"] != tenant_id:

@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   deleteDocument,
   errorMessage,
+  getDocumentChunks,
   getJson,
   isAbortError,
   listDocuments,
@@ -16,7 +17,12 @@ import {
   updateTenantSettings,
   uploadDocument,
 } from "../api";
-import type { DocumentSummary, SettingsResponse, SettingsTool } from "../api";
+import type {
+  DocumentChunk,
+  DocumentSummary,
+  SettingsResponse,
+  SettingsTool,
+} from "../api";
 import { ChevronDownIcon, CloseIcon, ShieldIcon } from "./Icons";
 
 type SectionKey =
@@ -207,6 +213,10 @@ function KnowledgeSection({ tenantId }: { tenantId: string }) {
   const [uploading, setUploading] = useState(false);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [previewChunks, setPreviewChunks] = useState<DocumentChunk[]>([]);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -237,6 +247,25 @@ function KnowledgeSection({ tenantId }: { tenantId: string }) {
       setUploadError(errorMessage(caught));
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function togglePreview(document: DocumentSummary) {
+    if (previewId === document.document_id) {
+      setPreviewId(null);
+      return;
+    }
+    setPreviewId(document.document_id);
+    setPreviewBusy(true);
+    setPreviewError(null);
+    setPreviewChunks([]);
+    try {
+      const result = await getDocumentChunks(document.document_id, tenantId);
+      setPreviewChunks(result.chunks);
+    } catch (caught) {
+      setPreviewError(errorMessage(caught));
+    } finally {
+      setPreviewBusy(false);
     }
   }
 
@@ -342,7 +371,15 @@ function KnowledgeSection({ tenantId }: { tenantId: string }) {
                 {new Date(document.ingested_at).toLocaleString()}
               </span>
             </p>
-            <div className="settings-edit-actions">
+            <div className="document-actions">
+              <button
+                type="button"
+                className="button button-quiet"
+                onClick={() => void togglePreview(document)}
+                aria-expanded={previewId === document.document_id}
+              >
+                {previewId === document.document_id ? "Hide chunks" : "Preview chunks"}
+              </button>
               {confirming === document.document_id ? (
                 <>
                   <button
@@ -372,6 +409,25 @@ function KnowledgeSection({ tenantId }: { tenantId: string }) {
                 </button>
               )}
             </div>
+            {previewId === document.document_id ? (
+              <div className="chunk-preview">
+                {previewBusy ? <p className="muted small">Loading chunks...</p> : null}
+                {previewError === null ? null : (
+                  <p className="error-text small" role="alert">
+                    {previewError}
+                  </p>
+                )}
+                {previewChunks.map((chunk) => (
+                  <div key={chunk.ordinal} className="chunk-preview-item">
+                    <span className="chunk-ordinal">#{chunk.ordinal}</span>
+                    <p>{chunk.text}</p>
+                  </div>
+                ))}
+                {!previewBusy && previewError === null && previewChunks.length === 0 ? (
+                  <p className="muted small">This document has no stored chunks.</p>
+                ) : null}
+              </div>
+            ) : null}
           </li>
         ))}
       </ul>

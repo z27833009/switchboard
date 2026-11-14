@@ -120,6 +120,14 @@ GROUP BY d.id, d.source, d.title, d.content_hash, d.ingested_at
 ORDER BY d.ingested_at DESC, d.source ASC
 """
 
+LIST_DOCUMENT_CHUNKS_SQL = """
+SELECT c.ordinal, c.text
+FROM public.chunks c
+JOIN public.documents d ON d.id = c.document_id AND d.tenant_id = c.tenant_id
+WHERE d.id = $1 AND d.tenant_id = $2
+ORDER BY c.ordinal ASC
+"""
+
 DELETE_DOCUMENT_SQL = """
 DELETE FROM public.documents
 WHERE id = $1 AND tenant_id = $2
@@ -347,6 +355,10 @@ class RunStore(Protocol):
 
     async def list_documents(self, *, tenant_id: str) -> list[dict[str, Any]]: ...
 
+    async def list_document_chunks(
+        self, *, tenant_id: str, document_id: str
+    ) -> list[dict[str, Any]]: ...
+
     async def delete_document(self, *, tenant_id: str, document_id: str) -> bool: ...
 
     async def aggregate_runs(
@@ -462,6 +474,16 @@ class PgRunStore:
         rows = await self._pool.fetch(LIST_DOCUMENTS_SQL, tenant_id)
         return [dict(row) for row in rows]
 
+    async def list_document_chunks(
+        self, *, tenant_id: str, document_id: str
+    ) -> list[dict[str, Any]]:
+        try:
+            parsed = uuid.UUID(document_id)
+        except ValueError:
+            return []
+        rows = await self._pool.fetch(LIST_DOCUMENT_CHUNKS_SQL, parsed, tenant_id)
+        return [dict(row) for row in rows]
+
     async def delete_document(self, *, tenant_id: str, document_id: str) -> bool:
         """Delete one document and its chunks, then invalidate the tenant index version."""
         try:
@@ -534,6 +556,7 @@ __all__ = [
     "CLAIM_APPROVAL_SQL",
     "DELETE_DOCUMENT_SQL",
     "LIST_DOCUMENTS_SQL",
+    "LIST_DOCUMENT_CHUNKS_SQL",
     "SESSION_TURNS_SQL",
     "PgRunStore",
     "RunStore",
