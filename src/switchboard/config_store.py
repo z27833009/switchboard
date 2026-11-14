@@ -13,6 +13,7 @@ validation path shared with the YAML loader.
 
 from __future__ import annotations
 
+import copy
 import os
 from collections.abc import Mapping
 from pathlib import Path
@@ -154,12 +155,7 @@ class SettingsStore:
         manifest_path = Path(manifest.strip())
         if not manifest_path.is_file():
             raise ConfigError(f"MCP manifest not found: {manifest_path}")
-        row = await self._db.fetchrow(
-            "SELECT payload FROM public.settings_documents WHERE kind = 'platform'"
-        )
-        if row is None:
-            raise ConfigError("platform settings document is missing")
-        platform = _as_mapping(row["payload"])
+        platform = await self._read_document("platform")
         sources = list(platform.get("tool_sources", []))
         if any(
             str(source.get("name")) == clean_name for source in sources if isinstance(source, dict)
@@ -180,6 +176,57 @@ class SettingsStore:
             actor=actor,
             note=f"add MCP server {clean_name}",
         )
+
+    async def update_tenant(
+        self,
+        tenant_id: str,
+        *,
+        actor: str,
+        agents_allow: list[str] | None = None,
+        tools_allow: list[str] | None = None,
+        tools_ask: list[str] | None = None,
+    ) -> int:
+        """Update one tenant's allowlists in the tenants document."""
+        document = await self._read_document("tenants")
+        tenants = dict(document.get("tenants", {}))
+        if tenant_id not in tenants:
+            raise ConfigError(f"unknown tenant {tenant_id!r}")
+        tenant = dict(tenants[tenant_id])
+        if agents_allow is not None:
+            tenant["agents"] = {**tenant.get("agents", {}), "allow": list(agents_allow)}
+        tools = dict(tenant.get("tools", {}))
+        if tools_allow is not None:
+            tools["allow"] = list(tools_allow)
+        if tools_ask is not None:
+            tools["ask"] = list(tools_ask)
+        tenant["tools"] = tools
+        tenants[tenant_id] = tenant
+        document["tenants"] = tenants
+        return await self.replace_document(
+            "tenants", document, actor=actor, note=f"update tenant {tenant_id}"
+        )
+
+    async def update_provider_model(self, provider_name: str, model: str, *, actor: str) -> int:
+        """Change the model on one provider without touching its secret."""
+        document = await self._read_document("providers")
+        providers = dict(document.get("providers", {}))
+        if provider_name not in providers:
+            raise ConfigError(f"unknown provider {provider_name!r}")
+        provider = dict(providers[provider_name])
+        provider["model"] = model
+        providers[provider_name] = provider
+        document["providers"] = providers
+        return await self.replace_document(
+            "providers", document, actor=actor, note=f"update provider {provider_name} model"
+        )
+
+    async def _read_document(self, kind: str) -> dict[str, Any]:
+        row = await self._db.fetchrow(
+            "SELECT payload FROM public.settings_documents WHERE kind = $1", kind
+        )
+        if row is None:
+            raise ConfigError(f"settings document {kind!r} is missing")
+        return copy.deepcopy(_as_mapping(row["payload"]))
 
     async def replace_document(
         self,

@@ -45,6 +45,7 @@ from switchboard.api.schemas import (
     FeedbackSummary,
     McpServerResult,
     McpServerSubmission,
+    ProviderSettingsUpdate,
     RunAggregateResponse,
     RunAggregateRow,
     RunsResponse,
@@ -53,6 +54,8 @@ from switchboard.api.schemas import (
     SessionsResponse,
     SessionSummary,
     SettingsResponse,
+    SettingsRevision,
+    TenantSettingsUpdate,
     TraceResponse,
 )
 from switchboard.api.step_events import RUN_FINISHED, StepEvent
@@ -659,6 +662,61 @@ async def add_mcp_server(request: Request, submission: McpServerSubmission) -> M
         status="ok",
         revision=revision,
         note="restart the API to build and expose the new MCP server",
+    )
+
+
+@router.patch("/settings/tenants/{tenant_id}", response_model=SettingsRevision)
+async def update_tenant_settings(
+    request: Request, tenant_id: str, payload: TenantSettingsUpdate
+) -> SettingsRevision:
+    """Update one tenant's agent and tool allowlists in the control plane."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, tenant_id)
+    store = deps.settings_store
+    if store is None:
+        raise HTTPException(
+            status_code=503,
+            detail="the settings control plane is not available; set SWITCHBOARD_CONFIG_SOURCE=db",
+        )
+    try:
+        revision = await store.update_tenant(
+            tenant.tenant_id,
+            agents_allow=payload.agents_allow,
+            tools_allow=payload.tools_allow,
+            tools_ask=payload.tools_ask,
+            actor="local:admin",
+        )
+    except ConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return SettingsRevision(
+        status="ok",
+        revision=revision,
+        note="restart the API to apply tenant allowlist changes",
+    )
+
+
+@router.patch("/settings/providers/{provider_name}", response_model=SettingsRevision)
+async def update_provider_settings(
+    request: Request, provider_name: str, payload: ProviderSettingsUpdate
+) -> SettingsRevision:
+    """Change one provider's model; API keys and base URLs stay in the environment."""
+    deps = _deps(request.app)
+    store = deps.settings_store
+    if store is None:
+        raise HTTPException(
+            status_code=503,
+            detail="the settings control plane is not available; set SWITCHBOARD_CONFIG_SOURCE=db",
+        )
+    try:
+        revision = await store.update_provider_model(
+            provider_name, payload.model.strip(), actor="local:admin"
+        )
+    except ConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return SettingsRevision(
+        status="ok",
+        revision=revision,
+        note="restart the API to apply the provider model change",
     )
 
 

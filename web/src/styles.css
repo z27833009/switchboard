@@ -1957,12 +1957,30 @@ dialog::backdrop {
   flex-wrap: wrap;
 }
 
-.mcp-add {
+.mcp-add,
+.settings-edit {
   display: grid;
   gap: 10px;
   margin-top: 24px;
   padding-top: 18px;
   border-top: 1px solid var(--border);
+}
+
+.settings-edit > .settings-subheading {
+  margin: 0;
+}
+
+.settings-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.agent-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 
 .mcp-add > .settings-subheading {

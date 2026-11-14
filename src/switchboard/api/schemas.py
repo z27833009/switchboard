@@ -472,6 +472,28 @@ class McpServerResult(BaseModel):
     note: str
 
 
+class SettingsRevision(BaseModel):
+    """The revision written by a settings update."""
+
+    status: str
+    revision: int
+    note: str
+
+
+class TenantSettingsUpdate(BaseModel):
+    """Writable tenant allowlists for the first V3.03 settings slice."""
+
+    agents_allow: list[str] | None = None
+    tools_allow: list[str] | None = None
+    tools_ask: list[str] | None = None
+
+
+class ProviderSettingsUpdate(BaseModel):
+    """Writable provider fields; secrets stay in the environment."""
+
+    model: str = Field(min_length=1, max_length=200)
+
+
 class SettingsTool(BaseModel):
     """One tool manifest entry, with whether this tenant may call it."""
 
@@ -527,6 +549,7 @@ __all__ = [
     "FeedbackRating",
     "FeedbackSubmission",
     "FeedbackSummary",
+    "ProviderSettingsUpdate",
     "RunAggregateResponse",
     "RunAggregateRow",
     "RunSummary",
@@ -538,8 +561,10 @@ __all__ = [
     "SettingsPrice",
     "SettingsProvider",
     "SettingsResponse",
+    "SettingsRevision",
     "SettingsTenant",
     "SettingsTool",
+    "TenantSettingsUpdate",
     "TraceResponse",
     "TraceSpan",
 ]

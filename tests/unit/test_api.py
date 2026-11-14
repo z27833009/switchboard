@@ -560,6 +560,8 @@ async def test_openapi_and_docs_render(harness: AppHarness) -> None:
         "/health",
         "/settings",
         "/settings/mcp-servers",
+        "/settings/providers/{provider_name}",
+        "/settings/tenants/{tenant_id}",
     }
     docs = await harness.client.get("/docs")
     assert docs.status_code == 200

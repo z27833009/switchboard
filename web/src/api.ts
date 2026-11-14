@@ -316,6 +316,53 @@ export async function decideApproval(
   return (await response.json()) as ChatResponse;
 }
 
+export interface SettingsRevision {
+  status: string;
+  revision: number;
+  note: string;
+}
+
+export async function updateTenantSettings(
+  tenantId: string,
+  changes: {
+    agents_allow?: string[];
+    tools_allow?: string[];
+    tools_ask?: string[];
+  },
+  signal?: AbortSignal,
+): Promise<SettingsRevision> {
+  const response = await fetch(`${API_BASE}/settings/tenants/${encodeURIComponent(tenantId)}`, {
+    method: "PATCH",
+    signal,
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(changes),
+  });
+  if (!response.ok) {
+    throw new ApiError(await describeHttpError(response), response.status);
+  }
+  return (await response.json()) as SettingsRevision;
+}
+
+export async function updateProviderModel(
+  providerName: string,
+  model: string,
+  signal?: AbortSignal,
+): Promise<SettingsRevision> {
+  const response = await fetch(
+    `${API_BASE}/settings/providers/${encodeURIComponent(providerName)}`,
+    {
+      method: "PATCH",
+      signal,
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ model }),
+    },
+  );
+  if (!response.ok) {
+    throw new ApiError(await describeHttpError(response), response.status);
+  }
+  return (await response.json()) as SettingsRevision;
+}
+
 export async function renameSession(
   sessionId: string,
   tenantId: string,

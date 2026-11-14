@@ -5,7 +5,14 @@ import type {
 } from "react";
 import { useEffect, useRef, useState } from "react";
 
-import { errorMessage, getJson, isAbortError, postJson } from "../api";
+import {
+  errorMessage,
+  getJson,
+  isAbortError,
+  postJson,
+  updateProviderModel,
+  updateTenantSettings,
+} from "../api";
 import type { SettingsResponse, SettingsTool } from "../api";
 import { ChevronDownIcon, CloseIcon, ShieldIcon } from "./Icons";
 
@@ -162,10 +169,78 @@ function McpServerForm({ onClose }: { onClose: () => void }) {
   );
 }
 
-function SectionBody({ section, data }: { section: SectionKey; data: SettingsResponse }) {
+function SectionBody({
+  section,
+  data,
+  onSaved,
+}: {
+  section: SectionKey;
+  data: SettingsResponse;
+  onSaved: () => void;
+}) {
   const { platform, tenant, provider } = data;
   const [expandedServers, setExpandedServers] = useState<ReadonlySet<string>>(new Set());
   const [addingServer, setAddingServer] = useState(false);
+  const [modelDraft, setModelDraft] = useState(provider.model ?? "");
+  const [agentSelection, setAgentSelection] = useState<string[]>(tenant.agents_allow);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setModelDraft(provider.model ?? "");
+  }, [provider.model]);
+
+  useEffect(() => {
+    setAgentSelection(tenant.agents_allow);
+  }, [tenant.agents_allow]);
+
+  async function saveModel(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const model = modelDraft.trim();
+    if (!model) {
+      setSaveError("Model cannot be blank.");
+      return;
+    }
+    setSaveBusy(true);
+    setSaveError(null);
+    setSaveMessage(null);
+    try {
+      const result = await updateProviderModel(provider.name, model);
+      setSaveMessage(`Saved revision ${result.revision}. ${result.note}.`);
+      onSaved();
+    } catch (caught) {
+      setSaveError(errorMessage(caught));
+    } finally {
+      setSaveBusy(false);
+    }
+  }
+
+  function toggleAgent(name: string) {
+    setAgentSelection((current) =>
+      current.includes(name)
+        ? current.filter((value) => value !== name)
+        : [...current, name],
+    );
+  }
+
+  async function saveAgents(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaveBusy(true);
+    setSaveError(null);
+    setSaveMessage(null);
+    try {
+      const result = await updateTenantSettings(tenant.tenant_id, {
+        agents_allow: agentSelection,
+      });
+      setSaveMessage(`Saved revision ${result.revision}. ${result.note}.`);
+      onSaved();
+    } catch (caught) {
+      setSaveError(errorMessage(caught));
+    } finally {
+      setSaveBusy(false);
+    }
+  }
   function toggleServer(name: string) {
     setExpandedServers((current) => {
       const next = new Set(current);
@@ -322,6 +397,32 @@ function SectionBody({ section, data }: { section: SectionKey; data: SettingsRes
             </p>
           </>
         )}
+        <form className="settings-edit" onSubmit={saveModel}>
+          <h4 className="settings-subheading">Edit model</h4>
+          <label className="field">
+            <span className="field-label">Model name</span>
+            <input
+              value={modelDraft}
+              onChange={(event) => setModelDraft(event.target.value)}
+              disabled={saveBusy}
+            />
+          </label>
+          <p className="muted small">
+            Saves to the providers document. The API key and base URL remain in the environment and
+            are never sent to the browser. Restart the API to apply.
+          </p>
+          <div className="settings-edit-actions">
+            <button type="submit" className="button button-primary" disabled={saveBusy}>
+              {saveBusy ? "Saving..." : "Save model"}
+            </button>
+          </div>
+          {saveMessage === null ? null : <p className="muted small">{saveMessage}</p>}
+          {saveError === null ? null : (
+            <p className="error-text small" role="alert">
+              {saveError}
+            </p>
+          )}
+        </form>
       </>
     );
   }
@@ -387,25 +488,51 @@ function SectionBody({ section, data }: { section: SectionKey; data: SettingsRes
       return <p className="muted">No agent is registered in this installation.</p>;
     }
     return (
-      <ul className="card-list">
-        {data.agents.map((agent) => (
-          <li key={agent.name} className="card">
-            <div className="card-head">
-              <code className="card-title">{agent.name}</code>
-              <BooleanTag value={agent.allowed} yes="allowed" no="denied" />
-            </div>
-            <p className="card-text">{agent.description}</p>
-            <p className="card-meta">
-              <span className="tag tag-neutral">{agent.cacheable ? "cacheable" : "not cacheable"}</span>
-              {agent.needs.length > 0 ? (
-                <Chips values={agent.needs} empty="" />
-              ) : (
-                <span className="muted">no tools or retriever needed</span>
-              )}
-            </p>
-          </li>
-        ))}
-      </ul>
+      <form className="settings-edit" onSubmit={saveAgents}>
+        <ul className="card-list">
+          {data.agents.map((agent) => (
+            <li key={agent.name} className="card">
+              <div className="card-head">
+                <code className="card-title">{agent.name}</code>
+                <label className="agent-toggle">
+                  <input
+                    type="checkbox"
+                    checked={agentSelection.includes(agent.name)}
+                    onChange={() => toggleAgent(agent.name)}
+                    disabled={saveBusy}
+                  />
+                  allowed
+                </label>
+              </div>
+              <p className="card-text">{agent.description}</p>
+              <p className="card-meta">
+                <span className="tag tag-neutral">
+                  {agent.cacheable ? "cacheable" : "not cacheable"}
+                </span>
+                {agent.needs.length > 0 ? (
+                  <Chips values={agent.needs} empty="" />
+                ) : (
+                  <span className="muted">no tools or retriever needed</span>
+                )}
+              </p>
+            </li>
+          ))}
+        </ul>
+        <p className="muted small">
+          At least one agent must stay allowed. Changes apply after an API restart.
+        </p>
+        <div className="settings-edit-actions">
+          <button type="submit" className="button button-primary" disabled={saveBusy}>
+            {saveBusy ? "Saving..." : "Save agents"}
+          </button>
+        </div>
+        {saveMessage === null ? null : <p className="muted small">{saveMessage}</p>}
+        {saveError === null ? null : (
+          <p className="error-text small" role="alert">
+            {saveError}
+          </p>
+        )}
+      </form>
     );
   }
 
@@ -627,9 +754,9 @@ export function SettingsDialog({
         <p className="read-only-note">
           <ShieldIcon className="read-only-icon" />
           <span>
-            Runtime settings. MCP servers can be added below; provider, model and agent values are
-            still read-only in this slice and apply on restart. No API key or base URL is sent to
-            the browser.
+            Runtime settings. MCP servers, the provider model and agent allowlists can be edited
+            here; tool allowlists and credentials are next. Changes apply after an API restart. No
+            API key or base URL is sent to the browser.
           </span>
         </p>
 
@@ -686,7 +813,13 @@ export function SettingsDialog({
                 </button>
               </div>
             ) : null}
-            {data !== null ? <SectionBody section={section} data={data} /> : null}
+            {data !== null ? (
+              <SectionBody
+                section={section}
+                data={data}
+                onSaved={() => setReloadKey((value) => value + 1)}
+              />
+            ) : null}
           </div>
         </div>
       </div>

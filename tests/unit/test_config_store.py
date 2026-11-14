@@ -68,8 +68,8 @@ class FakeDB:
         raise AssertionError(f"unexpected fetch: {query}")
 
     async def fetchrow(self, query: str, *args: Any) -> dict[str, Any] | None:
-        if "FROM public.settings_documents WHERE kind = 'platform'" in query:
-            entry = self.documents.get("platform")
+        if "FROM public.settings_documents WHERE kind = $1" in query:
+            entry = self.documents.get(args[0])
             return None if entry is None else {"payload": entry["payload"]}
         raise AssertionError(f"unexpected fetchrow: {query}")
 
@@ -202,3 +202,33 @@ async def test_add_tool_source_appends_and_validates() -> None:
             manifest=str(manifest),
             actor="test:admin",
         )
+
+
+@pytest.mark.asyncio
+async def test_update_tenant_and_provider_documents() -> None:
+    db = FakeDB()
+    store = SettingsStore(db, REPO / "config", CONFIG_ENV)
+    await store.seed_if_empty()
+
+    revision = await store.update_tenant(
+        "seller_a",
+        agents_allow=["data"],
+        tools_allow=["orders_summary@1"],
+        tools_ask=[],
+        actor="test:admin",
+    )
+    assert revision == 2
+    seller = db.documents["tenants"]["payload"]["tenants"]["seller_a"]
+    assert seller["agents"]["allow"] == ["data"]
+    assert seller["tools"]["allow"] == ["orders_summary@1"]
+
+    with pytest.raises(ConfigError, match="unknown agents"):
+        await store.update_tenant("seller_a", agents_allow=["ghost"], actor="test:admin")
+    with pytest.raises(ConfigError, match="unknown tenant"):
+        await store.update_tenant("ghost", agents_allow=["data"], actor="test:admin")
+
+    revision = await store.update_provider_model("lmstudio", "qwen3-8b-next", actor="test:admin")
+    assert revision == 2
+    assert db.documents["providers"]["payload"]["providers"]["lmstudio"]["model"] == "qwen3-8b-next"
+    with pytest.raises(ConfigError, match="unknown provider"):
+        await store.update_provider_model("ghost", "model", actor="test:admin")
