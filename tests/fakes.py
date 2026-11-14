@@ -157,7 +157,9 @@ class MemoryRunStore:
         rows.sort(key=lambda row: row["started_at"], reverse=True)
         return rows[:limit]
 
-    async def list_sessions(self, *, tenant_id: str, limit: int = 20) -> list[dict[str, Any]]:
+    async def list_sessions(
+        self, *, tenant_id: str, limit: int = 20, include_deleted: bool = False
+    ) -> list[dict[str, Any]]:
         grouped: dict[str, dict[str, Any]] = {}
         for row in self.runs.values():
             if row["tenant_id"] != tenant_id or row["session_id"] is None:
@@ -190,12 +192,14 @@ class MemoryRunStore:
         rows = [
             row
             for row in sorted(grouped.values(), key=lambda row: row["last_run_at"], reverse=True)
-            if (tenant_id, row["session_id"]) not in self.deleted_sessions
+            if include_deleted or (tenant_id, row["session_id"]) not in self.deleted_sessions
         ]
         for row in rows:
-            override = self.session_titles.get((tenant_id, row["session_id"]))
+            key = (tenant_id, row["session_id"])
+            override = self.session_titles.get(key)
             if override is not None:
                 row["title"] = override
+            row["deleted_at"] = datetime.now(UTC) if key in self.deleted_sessions else None
         return rows[:limit]
 
     async def rename_session(self, *, tenant_id: str, session_id: str, title: str) -> bool:
@@ -215,6 +219,13 @@ class MemoryRunStore:
         ):
             return False
         self.deleted_sessions.add((tenant_id, session_id))
+        return True
+
+    async def restore_session(self, *, tenant_id: str, session_id: str) -> bool:
+        key = (tenant_id, session_id)
+        if key not in self.deleted_sessions:
+            return False
+        self.deleted_sessions.remove(key)
         return True
 
     async def list_documents(self, *, tenant_id: str) -> list[dict[str, Any]]:

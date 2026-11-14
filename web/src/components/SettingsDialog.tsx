@@ -13,6 +13,7 @@ import {
   isAbortError,
   listDocuments,
   postJson,
+  restoreSession,
   updateProviderModel,
   updateTenantSettings,
   uploadDocument,
@@ -20,6 +21,8 @@ import {
 import type {
   DocumentChunk,
   DocumentSummary,
+  SessionsResponse,
+  SessionSummary,
   SettingsResponse,
   SettingsTool,
 } from "../api";
@@ -33,7 +36,8 @@ type SectionKey =
   | "agents"
   | "retrieval"
   | "cache"
-  | "knowledge";
+  | "knowledge"
+  | "conversations";
 
 const SECTIONS: Array<{ key: SectionKey; label: string }> = [
   { key: "account", label: "Account" },
@@ -44,6 +48,7 @@ const SECTIONS: Array<{ key: SectionKey; label: string }> = [
   { key: "retrieval", label: "Retrieval" },
   { key: "cache", label: "Cache" },
   { key: "knowledge", label: "Knowledge" },
+  { key: "conversations", label: "Conversations" },
 ];
 
 function Value({ label, children }: { label: string; children: ReactNode }) {
@@ -435,6 +440,109 @@ function KnowledgeSection({ tenantId }: { tenantId: string }) {
   );
 }
 
+function ConversationsSection({ tenantId }: { tenantId: string }) {
+  const [sessions, setSessions] = useState<SessionSummary[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setSessions(null);
+    setError(null);
+    getJson<SessionsResponse>(
+      `/sessions?tenant_id=${encodeURIComponent(tenantId)}&limit=50&include_deleted=true`,
+      controller.signal,
+    )
+      .then((payload) => {
+        if (!controller.signal.aborted) {
+          setSessions(payload.sessions);
+        }
+      })
+      .catch((caught) => {
+        if (!isAbortError(caught)) {
+          setError(errorMessage(caught));
+        }
+      });
+    return () => controller.abort();
+  }, [tenantId, reload]);
+
+  async function restore(session: SessionSummary) {
+    setBusy(session.session_id);
+    setError(null);
+    try {
+      await restoreSession(session.session_id, tenantId);
+      setReload((value) => value + 1);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (sessions === null && error === null) {
+    return <p className="muted">Loading conversations...</p>;
+  }
+  if (error !== null) {
+    return (
+      <div className="error-box" role="alert">
+        <strong>Conversations could not be loaded</strong>
+        <p>{error}</p>
+        <button
+          type="button"
+          className="button button-quiet"
+          onClick={() => setReload((value) => value + 1)}
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+  if (sessions === null || sessions.length === 0) {
+    return <p className="muted">No conversation is stored for this tenant.</p>;
+  }
+
+  return (
+    <div>
+      <p className="muted small">
+        {sessions.length} conversation{sessions.length === 1 ? "" : "s"}, including hidden ones.
+        Restoring a hidden conversation does not change its runs or traces.
+      </p>
+      <ul className="card-list">
+        {sessions.map((session) => (
+          <li key={session.session_id} className="card">
+            <div className="card-head">
+              <code className="card-title">{session.title}</code>
+              <span className={`tag tag-${session.deleted_at === null ? "ok" : "neutral"}`}>
+                {session.deleted_at === null ? "active" : "hidden"}
+              </span>
+            </div>
+            <p className="card-text">{session.last_query}</p>
+            <p className="card-meta">
+              <span className="muted">
+                {session.run_count} run{session.run_count === 1 ? "" : "s"}, last{" "}
+                {new Date(session.last_run_at).toLocaleString()}
+              </span>
+            </p>
+            {session.deleted_at === null ? null : (
+              <div className="document-actions">
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  onClick={() => void restore(session)}
+                  disabled={busy !== null}
+                >
+                  {busy === session.session_id ? "Restoring..." : "Restore"}
+                </button>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function SectionBody({
   section,
   data,
@@ -643,6 +751,10 @@ function SectionBody({
 
   if (section === "knowledge") {
     return <KnowledgeSection tenantId={tenant.tenant_id} />;
+  }
+
+  if (section === "conversations") {
+    return <ConversationsSection tenantId={tenant.tenant_id} />;
   }
 
   if (section === "model") {

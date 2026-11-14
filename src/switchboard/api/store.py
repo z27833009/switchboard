@@ -98,13 +98,14 @@ counts AS (
     GROUP BY session_id
 )
 SELECT f.session_id, f.tenant_id, COALESCE(m.title, f.title) AS title,
-       l.last_query, l.status, l.plan, c.run_count, f.started_at, l.last_run_at
+       l.last_query, l.status, l.plan, c.run_count, f.started_at, l.last_run_at,
+       m.deleted_at
 FROM firsts f
 JOIN lasts l USING (session_id)
 JOIN counts c USING (session_id)
 LEFT JOIN public.session_metadata m
        ON m.tenant_id = f.tenant_id AND m.session_id = f.session_id
-WHERE m.deleted_at IS NULL
+WHERE $3::boolean OR m.deleted_at IS NULL
 ORDER BY l.last_run_at DESC, f.session_id DESC
 LIMIT $2
 """
@@ -158,6 +159,13 @@ INSERT INTO public.session_metadata (tenant_id, session_id, deleted_at, updated_
 VALUES ($1, $2, now(), now())
 ON CONFLICT (tenant_id, session_id) DO UPDATE
 SET deleted_at = now(), updated_at = now()
+"""
+
+RESTORE_SESSION_SQL = """
+UPDATE public.session_metadata
+SET deleted_at = NULL, updated_at = now()
+WHERE tenant_id = $1 AND session_id = $2 AND deleted_at IS NOT NULL
+RETURNING session_id
 """
 
 # Aggregation for `GET /runs?group_by=`. Days are UTC because started_at is a
@@ -347,11 +355,15 @@ class RunStore(Protocol):
         session_id: str | None = None,
     ) -> list[dict[str, Any]]: ...
 
-    async def list_sessions(self, *, tenant_id: str, limit: int = 20) -> list[dict[str, Any]]: ...
+    async def list_sessions(
+        self, *, tenant_id: str, limit: int = 20, include_deleted: bool = False
+    ) -> list[dict[str, Any]]: ...
 
     async def rename_session(self, *, tenant_id: str, session_id: str, title: str) -> bool: ...
 
     async def delete_session(self, *, tenant_id: str, session_id: str) -> bool: ...
+
+    async def restore_session(self, *, tenant_id: str, session_id: str) -> bool: ...
 
     async def list_documents(self, *, tenant_id: str) -> list[dict[str, Any]]: ...
 
@@ -450,8 +462,10 @@ class PgRunStore:
         rows = await self._pool.fetch(LIST_RUNS_SQL, tenant_id, limit, session_id)
         return [run_row(row) for row in rows]
 
-    async def list_sessions(self, *, tenant_id: str, limit: int = 20) -> list[dict[str, Any]]:
-        rows = await self._pool.fetch(LIST_SESSIONS_SQL, tenant_id, limit)
+    async def list_sessions(
+        self, *, tenant_id: str, limit: int = 20, include_deleted: bool = False
+    ) -> list[dict[str, Any]]:
+        rows = await self._pool.fetch(LIST_SESSIONS_SQL, tenant_id, limit, include_deleted)
         return [dict(row) for row in rows]
 
     async def rename_session(self, *, tenant_id: str, session_id: str, title: str) -> bool:
@@ -469,6 +483,10 @@ class PgRunStore:
                 return False
             await connection.execute(DELETE_SESSION_SQL, tenant_id, session_id)
         return True
+
+    async def restore_session(self, *, tenant_id: str, session_id: str) -> bool:
+        row = await self._pool.fetchrow(RESTORE_SESSION_SQL, tenant_id, session_id)
+        return row is not None
 
     async def list_documents(self, *, tenant_id: str) -> list[dict[str, Any]]:
         rows = await self._pool.fetch(LIST_DOCUMENTS_SQL, tenant_id)

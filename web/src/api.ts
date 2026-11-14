@@ -125,6 +125,7 @@ export interface SessionSummary {
   run_count: number;
   started_at: string;
   last_run_at: string;
+  deleted_at: string | null;
 }
 
 export interface SessionsResponse {
@@ -482,6 +483,20 @@ export async function deleteSession(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export async function restoreSession(
+  sessionId: string,
+  tenantId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/restore?tenant_id=${encodeURIComponent(tenantId)}`,
+    { method: "POST", signal, headers: { Accept: "application/json" } },
+  );
+  if (!response.ok) {
+    throw new ApiError(await describeHttpError(response), response.status);
+  }
 }
 
 async function describeHttpError(response: Response): Promise<string> {

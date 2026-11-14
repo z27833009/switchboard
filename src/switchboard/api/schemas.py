@@ -241,6 +241,7 @@ class SessionSummary(BaseModel):
     run_count: int
     started_at: datetime
     last_run_at: datetime
+    deleted_at: datetime | None = None
 
     @classmethod
     def from_row(cls, row: Mapping[str, Any]) -> SessionSummary:
@@ -254,6 +255,7 @@ class SessionSummary(BaseModel):
             run_count=int(row["run_count"]),
             started_at=cast(datetime, row["started_at"]),
             last_run_at=cast(datetime, row["last_run_at"]),
+            deleted_at=cast(datetime | None, row.get("deleted_at")),
         )
 
 
@@ -275,6 +277,13 @@ class SessionRename(BaseModel):
         if not cleaned:
             raise ValueError("title must not be blank")
         return cleaned
+
+
+class SessionBulkDelete(BaseModel):
+    """The body of ``POST /sessions/bulk-delete`` (V3.07)."""
+
+    tenant_id: str = Field(min_length=1)
+    session_ids: list[str] = Field(min_length=1, max_length=100)
 
 
 class RunAggregateRow(BaseModel):
@@ -632,6 +641,7 @@ __all__ = [
     "RunAggregateRow",
     "RunSummary",
     "RunsResponse",
+    "SessionBulkDelete",
     "SessionRename",
     "SettingsAgent",
     "SettingsMcpServer",

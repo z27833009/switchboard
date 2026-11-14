@@ -56,6 +56,7 @@ from switchboard.api.schemas import (
     RunAggregateRow,
     RunsResponse,
     RunSummary,
+    SessionBulkDelete,
     SessionRename,
     SessionsResponse,
     SessionSummary,
@@ -355,6 +356,9 @@ async def list_sessions(
     request: Request,
     tenant_id: str = Query(min_length=1, description="Tenant whose conversations to list."),
     limit: int = Query(default=20, ge=1, le=100),
+    include_deleted: bool = Query(
+        default=False, description="Also list conversations hidden from the sidebar."
+    ),
 ) -> SessionsResponse:
     """The tenant's conversations, newest first, one row per session.
 
@@ -364,7 +368,9 @@ async def list_sessions(
     """
     deps = _deps(request.app)
     tenant = _tenant(deps, tenant_id)
-    rows = await deps.store.list_sessions(tenant_id=tenant.tenant_id, limit=limit)
+    rows = await deps.store.list_sessions(
+        tenant_id=tenant.tenant_id, limit=limit, include_deleted=include_deleted
+    )
     return SessionsResponse(
         sessions=[SessionSummary.from_row(row) for row in rows],
         count=len(rows),
@@ -397,6 +403,39 @@ async def delete_session(
     if not deleted:
         raise HTTPException(status_code=404, detail="session not found")
     return Response(status_code=204)
+
+
+@router.post("/sessions/{session_id}/restore", status_code=204)
+async def restore_session(
+    request: Request,
+    session_id: str,
+    tenant_id: str = Query(min_length=1),
+) -> Response:
+    """Put one hidden conversation back in the sidebar without touching its runs."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, tenant_id)
+    restored = await deps.store.restore_session(tenant_id=tenant.tenant_id, session_id=session_id)
+    if not restored:
+        raise HTTPException(status_code=404, detail="conversation is not deleted")
+    return Response(status_code=204)
+
+
+@router.post("/sessions/bulk-delete")
+async def bulk_delete_sessions(
+    request: Request, payload: SessionBulkDelete
+) -> dict[str, list[str]]:
+    """Hide many conversations at once, returning the ids that did not exist."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, payload.tenant_id)
+    missing: list[str] = []
+    for session_id in dict.fromkeys(payload.session_ids):
+        deleted = await deps.store.delete_session(tenant_id=tenant.tenant_id, session_id=session_id)
+        if not deleted:
+            missing.append(session_id)
+    return {
+        "deleted": [value for value in payload.session_ids if value not in missing],
+        "missing": missing,
+    }
 
 
 @router.get("/documents", response_model=DocumentsResponse)

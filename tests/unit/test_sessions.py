@@ -424,6 +424,22 @@ async def test_a_conversation_can_be_renamed_and_hidden_without_deleting_runs(
     assert after.status_code == 200
     assert all(item["session_id"] != session for item in after.json()["sessions"])
 
+    archived = await harness.client.get(
+        "/sessions",
+        params={"tenant_id": "default", "limit": 20, "include_deleted": "true"},
+    )
+    assert archived.status_code == 200
+    hidden_row = next(item for item in archived.json()["sessions"] if item["session_id"] == session)
+    assert hidden_row["deleted_at"] is not None
+
+    restored = await harness.client.post(
+        f"/sessions/{session}/restore", params={"tenant_id": "default"}
+    )
+    assert restored.status_code == 204, restored.text
+    active = await harness.client.get("/sessions", params={"tenant_id": "default", "limit": 20})
+    restored_row = next(item for item in active.json()["sessions"] if item["session_id"] == session)
+    assert restored_row["deleted_at"] is None
+
     # The hidden conversation's runs are still stored and remain readable.
     runs = await harness.client.get("/runs", params={"tenant_id": "default", "session_id": session})
     assert runs.status_code == 200
@@ -439,6 +455,26 @@ async def test_a_conversation_can_be_renamed_and_hidden_without_deleting_runs(
         json={"tenant_id": "default", "title": "   "},
     )
     assert blank.status_code == 422
+
+
+async def test_bulk_delete_hides_present_sessions_and_reports_missing_ones(
+    harness: AppHarness,
+) -> None:
+    first = str(uuid.uuid4())
+    second = str(uuid.uuid4())
+    await post_chat(harness, "first bulk question", session_id=first)
+    await post_chat(harness, "second bulk question", session_id=second)
+    missing = str(uuid.uuid4())
+    response = await harness.client.post(
+        "/sessions/bulk-delete",
+        json={"tenant_id": "default", "session_ids": [first, second, missing]},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json() == {"deleted": [first, second], "missing": [missing]}
+    listed = await harness.client.get("/sessions", params={"tenant_id": "default", "limit": 20})
+    ids = {row["session_id"] for row in listed.json()["sessions"]}
+    assert first not in ids
+    assert second not in ids
 
 
 async def test_a_clarify_run_finished_event_carries_the_status() -> None:
