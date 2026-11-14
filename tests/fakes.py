@@ -188,9 +188,7 @@ class MemoryRunStore:
                 current["plan"] = row["plan"]
         rows = [
             row
-            for row in sorted(
-                grouped.values(), key=lambda row: row["last_run_at"], reverse=True
-            )
+            for row in sorted(grouped.values(), key=lambda row: row["last_run_at"], reverse=True)
             if (tenant_id, row["session_id"]) not in self.deleted_sessions
         ]
         for row in rows:
@@ -199,9 +197,7 @@ class MemoryRunStore:
                 row["title"] = override
         return rows[:limit]
 
-    async def rename_session(
-        self, *, tenant_id: str, session_id: str, title: str
-    ) -> bool:
+    async def rename_session(self, *, tenant_id: str, session_id: str, title: str) -> bool:
         if not any(
             row["tenant_id"] == tenant_id and row["session_id"] == session_id
             for row in self.runs.values()

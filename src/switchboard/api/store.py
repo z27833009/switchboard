@@ -318,9 +318,7 @@ class RunStore(Protocol):
 
     async def list_sessions(self, *, tenant_id: str, limit: int = 20) -> list[dict[str, Any]]: ...
 
-    async def rename_session(
-        self, *, tenant_id: str, session_id: str, title: str
-    ) -> bool: ...
+    async def rename_session(self, *, tenant_id: str, session_id: str, title: str) -> bool: ...
 
     async def delete_session(self, *, tenant_id: str, session_id: str) -> bool: ...
 
@@ -417,13 +415,9 @@ class PgRunStore:
         rows = await self._pool.fetch(LIST_SESSIONS_SQL, tenant_id, limit)
         return [dict(row) for row in rows]
 
-    async def rename_session(
-        self, *, tenant_id: str, session_id: str, title: str
-    ) -> bool:
+    async def rename_session(self, *, tenant_id: str, session_id: str, title: str) -> bool:
         async with self._pool.acquire() as connection, connection.transaction():
-            exists = await connection.fetchval(
-                SESSION_EXISTS_SQL, tenant_id, session_id
-            )
+            exists = await connection.fetchval(SESSION_EXISTS_SQL, tenant_id, session_id)
             if exists is None:
                 return False
             await connection.execute(RENAME_SESSION_SQL, tenant_id, session_id, title)
@@ -431,9 +425,7 @@ class PgRunStore:
 
     async def delete_session(self, *, tenant_id: str, session_id: str) -> bool:
         async with self._pool.acquire() as connection, connection.transaction():
-            exists = await connection.fetchval(
-                SESSION_EXISTS_SQL, tenant_id, session_id
-            )
+            exists = await connection.fetchval(SESSION_EXISTS_SQL, tenant_id, session_id)
             if exists is None:
                 return False
             await connection.execute(DELETE_SESSION_SQL, tenant_id, session_id)

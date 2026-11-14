@@ -363,9 +363,7 @@ async def list_sessions(
 
 
 @router.patch("/sessions/{session_id}", status_code=204)
-async def rename_session(
-    request: Request, session_id: str, payload: SessionRename
-) -> Response:
+async def rename_session(request: Request, session_id: str, payload: SessionRename) -> Response:
     """Rename one conversation without changing its runs or traces."""
     deps = _deps(request.app)
     tenant = _tenant(deps, payload.tenant_id)
@@ -386,9 +384,7 @@ async def delete_session(
     """Hide one conversation from the sidebar; runs and traces remain stored."""
     deps = _deps(request.app)
     tenant = _tenant(deps, tenant_id)
-    deleted = await deps.store.delete_session(
-        tenant_id=tenant.tenant_id, session_id=session_id
-    )
+    deleted = await deps.store.delete_session(tenant_id=tenant.tenant_id, session_id=session_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="session not found")
     return Response(status_code=204)

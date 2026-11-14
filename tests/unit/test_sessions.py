@@ -412,28 +412,20 @@ async def test_a_conversation_can_be_renamed_and_hidden_without_deleting_runs(
     )
     assert renamed.status_code == 204, renamed.text
 
-    listed = await harness.client.get(
-        "/sessions", params={"tenant_id": "default", "limit": 20}
-    )
+    listed = await harness.client.get("/sessions", params={"tenant_id": "default", "limit": 20})
     assert listed.status_code == 200, listed.text
     row = next(item for item in listed.json()["sessions"] if item["session_id"] == session)
     assert row["title"] == "Renamed conversation"
 
-    hidden = await harness.client.delete(
-        f"/sessions/{session}", params={"tenant_id": "default"}
-    )
+    hidden = await harness.client.delete(f"/sessions/{session}", params={"tenant_id": "default"})
     assert hidden.status_code == 204, hidden.text
 
-    after = await harness.client.get(
-        "/sessions", params={"tenant_id": "default", "limit": 20}
-    )
+    after = await harness.client.get("/sessions", params={"tenant_id": "default", "limit": 20})
     assert after.status_code == 200
     assert all(item["session_id"] != session for item in after.json()["sessions"])
 
     # The hidden conversation's runs are still stored and remain readable.
-    runs = await harness.client.get(
-        "/runs", params={"tenant_id": "default", "session_id": session}
-    )
+    runs = await harness.client.get("/runs", params={"tenant_id": "default", "session_id": session})
     assert runs.status_code == 200
     assert runs.json()["count"] == 1
     assert runs.json()["runs"][0]["query"] == "original title"
