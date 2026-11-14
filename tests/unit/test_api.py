@@ -558,6 +558,7 @@ async def test_openapi_and_docs_render(harness: AppHarness) -> None:
         "/runs/{run_id}/trace",
         "/health",
         "/settings",
+        "/settings/mcp-servers",
     }
     docs = await harness.client.get("/docs")
     assert docs.status_code == 200

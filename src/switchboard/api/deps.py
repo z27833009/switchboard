@@ -80,6 +80,9 @@ class AppDeps:
     # a test that injects AppDeps without one, which the route answers with 503
     # rather than inventing values.
     settings_snapshot: Mapping[str, Mapping[str, Any]] | None = None
+    # The database control-plane writer (V3.03). None with YAML or an injected
+    # test app; the write route answers 503 rather than guessing a database.
+    settings_store: Any | None = None
 
     def orchestrator_for(self, tenant_provider: str, name: str | None = None) -> Orchestrator:
         """The default orchestrator, or a named replay target when ``name`` is set.
@@ -382,6 +385,13 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
         settings_snapshot = build_settings_snapshots(
             settings, registry, available_orchestrators=available
         )
+        settings_connection = None
+        settings_store = None
+        if config_source == "db":
+            # One reserved connection owns the revisioned writes; the rest of
+            # the pool stays available to requests. V3.03 uses this seam.
+            settings_connection = await pool.acquire()
+            settings_store = SettingsStore(settings_connection, config_dir, source)
     except BaseException:
         await pool.close()
         if tracing is not None:
@@ -390,6 +400,8 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
 
     async def close() -> None:
         await _close_cache(built.cache)
+        if settings_connection is not None:
+            await pool.release(settings_connection)
         await pool.close()
         if tracing is not None:
             tracing.shutdown()
@@ -408,6 +420,7 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
         closer=close,
         sensitive_args=load_sensitive_args(settings.platform.tool_sources),
         settings_snapshot=settings_snapshot,
+        settings_store=settings_store,
     )
 
 

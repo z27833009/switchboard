@@ -1753,6 +1753,28 @@ dialog::backdrop {
   flex-wrap: wrap;
 }
 
+.mcp-add {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.mcp-add > .settings-subheading {
+  margin: 0;
+}
+
+.mcp-add-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.error-text {
+  margin: 0;
+  color: var(--error);
+}
+
 .kv-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

@@ -441,6 +441,22 @@ class SettingsMcpServer(BaseModel):
     tool_count: int
 
 
+class McpServerSubmission(BaseModel):
+    """An MCP server the local administrator wants to add (V3.03)."""
+
+    name: str = Field(min_length=1, max_length=64)
+    url: str = Field(min_length=1, max_length=2000)
+    manifest: str = Field(min_length=1, max_length=4000)
+
+
+class McpServerResult(BaseModel):
+    """The revision written by a successful MCP server addition."""
+
+    status: str
+    revision: int
+    note: str
+
+
 class SettingsTool(BaseModel):
     """One tool manifest entry, with whether this tenant may call it."""
 

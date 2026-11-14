@@ -128,6 +128,59 @@ class SettingsStore:
             paths.append(path)
         return paths
 
+    async def add_tool_source(
+        self,
+        *,
+        name: str,
+        url: str,
+        manifest: str,
+        actor: str,
+        adapter: str = "mcp",
+    ) -> int:
+        """Append one MCP tool source to the platform document.
+
+        A manifest is required until server-side tool discovery lands: the API
+        validates tenant allowlists against manifest wire names, and a source
+        without one would be invisible in the settings snapshot. The route is
+        deliberately restart-to-apply: the running process keeps the tool
+        sources it built at startup.
+        """
+        clean_name = name.strip()
+        if not clean_name or not clean_name.replace("-", "").replace("_", "").isalnum():
+            raise ConfigError("MCP server name must be letters, digits, '-' or '_'")
+        clean_url = url.strip()
+        if not clean_url.startswith(("http://", "https://")):
+            raise ConfigError("MCP server URL must start with http:// or https://")
+        manifest_path = Path(manifest.strip())
+        if not manifest_path.is_file():
+            raise ConfigError(f"MCP manifest not found: {manifest_path}")
+        row = await self._db.fetchrow(
+            "SELECT payload FROM public.settings_documents WHERE kind = 'platform'"
+        )
+        if row is None:
+            raise ConfigError("platform settings document is missing")
+        platform = _as_mapping(row["payload"])
+        sources = list(platform.get("tool_sources", []))
+        if any(
+            str(source.get("name")) == clean_name for source in sources if isinstance(source, dict)
+        ):
+            raise ConfigError(f"MCP server {clean_name!r} already exists")
+        sources.append(
+            {
+                "name": clean_name,
+                "adapter": adapter,
+                "url": clean_url,
+                "manifest": str(manifest_path),
+            }
+        )
+        platform["tool_sources"] = sources
+        return await self.replace_document(
+            "platform",
+            platform,
+            actor=actor,
+            note=f"add MCP server {clean_name}",
+        )
+
     async def replace_document(
         self,
         kind: str,

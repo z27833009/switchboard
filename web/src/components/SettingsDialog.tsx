@@ -1,7 +1,11 @@
-import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
+import type {
+  FormEvent,
+  KeyboardEvent as ReactKeyboardEvent,
+  ReactNode,
+} from "react";
 import { useEffect, useRef, useState } from "react";
 
-import { errorMessage, getJson, isAbortError } from "../api";
+import { errorMessage, getJson, isAbortError, postJson } from "../api";
 import type { SettingsResponse, SettingsTool } from "../api";
 import { CloseIcon, ShieldIcon } from "./Icons";
 
@@ -74,6 +78,84 @@ function ToolCards({ tools }: { tools: SettingsTool[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function McpServerForm() {
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [manifest, setManifest] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const result = await postJson<{ revision: number; note: string }>(
+        "/settings/mcp-servers",
+        { name, url, manifest },
+      );
+      setMessage(`Saved revision ${result.revision}. ${result.note}.`);
+      setName("");
+      setUrl("");
+      setManifest("");
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="mcp-add" onSubmit={submit}>
+      <h4 className="settings-subheading">Add MCP server</h4>
+      <p className="muted small">
+        The manifest is required until tool discovery lands. The new server is written to the
+        database and appears after an API restart.
+      </p>
+      <label className="field">
+        <span className="field-label">Name</span>
+        <input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="crm"
+          required
+        />
+      </label>
+      <label className="field">
+        <span className="field-label">MCP URL</span>
+        <input
+          value={url}
+          onChange={(event) => setUrl(event.target.value)}
+          placeholder="http://host.docker.internal:9000/mcp"
+          required
+        />
+      </label>
+      <label className="field">
+        <span className="field-label">Manifest path</span>
+        <input
+          value={manifest}
+          onChange={(event) => setManifest(event.target.value)}
+          placeholder="mcp_servers/crm/manifest.yaml"
+          required
+        />
+      </label>
+      <div className="mcp-add-actions">
+        <button type="submit" className="button button-primary" disabled={busy}>
+          {busy ? "Saving..." : "Add server"}
+        </button>
+      </div>
+      {message === null ? null : <p className="muted small">{message}</p>}
+      {error === null ? null : (
+        <p className="error-text small" role="alert">
+          {error}
+        </p>
+      )}
+    </form>
   );
 }
 
@@ -256,6 +338,7 @@ function SectionBody({ section, data }: { section: SectionKey; data: SettingsRes
             </section>
           );
         })}
+        <McpServerForm />
       </div>
     );
   }

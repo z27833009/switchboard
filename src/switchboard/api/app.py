@@ -43,6 +43,8 @@ from switchboard.api.schemas import (
     ChatResponse,
     FeedbackSubmission,
     FeedbackSummary,
+    McpServerResult,
+    McpServerSubmission,
     RunAggregateResponse,
     RunAggregateRow,
     RunsResponse,
@@ -598,6 +600,37 @@ async def get_settings(
     if snapshot is None or tenant.tenant_id not in snapshot:
         raise HTTPException(status_code=503, detail="the settings snapshot is not available")
     return SettingsResponse.model_validate(snapshot[tenant.tenant_id])
+
+
+@router.post("/settings/mcp-servers", response_model=McpServerResult, status_code=201)
+async def add_mcp_server(request: Request, submission: McpServerSubmission) -> McpServerResult:
+    """Add one MCP source to the database control plane (V3.03).
+
+    The runtime keeps the sources it built at startup, so the response says a
+    restart is required. A manifest is required because the settings snapshot
+    and tenant validation read wire names from it.
+    """
+    deps = _deps(request.app)
+    store = deps.settings_store
+    if store is None:
+        raise HTTPException(
+            status_code=503,
+            detail="the settings control plane is not available; set SWITCHBOARD_CONFIG_SOURCE=db",
+        )
+    try:
+        revision = await store.add_tool_source(
+            name=submission.name,
+            url=submission.url,
+            manifest=submission.manifest,
+            actor="local:admin",
+        )
+    except ConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return McpServerResult(
+        status="ok",
+        revision=revision,
+        note="restart the API to build and expose the new MCP server",
+    )
 
 
 @router.get("/audit", response_model=AuditResponse)

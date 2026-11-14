@@ -67,6 +67,12 @@ class FakeDB:
             ]
         raise AssertionError(f"unexpected fetch: {query}")
 
+    async def fetchrow(self, query: str, *args: Any) -> dict[str, Any] | None:
+        if "FROM public.settings_documents WHERE kind = 'platform'" in query:
+            entry = self.documents.get("platform")
+            return None if entry is None else {"payload": entry["payload"]}
+        raise AssertionError(f"unexpected fetchrow: {query}")
+
     async def execute(self, query: str, *args: Any) -> str:
         if "INSERT INTO public.settings_revisions" in query:
             kind, revision, payload, actor, note = args
@@ -152,3 +158,47 @@ async def test_load_refuses_a_partial_control_plane() -> None:
     store = SettingsStore(db, REPO / "config", CONFIG_ENV)
     with pytest.raises(ConfigError, match="missing"):
         await store.load()
+
+
+@pytest.mark.asyncio
+async def test_add_tool_source_appends_and_validates() -> None:
+    db = FakeDB()
+    store = SettingsStore(db, REPO / "config", CONFIG_ENV)
+    await store.seed_if_empty()
+    manifest = REPO / "mcp_servers" / "olist" / "manifest.yaml"
+    revision = await store.add_tool_source(
+        name="crm",
+        url="http://crm:9000/mcp",
+        manifest=str(manifest),
+        actor="test:admin",
+    )
+    assert revision == 2
+    sources = db.documents["platform"]["payload"]["tool_sources"]
+    assert sources[-1] == {
+        "name": "crm",
+        "adapter": "mcp",
+        "url": "http://crm:9000/mcp",
+        "manifest": str(manifest),
+    }
+
+    with pytest.raises(ConfigError, match="already exists"):
+        await store.add_tool_source(
+            name="crm",
+            url="http://crm:9000/mcp",
+            manifest=str(manifest),
+            actor="test:admin",
+        )
+    with pytest.raises(ConfigError, match="manifest not found"):
+        await store.add_tool_source(
+            name="missing",
+            url="http://missing:9000/mcp",
+            manifest="does-not-exist.yaml",
+            actor="test:admin",
+        )
+    with pytest.raises(ConfigError, match="http"):
+        await store.add_tool_source(
+            name="bad-url",
+            url="ftp://bad",
+            manifest=str(manifest),
+            actor="test:admin",
+        )
