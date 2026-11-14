@@ -2045,7 +2045,7 @@ dialog::backdrop {
 .tree-guides {
   --thread: color-mix(in srgb, var(--text-secondary) 30%, var(--bg));
   --tree-step: 28px;
-  --tree-half: 14px;
+  --tree-node: 9px;
   position: relative;
   display: flex;
   flex: none;
@@ -2058,7 +2058,7 @@ dialog::backdrop {
   position: absolute;
   inset-block-start: 50%;
   inset-block-end: -2px;
-  inset-inline-start: calc(100% + var(--tree-half));
+  inset-inline-start: calc(100% + var(--tree-node));
   border-inline-start: 1px solid var(--thread);
 }
 
@@ -2073,7 +2073,7 @@ dialog::backdrop {
 .tree-guide.has-line::before {
   position: absolute;
   inset-block: -2px;
-  inset-inline-start: var(--tree-half);
+  inset-inline-start: var(--tree-node);
   border-inline-start: 1px solid var(--thread);
   content: "";
 }
@@ -2081,7 +2081,7 @@ dialog::backdrop {
 .tree-branch::before {
   position: absolute;
   inset-block-start: -2px;
-  inset-inline-start: var(--tree-half);
+  inset-inline-start: var(--tree-node);
   inline-size: 1px;
   block-size: calc(50% - 12px);
   background: var(--thread);
@@ -2096,8 +2096,8 @@ dialog::backdrop {
 .tree-branch::after {
   position: absolute;
   inset-block-start: calc(50% - 12px);
-  inset-inline-start: var(--tree-half);
-  inline-size: var(--tree-half);
+  inset-inline-start: var(--tree-node);
+  inline-size: calc(var(--tree-step) - var(--tree-node));
   block-size: 12px;
   border-block-end: 1px solid var(--thread);
   border-inline-start: 1px solid var(--thread);
