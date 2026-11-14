@@ -1983,6 +1983,12 @@ dialog::backdrop {
   font-size: 12px;
 }
 
+.tool-mode-select {
+  inline-size: 92px;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
 .mcp-add > .settings-subheading {
   margin: 0;
 }

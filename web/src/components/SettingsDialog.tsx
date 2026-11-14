@@ -63,15 +63,38 @@ function Chips({ values, empty }: { values: string[]; empty: string }) {
   );
 }
 
-function ToolCards({ tools }: { tools: SettingsTool[] }) {
+function ToolCards({
+  tools,
+  modeFor,
+  onModeChange,
+}: {
+  tools: SettingsTool[];
+  modeFor: (tool: SettingsTool) => "allow" | "ask" | "denied";
+  onModeChange: (tool: SettingsTool, mode: "allow" | "ask" | "denied") => void;
+}) {
   return (
     <ul className="card-list">
-      {tools.map((tool) => (
-        <li key={tool.wire_name} className="card">
-          <div className="card-head">
-            <code className="card-title">{tool.wire_name}</code>
-            <BooleanTag value={tool.allowed} yes="allowed" no="denied" />
-          </div>
+      {tools.map((tool) => {
+        const mode = modeFor(tool);
+        return (
+          <li key={tool.wire_name} className="card">
+            <div className="card-head">
+              <code className="card-title">{tool.wire_name}</code>
+              <select
+                className="tool-mode-select"
+                value={mode}
+                aria-label={`Permission for ${tool.wire_name}`}
+                onChange={(event) =>
+                  onModeChange(tool, event.target.value as "allow" | "ask" | "denied")
+                }
+              >
+                <option value="denied">denied</option>
+                <option value="allow" disabled={tool.risk === "write"}>
+                  allow
+                </option>
+                <option value="ask">ask</option>
+              </select>
+            </div>
           <p className="card-text">{tool.description}</p>
           <p className="card-meta">
             <span className="tag tag-neutral">{tool.risk}</span>
@@ -82,8 +105,9 @@ function ToolCards({ tools }: { tools: SettingsTool[] }) {
               name {tool.name}, version {tool.version}
             </span>
           </p>
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -183,6 +207,8 @@ function SectionBody({
   const [addingServer, setAddingServer] = useState(false);
   const [modelDraft, setModelDraft] = useState(provider.model ?? "");
   const [agentSelection, setAgentSelection] = useState<string[]>(tenant.agents_allow);
+  const [toolsAllow, setToolsAllow] = useState<string[]>(tenant.tools_allow);
+  const [toolsAsk, setToolsAsk] = useState<string[]>(tenant.tools_ask);
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -194,6 +220,11 @@ function SectionBody({
   useEffect(() => {
     setAgentSelection(tenant.agents_allow);
   }, [tenant.agents_allow]);
+
+  useEffect(() => {
+    setToolsAllow(tenant.tools_allow);
+    setToolsAsk(tenant.tools_ask);
+  }, [tenant.tools_allow, tenant.tools_ask]);
 
   async function saveModel(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -232,6 +263,48 @@ function SectionBody({
     try {
       const result = await updateTenantSettings(tenant.tenant_id, {
         agents_allow: agentSelection,
+      });
+      setSaveMessage(`Saved revision ${result.revision}. ${result.note}.`);
+      onSaved();
+    } catch (caught) {
+      setSaveError(errorMessage(caught));
+    } finally {
+      setSaveBusy(false);
+    }
+  }
+
+  function toolMode(tool: SettingsTool): "allow" | "ask" | "denied" {
+    if (toolsAllow.includes(tool.wire_name)) {
+      return "allow";
+    }
+    if (toolsAsk.includes(tool.wire_name)) {
+      return "ask";
+    }
+    return "denied";
+  }
+
+  function setToolMode(tool: SettingsTool, mode: "allow" | "ask" | "denied") {
+    setToolsAllow((current) =>
+      mode === "allow"
+        ? [...current.filter((name) => name !== tool.wire_name), tool.wire_name]
+        : current.filter((name) => name !== tool.wire_name),
+    );
+    setToolsAsk((current) =>
+      mode === "ask"
+        ? [...current.filter((name) => name !== tool.wire_name), tool.wire_name]
+        : current.filter((name) => name !== tool.wire_name),
+    );
+  }
+
+  async function saveTools(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaveBusy(true);
+    setSaveError(null);
+    setSaveMessage(null);
+    try {
+      const result = await updateTenantSettings(tenant.tenant_id, {
+        tools_allow: toolsAllow,
+        tools_ask: toolsAsk,
       });
       setSaveMessage(`Saved revision ${result.revision}. ${result.note}.`);
       onSaved();
@@ -471,7 +544,11 @@ function SectionBody({
                     {tools.length === 0 ? (
                       <p className="muted small">No manifest tool is exposed by this server.</p>
                     ) : (
-                      <ToolCards tools={tools} />
+                      <ToolCards
+                        tools={tools}
+                        modeFor={toolMode}
+                        onModeChange={setToolMode}
+                      />
                     )}
                   </div>
                 ) : null}
@@ -479,6 +556,22 @@ function SectionBody({
             );
           })}
         </div>
+        <form className="settings-edit" onSubmit={saveTools}>
+          <span className="muted small">
+            Allow runs without approval; ask pauses a run for approval; denied hides the tool.
+          </span>
+          <div className="settings-edit-actions">
+            <button type="submit" className="button button-primary" disabled={saveBusy}>
+              {saveBusy ? "Saving..." : "Save tools"}
+            </button>
+          </div>
+          {saveMessage === null ? null : <p className="muted small">{saveMessage}</p>}
+          {saveError === null ? null : (
+            <p className="error-text small" role="alert">
+              {saveError}
+            </p>
+          )}
+        </form>
       </div>
     );
   }
