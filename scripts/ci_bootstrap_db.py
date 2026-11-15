@@ -33,6 +33,11 @@ SQL_FILES = (
     "08-hitl.sql",
     "09-settings.sql",
     "10-sessions.sql",
+    "11-identity.sql",
+    "12-provider-credentials.sql",
+    "13-session-audit.sql",
+    "14-auth.sql",
+    "15-run-attachments.sql",
 )
 ROLES = (
     ("switchboard_app", "SWITCHBOARD_APP_DB_PASSWORD"),
