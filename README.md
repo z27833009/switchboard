@@ -10,6 +10,22 @@ The badge reports the CI gate. That gate replays recorded model output with the 
 
 > Status: **Phase 1 complete, and v1 is built through T2.18.** T2.01 to T2.15 and T2.17 to T2.18 are merged. T2.16 (optional `langgraph-visualizer` integration) was cancelled by the author on 2026-11-12. The semantic cache is implemented and measured; its false-hit rate is above the 2 percent target, so the demo tenants keep it disabled and the report says why. T2.12's comparison now covers all 12 provider and orchestrator combinations: six LM Studio rows and six DeepSeek rows, the latter measured on 2026-11-13 with a one-time DeepSeek key and a total actual cost of 0.0326 USD. In v2 the stack also gained a TypeScript MCP server (T3.08), a guarded read-only SQL tool (T3.05), an orchestrator replay panel (T3.07) and a second semantic cache store (T3.09); the last one came with a measured comparison that found identical cache decisions on both stores. Every metric in the docs is a target until a report backs it.
 
+## What it looks like
+
+![A cited answer, its plan graph and the span timeline](docs/assets/readme-hero.gif)
+
+The recording follows one local run: a document answer with a `[d1]` citation, the plan graph, the selected `agent.docs` span and the timeline view.
+
+| Answer with citations | Audit a tool call |
+| --- | --- |
+| ![Chat answer with a document citation](docs/assets/readme-chat.png) | ![Tool span with audit attributes](docs/assets/readme-tool-trace.png) |
+| The answer cites the document; the run footer links to its trace. | The trace shows the tenant, audit id, argument hash, row count and guardrail result. |
+
+| MCP servers and tool policy | Knowledge |
+| --- | --- |
+| ![Three MCP servers with per-tool allow, ask and deny controls](docs/assets/readme-settings-mcp.png) | ![Knowledge documents with upload, preview, reindex and delete](docs/assets/readme-knowledge.png) |
+| Servers are grouped as accordion cards; each tool has allow, ask or deny. | Upload, preview chunks, reindex or delete; every change bumps the tenant index version. |
+
 ## Measured results
 
 All LM Studio rows were measured on LM Studio 1.2.0 with qwen3-8b at context 8192 and one parallel slot, on the dates in each report. The DeepSeek rows were measured on 2026-11-13 with `deepseek-flash` at concurrency 1; its price is the verified peak rate. Routing scores the 39 test cases of dataset v1, tool call all 40 v1 cases, retrieval the 40 test cases of v3, and the cache the 50 pairs of v5; the gate and injection suites are deterministic and make no model call, and the cache suite makes no chat call (it embeds with bge-m3).
