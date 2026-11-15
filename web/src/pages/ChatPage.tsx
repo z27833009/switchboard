@@ -23,8 +23,9 @@ import type {
 import { CitationChips, ErrorList, StatusBadge, Tag, statusTone } from "../components/Badges";
 import { AlertIcon, ClockIcon, CloseIcon, PaperclipIcon } from "../components/Icons";
 import { Markdown } from "../components/Markdown";
+import type { CitationRenderer } from "../components/Markdown";
 import { formatCostDetail, formatDuration, formatLatency, formatTokens } from "../format";
-import { runHref, traceHref } from "../routes";
+import { citationHref, runHref, traceHref } from "../routes";
 import { newSessionId } from "../session";
 
 interface ComposerAttachment {
@@ -286,6 +287,30 @@ function TurnArticle({
     result !== null && result.answer !== null && result.answer !== ""
       ? result.answer
       : turn.streamed;
+  // An inline [d1] or [t2] marker links to the same span as its chip below the
+  // answer. While the answer is still streaming the citations are not known
+  // yet, so markers render as unlinked superscripts until the result arrives.
+  const renderCitation: CitationRenderer = (ref, key) => {
+    const citation = result?.citations.find((item) => item.ref === ref);
+    const kind = ref.startsWith("t") ? "tool" : "doc";
+    if (result === null || citation === undefined) {
+      return (
+        <sup key={key} className={`cite cite-${kind} cite-pending`}>
+          {ref}
+        </sup>
+      );
+    }
+    return (
+      <sup key={key} className={`cite cite-${kind}`}>
+        <a
+          href={citationHref(result.run_id, result.tenant_id, citation, result.session_id)}
+          title={`${citation.source_id}\n${citation.snippet}`}
+        >
+          {ref}
+        </a>
+      </sup>
+    );
+  };
   return (
     <>
       <article className="turn turn-user">
@@ -347,7 +372,7 @@ function TurnArticle({
           </>
         ) : answerText !== "" ? (
           <div className="turn-answer">
-            <Markdown text={answerText} />
+            <Markdown text={answerText} renderCitation={renderCitation} />
           </div>
         ) : turn.streaming ? (
           <p className="muted">Waiting for the first token...</p>

@@ -1096,6 +1096,39 @@ p {
   filter: brightness(0.97);
 }
 
+/* Inline citation markers in an answer, colored like the chips below it. */
+.cite {
+  margin-inline-start: 2px;
+  font-size: 0.7em;
+  line-height: 0;
+  vertical-align: super;
+}
+
+.cite a,
+.cite-pending {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: #0b4f9c;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.cite-tool a,
+.cite-tool.cite-pending {
+  background: color-mix(in srgb, var(--success) 10%, var(--bg));
+  color: #14632f;
+}
+
+.cite a:hover {
+  filter: brightness(0.95);
+  text-decoration: none;
+}
+
+.cite-pending {
+  opacity: 0.7;
+}
+
 .inline-chips {
   display: inline-flex;
   flex-wrap: wrap;

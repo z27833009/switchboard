@@ -6,7 +6,16 @@ import type { ReactNode } from "react";
 // headings, bold/italic, inline code, fenced code and http links) and never
 // injects raw HTML: every piece of text becomes a React text node, so a model
 // that writes <script> is displayed, not executed. No new dependency.
-const INLINE = /(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^)\s]+\)|\*[^*]+\*|_[^_]+_)/g;
+//
+// Citation markers ([d1], [t2], or a group such as [d1, t2]) are the evidence
+// references the agents attach to claims (design 6.4). They are handed to the
+// caller's renderCitation so the page can link them to the cited span; without
+// a renderer they stay plain text.
+const CITATION = /^\[([dt]\d+(?:\s*,\s*[dt]\d+)*)\]$/;
+const INLINE =
+  /(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^)\s]+\)|\[[dt]\d+(?:\s*,\s*[dt]\d+)*\]|\*[^*]+\*|_[^_]+_)/g;
+
+export type CitationRenderer = (ref: string, key: string) => ReactNode;
 const HEADING = /^(#{1,3})\s+(.+)$/;
 const ORDERED = /^\s*(\d+)[.)]\s+(.+)$/;
 const BULLET = /^\s*[-*+]\s+(.+)$/;
@@ -20,7 +29,7 @@ function safeHref(value: string): string | null {
   }
 }
 
-function inline(text: string): ReactNode[] {
+function inline(text: string, cite?: CitationRenderer): ReactNode[] {
   const parts: ReactNode[] = [];
   const pattern = new RegExp(INLINE.source, "g");
   let last = 0;
@@ -31,16 +40,23 @@ function inline(text: string): ReactNode[] {
     }
     const token = match[0];
     const key = `${match.index}-${token}`;
-    if (token.startsWith("**") && token.endsWith("**")) {
-      parts.push(<strong key={key}>{inline(token.slice(2, -2))}</strong>);
+    const citation = CITATION.exec(token);
+    if (citation !== null) {
+      if (cite === undefined) {
+        parts.push(token);
+      } else {
+        citation[1].split(/\s*,\s*/).forEach((ref) => parts.push(cite(ref, `${key}-${ref}`)));
+      }
+    } else if (token.startsWith("**") && token.endsWith("**")) {
+      parts.push(<strong key={key}>{inline(token.slice(2, -2), cite)}</strong>);
     } else if (token.startsWith("__") && token.endsWith("__")) {
-      parts.push(<strong key={key}>{inline(token.slice(2, -2))}</strong>);
+      parts.push(<strong key={key}>{inline(token.slice(2, -2), cite)}</strong>);
     } else if (token.startsWith("`") && token.endsWith("`")) {
       parts.push(<code key={key}>{token.slice(1, -1)}</code>);
     } else if (token.startsWith("*") && token.endsWith("*")) {
-      parts.push(<em key={key}>{inline(token.slice(1, -1))}</em>);
+      parts.push(<em key={key}>{inline(token.slice(1, -1), cite)}</em>);
     } else if (token.startsWith("_") && token.endsWith("_")) {
-      parts.push(<em key={key}>{inline(token.slice(1, -1))}</em>);
+      parts.push(<em key={key}>{inline(token.slice(1, -1), cite)}</em>);
     } else {
       const link = /^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/.exec(token);
       const href = link === null ? null : safeHref(link[2]);
@@ -62,7 +78,13 @@ function inline(text: string): ReactNode[] {
   return parts;
 }
 
-export function Markdown({ text }: { text: string }) {
+export function Markdown({
+  text,
+  renderCitation,
+}: {
+  text: string;
+  renderCitation?: CitationRenderer;
+}) {
   const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let index = 0;
@@ -93,7 +115,7 @@ export function Markdown({ text }: { text: string }) {
     if (heading !== null) {
       const level = heading[1].length;
       const Tag = level === 1 ? "h2" : level === 2 ? "h3" : "h4";
-      blocks.push(<Tag key={`heading-${key++}`}>{inline(heading[2])}</Tag>);
+      blocks.push(<Tag key={`heading-${key++}`}>{inline(heading[2], renderCitation)}</Tag>);
       index += 1;
       continue;
     }
@@ -112,7 +134,7 @@ export function Markdown({ text }: { text: string }) {
       blocks.push(
         <ol key={`ol-${key++}`} start={start}>
           {items.map((item, itemIndex) => (
-            <li key={itemIndex}>{inline(item)}</li>
+            <li key={itemIndex}>{inline(item, renderCitation)}</li>
           ))}
         </ol>,
       );
@@ -132,7 +154,7 @@ export function Markdown({ text }: { text: string }) {
       blocks.push(
         <ul key={`ul-${key++}`}>
           {items.map((item, itemIndex) => (
-            <li key={itemIndex}>{inline(item)}</li>
+            <li key={itemIndex}>{inline(item, renderCitation)}</li>
           ))}
         </ul>,
       );
@@ -157,7 +179,7 @@ export function Markdown({ text }: { text: string }) {
       <p key={`p-${key++}`}>
         {paragraph.map((part, partIndex) => (
           <Fragment key={partIndex}>
-            {inline(part)}
+            {inline(part, renderCitation)}
             {partIndex < paragraph.length - 1 ? <br /> : null}
           </Fragment>
         ))}
