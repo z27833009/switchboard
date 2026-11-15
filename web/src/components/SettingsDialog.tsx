@@ -15,6 +15,7 @@ import {
   postJson,
   reindexDocument,
   restoreSession,
+  saveProviderCredential,
   updateProviderModel,
   updateTenantSettings,
   uploadDocument,
@@ -846,6 +847,10 @@ function SectionBody({
   const [expandedServers, setExpandedServers] = useState<ReadonlySet<string>>(new Set());
   const [addingServer, setAddingServer] = useState(false);
   const [modelDraft, setModelDraft] = useState(provider.model ?? "");
+  const [credentialDraft, setCredentialDraft] = useState("");
+  const [credentialBusy, setCredentialBusy] = useState(false);
+  const [credentialMessage, setCredentialMessage] = useState<string | null>(null);
+  const [credentialError, setCredentialError] = useState<string | null>(null);
   const [agentSelection, setAgentSelection] = useState<string[]>(tenant.agents_allow);
   const [toolsAllow, setToolsAllow] = useState<string[]>(tenant.tools_allow);
   const [toolsAsk, setToolsAsk] = useState<string[]>(tenant.tools_ask);
@@ -893,6 +898,26 @@ function SectionBody({
         ? current.filter((value) => value !== name)
         : [...current, name],
     );
+  }
+
+  async function saveCredential(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (credentialDraft.trim().length < 8) {
+      setCredentialError("Enter an API key of at least 8 characters.");
+      return;
+    }
+    setCredentialBusy(true);
+    setCredentialError(null);
+    setCredentialMessage(null);
+    try {
+      const result = await saveProviderCredential(provider.name, credentialDraft.trim());
+      setCredentialDraft("");
+      setCredentialMessage(`Saved revision ${result.revision}. ${result.note}.`);
+    } catch (caught) {
+      setCredentialError(errorMessage(caught));
+    } finally {
+      setCredentialBusy(false);
+    }
   }
 
   async function saveAgents(event: FormEvent<HTMLFormElement>) {
@@ -1143,8 +1168,8 @@ function SectionBody({
             />
           </label>
           <p className="muted small">
-            Saves to the providers document. The API key and base URL remain in the environment and
-            are never sent to the browser. Restart the API to apply.
+            Saves to the providers document. The base URL remains in the environment. Restart the
+            API to apply.
           </p>
           <div className="settings-edit-actions">
             <button type="submit" className="button button-primary" disabled={saveBusy}>
@@ -1155,6 +1180,38 @@ function SectionBody({
           {saveError === null ? null : (
             <p className="error-text small" role="alert">
               {saveError}
+            </p>
+          )}
+        </form>
+        <form className="settings-edit" onSubmit={saveCredential}>
+          <h4 className="settings-subheading">Store an API key</h4>
+          <label className="field">
+            <span className="field-label">API key</span>
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={credentialDraft}
+              onChange={(event) => setCredentialDraft(event.target.value)}
+              disabled={credentialBusy}
+              placeholder="stored encrypted, never shown again"
+            />
+          </label>
+          <p className="muted small">
+            Stored as a Fernet ciphertext in <code>provider_credentials</code>; the key comes from
+            <code>SWITCHBOARD_SETTINGS_KEY</code> and is never returned by the API. Restart the API
+            to use it.
+          </p>
+          <div className="settings-edit-actions">
+            <button type="submit" className="button button-primary" disabled={credentialBusy}>
+              {credentialBusy ? "Saving..." : "Save API key"}
+            </button>
+          </div>
+          {credentialMessage === null ? null : (
+            <p className="muted small">{credentialMessage}</p>
+          )}
+          {credentialError === null ? null : (
+            <p className="error-text small" role="alert">
+              {credentialError}
             </p>
           )}
         </form>

@@ -52,6 +52,7 @@ from switchboard.api.schemas import (
     FeedbackSummary,
     McpServerResult,
     McpServerSubmission,
+    ProviderCredentialUpdate,
     ProviderSettingsUpdate,
     RunAggregateResponse,
     RunAggregateRow,
@@ -944,6 +945,34 @@ async def update_provider_settings(
         status="ok",
         revision=revision,
         note="restart the API to apply the provider model change",
+    )
+
+
+@router.put("/settings/providers/{provider_name}/credential", response_model=SettingsRevision)
+async def save_provider_credential(
+    request: Request,
+    provider_name: str,
+    payload: ProviderCredentialUpdate,
+) -> SettingsRevision:
+    """Encrypt and store one provider API key; the response never contains it."""
+    deps = _deps(request.app)
+    store = deps.settings_store
+    if store is None:
+        raise HTTPException(
+            status_code=503,
+            detail="the settings control plane is not available; set SWITCHBOARD_CONFIG_SOURCE=db",
+        )
+    try:
+        revision = await store.save_provider_credential(
+            provider_name, payload.api_key, actor="local:admin"
+        )
+    except ConfigError as exc:
+        status_code = 503 if "SWITCHBOARD_SETTINGS_KEY" in str(exc) else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return SettingsRevision(
+        status="ok",
+        revision=revision,
+        note="credential stored encrypted; restart the API to use it",
     )
 
 

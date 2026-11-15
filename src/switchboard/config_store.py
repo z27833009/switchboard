@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from cryptography.fernet import Fernet, InvalidToken
 
 from switchboard.config import read_yaml, settings_from_documents
 from switchboard.core.config import Settings
@@ -286,6 +287,89 @@ class SettingsStore:
         document["providers"] = providers
         return await self.replace_document(
             "providers", document, actor=actor, note=f"update provider {provider_name} model"
+        )
+
+    def _fernet(self) -> Fernet:
+        key = self._env.get("SWITCHBOARD_SETTINGS_KEY", "").strip()
+        if not key:
+            raise ConfigError(
+                "SWITCHBOARD_SETTINGS_KEY is not set; provider credentials cannot be "
+                "encrypted or decrypted"
+            )
+        try:
+            return Fernet(key.encode("ascii"))
+        except (ValueError, UnicodeEncodeError) as exc:
+            raise ConfigError("SWITCHBOARD_SETTINGS_KEY is not a valid Fernet key") from exc
+
+    async def save_provider_credential(
+        self, provider_name: str, api_key: str, *, actor: str
+    ) -> int:
+        """Encrypt one provider key and store it beside its audit row."""
+        providers = await self._read_document("providers")
+        if provider_name not in providers.get("providers", {}):
+            raise ConfigError(f"unknown provider {provider_name!r}")
+        if not api_key.strip():
+            raise ConfigError("api_key must not be blank")
+        token = self._fernet().encrypt(api_key.encode("utf-8"))
+        async with self._db.transaction():
+            await self._db.execute(
+                """
+                INSERT INTO public.provider_credentials
+                    (provider_name, ciphertext, key_version, updated_at, updated_by)
+                VALUES ($1, $2, 1, now(), $3)
+                ON CONFLICT (provider_name) DO UPDATE
+                SET ciphertext = EXCLUDED.ciphertext,
+                    key_version = EXCLUDED.key_version,
+                    updated_at = now(),
+                    updated_by = EXCLUDED.updated_by
+                """,
+                provider_name,
+                token,
+                actor,
+            )
+            revision = await self._db.fetchval(
+                "SELECT revision FROM public.settings_documents WHERE kind = 'providers'"
+            )
+            await self._db.execute(
+                """
+                INSERT INTO public.config_audit (kind, revision, action, actor, detail)
+                VALUES ($1, $2, $3, $4, $5::jsonb)
+                """,
+                "providers",
+                int(revision or 1),
+                "set_credential",
+                actor,
+                _json({"provider": provider_name, "api_key": "[redacted]"}),
+            )
+        return int(revision or 1)
+
+    async def apply_stored_credentials(self, settings: Settings) -> Settings:
+        """Overlay decrypted stored keys on the provider configs in memory."""
+        if not self._env.get("SWITCHBOARD_SETTINGS_KEY", "").strip():
+            return settings
+        rows = await self._db.fetch(
+            "SELECT provider_name, ciphertext FROM public.provider_credentials"
+        )
+        if not rows:
+            return settings
+        fernet = self._fernet()
+        providers = dict(settings.providers.providers)
+        for row in rows:
+            name = str(row["provider_name"])
+            if name not in providers:
+                continue
+            try:
+                key = fernet.decrypt(bytes(row["ciphertext"])).decode("utf-8")
+            except InvalidToken as exc:
+                raise ConfigError(
+                    f"stored credential for provider {name!r} cannot be decrypted with "
+                    "the current SWITCHBOARD_SETTINGS_KEY"
+                ) from exc
+            providers[name] = copy.deepcopy(providers[name]).model_copy(
+                update={"api_key": key, "api_key_env": None}
+            )
+        return settings.model_copy(
+            update={"providers": settings.providers.model_copy(update={"providers": providers})}
         )
 
     async def _read_document(self, kind: str) -> dict[str, Any]:

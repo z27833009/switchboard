@@ -2080,6 +2080,7 @@ source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "asyncpg" },
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "langgraph" },
     { name = "mcp" },
@@ -2111,6 +2112,7 @@ dev = [
 requires-dist = [
     { name = "anthropic", specifier = "==2.8.0" },
     { name = "asyncpg", specifier = "==0.32.0" },
+    { name = "cryptography", specifier = "==50.0.2" },
     { name = "fastapi", specifier = "==0.162.5" },
     { name = "langgraph", specifier = "==1.2.21" },
     { name = "mcp", specifier = "==2.3.0" },

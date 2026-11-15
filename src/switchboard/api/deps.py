@@ -355,7 +355,9 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
     if config_source == "db":
         connection = await asyncpg.connect(dsn=dsn)
         try:
-            settings = await SettingsStore(connection, config_dir, source).load()
+            store = SettingsStore(connection, config_dir, source)
+            settings = await store.load()
+            settings = await store.apply_stored_credentials(settings)
         finally:
             await connection.close()
     elif config_source == "yaml":

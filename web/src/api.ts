@@ -463,6 +463,26 @@ export async function updateTenantSettings(
   return (await response.json()) as SettingsRevision;
 }
 
+export async function saveProviderCredential(
+  providerName: string,
+  apiKey: string,
+  signal?: AbortSignal,
+): Promise<SettingsRevision> {
+  const response = await fetch(
+    `${API_BASE}/settings/providers/${encodeURIComponent(providerName)}/credential`,
+    {
+      method: "PUT",
+      signal,
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ api_key: apiKey }),
+    },
+  );
+  if (!response.ok) {
+    throw new ApiError(await describeHttpError(response), response.status);
+  }
+  return (await response.json()) as SettingsRevision;
+}
+
 export async function updateProviderModel(
   providerName: string,
   model: string,

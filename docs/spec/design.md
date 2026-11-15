@@ -1335,6 +1335,7 @@ This list is the allowlist referred to in the working agreements: a dependency n
 | Cache store (v2, T3.09) | `valkey/valkey-bundle` 9.0 (pinned by tag and digest) with the `valkey-search` module; Python client `valkey` (the official Valkey fork of redis-py, MIT) | second `Cache` adapter only: the default stack keeps `cache: pg_semantic` and no service depends on Valkey. Pinned with `uv add` on the day it was added; `pyproject.toml` and `uv.lock` carry the version |
 | Observability | opentelemetry-api, opentelemetry-sdk; v1 adds the official OTLP/HTTP exporter (opentelemetry-exporter-otlp-proto-http) | the OTLP exporter is used only when `tracing.exporter: otlp`; PostgreSQL stays the default |
 | Tokens | PyJWT | ADR 0014 |
+| Secrets at rest (v3) | cryptography (Fernet) | encrypts provider API keys stored in `public.provider_credentials`; the key comes from `SWITCHBOARD_SETTINGS_KEY`, never from the database. Pinned with `uv add` on the day it was added; `pyproject.toml` and `uv.lock` carry the version |
 | Config | PyYAML | env substitution and the schema are hand-written in core/config.py; YAML parsing lives in switchboard/config.py so core stays standard library plus pydantic |
 | CLI | typer | |
 | SQL validation (v2) | sqlglot | validates the one free-form SQL tool (T3.05): parse to an AST, refuse anything but a single read of `olist.sql_order_facts`, and execute the regenerated statement. Pinned with `uv add` on the day it was added; `pyproject.toml` and `uv.lock` carry the version |

@@ -118,6 +118,9 @@ services:
       # V3.01: runtime settings come from public.settings_documents, seeded
       # from the mounted YAML on the first boot. Set yaml for the old path.
       SWITCHBOARD_CONFIG_SOURCE: "${SWITCHBOARD_CONFIG_SOURCE:-db}"
+      # V3.01: Fernet key for provider credentials stored in PostgreSQL. Empty
+      # keeps the environment-only path and makes the credential write 503.
+      SWITCHBOARD_SETTINGS_KEY: "${SWITCHBOARD_SETTINGS_KEY:-}"
       SWITCHBOARD_TOOLS_URL: "http://mcp-olist:8001"
       MCP_OLIST_URL: "http://mcp-olist:8001"
       MCP_REVIEWS_URL: "http://mcp-reviews:8002"

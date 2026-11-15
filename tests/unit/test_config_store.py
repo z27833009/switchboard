@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 import yaml
+from cryptography.fernet import Fernet
 
 from switchboard.config_store import SettingsStore
 from switchboard.core.errors import ConfigError
@@ -30,6 +31,7 @@ class FakeDB:
         self.revisions: list[dict[str, Any]] = []
         self.audits: list[dict[str, Any]] = []
         self.tenants: dict[str, str] = {}
+        self.credentials: dict[str, bytes] = {}
 
     @asynccontextmanager
     async def transaction(self) -> AsyncIterator[None]:
@@ -48,6 +50,8 @@ class FakeDB:
                 "updated_by": actor,
             }
             return 1
+        if "SELECT revision FROM public.settings_documents WHERE kind = 'providers'" in query:
+            return self.documents["providers"]["revision"]
         if "INSERT INTO public.tenants" in query:
             tenant_id, name = args
             if tenant_id in self.tenants:
@@ -67,6 +71,11 @@ class FakeDB:
         raise AssertionError(f"unexpected fetchval: {query}")
 
     async def fetch(self, query: str, *args: Any) -> list[dict[str, Any]]:
+        if "FROM public.provider_credentials" in query:
+            return [
+                {"provider_name": name, "ciphertext": ciphertext}
+                for name, ciphertext in self.credentials.items()
+            ]
         if "FROM public.settings_documents" in query:
             return [
                 {"kind": kind, "payload": entry["payload"]}
@@ -81,6 +90,11 @@ class FakeDB:
         raise AssertionError(f"unexpected fetchrow: {query}")
 
     async def execute(self, query: str, *args: Any) -> str:
+        if "INSERT INTO public.provider_credentials" in query:
+            provider_name, ciphertext, updated_by = args
+            assert updated_by
+            self.credentials[provider_name] = bytes(ciphertext)
+            return "INSERT 0 1"
         if "INSERT INTO public.settings_revisions" in query:
             kind, revision, payload, actor, note = args
             self.revisions.append(
@@ -285,3 +299,33 @@ async def test_create_tenant_writes_both_the_document_and_the_database_row() -> 
             seller_ids=None,
             actor="test:admin",
         )
+
+
+@pytest.mark.asyncio
+async def test_provider_credentials_are_encrypted_and_overlaid_at_load() -> None:
+    key = Fernet.generate_key().decode()
+    env = {**CONFIG_ENV, "SWITCHBOARD_SETTINGS_KEY": key}
+    db = FakeDB()
+    store = SettingsStore(db, REPO / "config", env)
+    await store.seed_if_empty()
+
+    revision = await store.save_provider_credential(
+        "lmstudio", "sk-local-secret", actor="test:admin"
+    )
+    assert revision == 1
+    assert db.credentials["lmstudio"] != b"sk-local-secret"
+    assert len(db.credentials["lmstudio"]) > len(b"sk-local-secret")
+    assert db.audits[-1]["action"] == "set_credential"
+
+    settings = await store.load()
+    overlaid = await store.apply_stored_credentials(settings)
+    assert overlaid.providers.providers["lmstudio"].api_key == "sk-local-secret"
+    assert overlaid.providers.providers["lmstudio"].api_key_env is None
+
+    wrong = SettingsStore(
+        db,
+        REPO / "config",
+        {**CONFIG_ENV, "SWITCHBOARD_SETTINGS_KEY": Fernet.generate_key().decode()},
+    )
+    with pytest.raises(ConfigError, match="cannot be decrypted"):
+        await wrong.apply_stored_credentials(settings)

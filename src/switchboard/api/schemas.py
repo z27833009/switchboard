@@ -648,6 +648,12 @@ class ProviderSettingsUpdate(BaseModel):
     model: str = Field(min_length=1, max_length=200)
 
 
+class ProviderCredentialUpdate(BaseModel):
+    """A provider API key to encrypt at rest; it is never returned."""
+
+    api_key: str = Field(min_length=8, max_length=4096)
+
+
 class SettingsTool(BaseModel):
     """One tool manifest entry, with whether this tenant may call it."""
 
@@ -710,6 +716,7 @@ __all__ = [
     "FeedbackRating",
     "FeedbackSubmission",
     "FeedbackSummary",
+    "ProviderCredentialUpdate",
     "ProviderSettingsUpdate",
     "RunAggregateResponse",
     "RunAggregateRow",
