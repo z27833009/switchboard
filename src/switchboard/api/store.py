@@ -123,6 +123,18 @@ ORDER BY created_at DESC, id DESC
 LIMIT $2
 """
 
+LOGIN_USER_SQL = """
+SELECT u.id, u.email, u.display_name, u.password_hash, u.active, m.role
+FROM public.users u
+JOIN public.memberships m ON m.user_id = u.id
+WHERE u.email = $1 AND m.tenant_id = $2
+LIMIT 1
+"""
+
+SET_PASSWORD_SQL = """
+UPDATE public.users SET password_hash = $2 WHERE id = $1
+"""
+
 LIST_USERS_SQL = """
 SELECT u.id, u.email, u.display_name, u.created_at, m.role
 FROM public.users u
@@ -414,6 +426,10 @@ class RunStore(Protocol):
 
     async def list_users(self, *, tenant_id: str) -> list[dict[str, Any]]: ...
 
+    async def get_login_user(self, *, email: str, tenant_id: str) -> dict[str, Any] | None: ...
+
+    async def set_user_password(self, *, user_id: str, password_hash: str) -> None: ...
+
     async def create_user(
         self,
         *,
@@ -573,6 +589,13 @@ class PgRunStore:
     async def list_users(self, *, tenant_id: str) -> list[dict[str, Any]]:
         rows = await self._pool.fetch(LIST_USERS_SQL, tenant_id)
         return [dict(row) for row in rows]
+
+    async def get_login_user(self, *, email: str, tenant_id: str) -> dict[str, Any] | None:
+        row = await self._pool.fetchrow(LOGIN_USER_SQL, email, tenant_id)
+        return None if row is None else dict(row)
+
+    async def set_user_password(self, *, user_id: str, password_hash: str) -> None:
+        await self._pool.execute(SET_PASSWORD_SQL, user_id, password_hash)
 
     async def create_user(
         self,

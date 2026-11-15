@@ -467,6 +467,28 @@ class DocumentsResponse(BaseModel):
     count: int = 0
 
 
+class AuthLogin(BaseModel):
+    """Local sign-in body (V3.02)."""
+
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=1, max_length=4096)
+    tenant_id: str = Field(min_length=1)
+
+
+class AuthUserPayload(BaseModel):
+    user_id: str
+    email: str
+    display_name: str
+    tenant_id: str
+    role: Literal["admin", "member"]
+
+
+class AuthStatus(BaseModel):
+    auth_required: bool
+    authenticated: bool
+    user: AuthUserPayload | None = None
+
+
 class UserSummary(BaseModel):
     """One user and the role they hold in the requested tenant (V3.02)."""
 
@@ -736,6 +758,9 @@ __all__ = [
     "AuditResponse",
     "AuditRow",
     "AuditStatus",
+    "AuthLogin",
+    "AuthStatus",
+    "AuthUserPayload",
     "ChatResponse",
     "DocumentChunk",
     "DocumentChunksResponse",

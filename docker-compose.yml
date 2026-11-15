@@ -121,6 +121,11 @@ services:
       # V3.01: Fernet key for provider credentials stored in PostgreSQL. Empty
       # keeps the environment-only path and makes the credential write 503.
       SWITCHBOARD_SETTINGS_KEY: "${SWITCHBOARD_SETTINGS_KEY:-}"
+      # V3.02 local sign-in. Off by default for the demo; set true to require
+      # the login page. The first admin password is only used until a hash is
+      # stored, then the hash wins.
+      SWITCHBOARD_AUTH_REQUIRED: "${SWITCHBOARD_AUTH_REQUIRED:-false}"
+      SWITCHBOARD_ADMIN_PASSWORD: "${SWITCHBOARD_ADMIN_PASSWORD:-}"
       SWITCHBOARD_TOOLS_URL: "http://mcp-olist:8001"
       MCP_OLIST_URL: "http://mcp-olist:8001"
       MCP_REVIEWS_URL: "http://mcp-reviews:8002"

@@ -14,6 +14,7 @@ trace endpoint reads, and the run starts emitting before it ends.
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
 import os
@@ -30,6 +31,15 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.telemetry import TelemetryConfig
 
 from switchboard.api.audit import AuditQuery, as_utc
+from switchboard.api.auth import (
+    SESSION_COOKIE,
+    SESSION_TTL_S,
+    AuthUser,
+    hash_password,
+    sign_session,
+    verify_password,
+    verify_session,
+)
 from switchboard.api.deps import AppDeps, build_app_deps
 from switchboard.api.run_tokens import (
     RUN_TOKEN_MIN_BYTES,
@@ -40,6 +50,9 @@ from switchboard.api.schemas import (
     AuditResponse,
     AuditRow,
     AuditStatus,
+    AuthLogin,
+    AuthStatus,
+    AuthUserPayload,
     ChatResponse,
     DocumentChunk,
     DocumentChunksResponse,
@@ -1146,6 +1159,89 @@ async def default_health() -> tuple[int, dict[str, Any]]:
     )
 
 
+def _auth_user(request: Request) -> AuthUser | None:
+    user = getattr(request.state, "auth", None)
+    return user if isinstance(user, AuthUser) else None
+
+
+def _auth_payload(user: AuthUser) -> AuthUserPayload:
+    return AuthUserPayload(
+        user_id=user.user_id,
+        email=user.email,
+        display_name=user.display_name,
+        tenant_id=user.tenant_id,
+        role=cast(Literal["admin", "member"], user.role),
+    )
+
+
+@router.get("/auth/status", response_model=AuthStatus)
+async def auth_status(request: Request) -> AuthStatus:
+    """Whether this process requires a session, and who the cookie belongs to."""
+    deps = _deps(request.app)
+    user = _auth_user(request)
+    return AuthStatus(
+        auth_required=deps.auth_required,
+        authenticated=user is not None,
+        user=None if user is None else _auth_payload(user),
+    )
+
+
+@router.post("/auth/login", response_model=AuthStatus)
+async def auth_login(request: Request, payload: AuthLogin, response: Response) -> AuthStatus:
+    """Verify one local password and set the HttpOnly session cookie."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, payload.tenant_id)
+    row = await deps.store.get_login_user(
+        email=payload.email.strip().lower(), tenant_id=tenant.tenant_id
+    )
+    if row is None or not bool(row.get("active", True)):
+        raise HTTPException(status_code=401, detail="email or password is incorrect")
+    password_hash = cast(str | None, row.get("password_hash"))
+    password_ok = False
+    if password_hash:
+        password_ok = verify_password(payload.password, password_hash)
+    elif deps.admin_password is not None and hmac.compare_digest(
+        payload.password, deps.admin_password
+    ):
+        password_ok = True
+        await deps.store.set_user_password(
+            user_id=str(row["id"]), password_hash=hash_password(payload.password)
+        )
+    if not password_ok:
+        raise HTTPException(status_code=401, detail="email or password is incorrect")
+    user = AuthUser(
+        user_id=str(row["id"]),
+        email=str(row["email"]),
+        display_name=str(row["display_name"]),
+        tenant_id=tenant.tenant_id,
+        role=str(row["role"]),
+    )
+    response.set_cookie(
+        SESSION_COOKIE,
+        sign_session(user, deps.auth_secret),
+        max_age=SESSION_TTL_S,
+        httponly=True,
+        samesite="lax",
+        secure=request.url.scheme == "https",
+        path="/",
+    )
+    request.state.auth = user
+    return AuthStatus(
+        auth_required=deps.auth_required,
+        authenticated=True,
+        user=_auth_payload(user),
+    )
+
+
+@router.post("/auth/logout", response_model=AuthStatus)
+async def auth_logout(request: Request, response: Response) -> AuthStatus:
+    """Clear the session cookie; the client decides where to go next."""
+    deps = _deps(request.app)
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    request.state.auth = None
+    return AuthStatus(auth_required=deps.auth_required, authenticated=False)
+
+
 @router.get("/health")
 async def health(request: Request) -> JSONResponse:
     deps = _deps(request.app)
@@ -1181,6 +1277,36 @@ def create_app(*, deps: AppDeps | None = None) -> FastAPI:
     )
     application.state.deps = deps
     application.state.background_tasks = set()
+
+    @application.middleware("http")
+    async def authenticate(request: Request, call_next: Any) -> Response:
+        current = application.state.deps
+        if current is None or not current.auth_required:
+            return cast(Response, await call_next(request))
+        path = request.url.path
+        public = (
+            path == "/health"
+            or path.startswith("/auth/")
+            or path in {"/docs", "/openapi.json", "/redoc"}
+        )
+        token = request.cookies.get(SESSION_COOKIE)
+        user = None if token is None else verify_session(token, current.auth_secret)
+        request.state.auth = user
+        if public:
+            return cast(Response, await call_next(request))
+        if user is None:
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "sign in is required"},
+            )
+        admin_only = path.startswith(("/settings", "/users", "/documents"))
+        if admin_only and request.method not in {"GET", "HEAD", "OPTIONS"} and user.role != "admin":
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "this action requires the admin role"},
+            )
+        return cast(Response, await call_next(request))
+
     application.include_router(router)
     return application
 

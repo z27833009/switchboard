@@ -267,6 +267,17 @@ class MemoryRunStore:
         rows.sort(key=lambda row: (row["display_name"], row["email"]))
         return rows
 
+    async def get_login_user(self, *, email: str, tenant_id: str) -> dict[str, Any] | None:
+        for user_id, user in self.users.items():
+            role = self.memberships.get((tenant_id, user_id))
+            if user["email"] == email and role is not None:
+                return {**dict(user), "role": role}
+        return None
+
+    async def set_user_password(self, *, user_id: str, password_hash: str) -> None:
+        if user_id in self.users:
+            self.users[user_id]["password_hash"] = password_hash
+
     async def create_user(
         self,
         *,
@@ -683,6 +694,9 @@ def build_harness(
     settings_snapshot: Mapping[str, Mapping[str, Any]] | None = None,
     replay_orchestrators: Mapping[tuple[str, str], Any] | None = None,
     ingest_document: Any = None,
+    auth_required: bool = False,
+    auth_secret: str = SECRET,
+    admin_password: str | None = None,
 ) -> AppHarness:
     """Build an app with fakes and a client bound to it (no lifespan, no IO)."""
     deps = AppDeps(
@@ -700,6 +714,9 @@ def build_harness(
         sensitive_args=sensitive_args or {},
         settings_snapshot=settings_snapshot,
         ingest_document=ingest_document,
+        auth_required=auth_required,
+        auth_secret=auth_secret,
+        admin_password=admin_password,
     )
     app = create_app(deps=deps)
     harness = AppHarness(

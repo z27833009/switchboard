@@ -90,6 +90,11 @@ class AppDeps:
     ingest_document: Any | None = None
     # The same embedder the retriever uses, exposed for document reindex.
     embedder: Any | None = None
+    # V3.02 local auth. Off by default so the existing local demo and tests
+    # keep working; compose sets SWITCHBOARD_AUTH_REQUIRED=true to require it.
+    auth_required: bool = False
+    auth_secret: str = ""
+    admin_password: str | None = None
 
     def orchestrator_for(
         self, tenant_provider: str, name: str | None = None, model: str | None = None
@@ -458,6 +463,10 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
         settings_store=settings_store,
         ingest_document=build_document_ingester(pool, built.embedder),
         embedder=built.embedder,
+        auth_required=source.get("SWITCHBOARD_AUTH_REQUIRED", "").strip().lower()
+        in {"1", "true", "yes"},
+        auth_secret=secret,
+        admin_password=source.get("SWITCHBOARD_ADMIN_PASSWORD") or None,
     )
 
 
