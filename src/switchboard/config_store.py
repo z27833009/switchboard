@@ -63,7 +63,50 @@ class SettingsStore:
                 "settings_documents is missing "
                 f"{missing}; run `switchboard config seed --dir {self._config_dir}`"
             )
+        await self._migrate_legacy_tenant_scope(documents)
         return settings_from_documents(documents, env=self._env, label="settings_documents")
+
+    async def _migrate_legacy_tenant_scope(self, documents: dict[str, dict[str, Any]]) -> None:
+        """Move a pre-V3.02 ``seller_ids`` field into connectors.olist once."""
+        tenants_document = copy.deepcopy(documents["tenants"])
+        tenants = tenants_document.get("tenants")
+        if not isinstance(tenants, dict):
+            return
+        changed = False
+        for entry in tenants.values():
+            if not isinstance(entry, dict) or "seller_ids" not in entry:
+                continue
+            connectors = dict(entry.get("connectors", {}))
+            olist = dict(connectors.get("olist", {}))
+            olist["seller_ids"] = entry.pop("seller_ids")
+            connectors["olist"] = olist
+            entry["connectors"] = connectors
+            changed = True
+        if not changed:
+            return
+        async with self._db.transaction():
+            revision = await self._db.fetchval(
+                """
+                UPDATE public.settings_documents
+                   SET payload = $1::jsonb,
+                       revision = revision + 1,
+                       updated_at = now(),
+                       updated_by = 'system:migrate-data-scope'
+                 WHERE kind = 'tenants'
+                 RETURNING revision
+                """,
+                _json(tenants_document),
+            )
+            if revision is not None:
+                await self._append_revision(
+                    "tenants",
+                    int(revision),
+                    tenants_document,
+                    "migrate seller_ids to connectors.olist",
+                    actor="system:migrate-data-scope",
+                    action="migrate",
+                )
+        documents["tenants"] = tenants_document
 
     async def seed_if_empty(self) -> bool:
         """Insert the four YAML documents if the control plane has no rows.
@@ -220,7 +263,7 @@ class SettingsStore:
         agents_allow: list[str] | None = None,
         tools_allow: list[str] | None,
         tools_ask: list[str] | None,
-        seller_ids: list[str] | None,
+        connectors: dict[str, dict[str, Any]] | None,
         actor: str,
     ) -> int:
         """Create one tenant in the control plane and its database row."""
@@ -240,7 +283,7 @@ class SettingsStore:
             "model": model,
             "agents": {"allow": list(agents_allow or [])},
             "tools": {"allow": list(tools_allow or []), "ask": list(tools_ask or [])},
-            "seller_ids": seller_ids,
+            "connectors": connectors or {},
         }
         tenants_document["tenants"] = tenants
         documents["tenants"] = tenants_document

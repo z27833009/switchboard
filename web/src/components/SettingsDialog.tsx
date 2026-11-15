@@ -1075,17 +1075,26 @@ function SectionBody({
               empty="none: an ask tool would need the v2 approval flow"
             />
           </Value>
-          <Value label="seller scope">
-            {tenant.seller_ids === null ? (
-              <span>every seller in the data set</span>
+          <Value label="connector scope">
+            {Object.keys(tenant.connectors).length === 0 ? (
+              <span>no connector binding</span>
             ) : (
-              <Chips values={tenant.seller_ids} empty="no seller in scope" />
+              <span className="inline-chips">
+                {Object.entries(tenant.connectors).map(([name, binding]) => (
+                  <span key={name} className="tag tag-neutral">
+                    {name}:{" "}
+                    {binding.seller_ids === null
+                      ? "all sellers"
+                      : binding.seller_ids.join(", ")}
+                  </span>
+                ))}
+              </span>
             )}
           </Value>
         </dl>
         <p className="muted small">
-          Switch workspace tenant from the menu at the bottom of the sidebar. There is no account
-          or sign-in in this build, so this page never offers one.
+          Switch workspace tenant from the menu at the bottom of the sidebar. Sign-in is required
+          only when the API sets <code>SWITCHBOARD_AUTH_REQUIRED=true</code>.
         </p>
       </>
     );

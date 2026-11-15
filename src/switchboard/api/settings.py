@@ -131,7 +131,12 @@ def _tenant_payload(
             "tenant_id": tenant_id,
             "provider": tenant.provider,
             "model": tenant.model,
-            "seller_ids": None if tenant.seller_ids is None else list(tenant.seller_ids),
+            "connectors": {
+                name: {
+                    "seller_ids": (None if binding.seller_ids is None else list(binding.seller_ids))
+                }
+                for name, binding in tenant.connectors.items()
+            },
             "agents_allow": list(tenant.agents.allow),
             "tools_allow": list(tenant.tools.allow),
             "tools_ask": list(tenant.tools.ask),

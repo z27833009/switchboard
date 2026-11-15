@@ -66,7 +66,9 @@ tenants:
     tools:
       allow: ["orders_late@1"]
       ask: []
-    seller_ids: ["seller-1"]
+    connectors:
+      olist:
+        seller_ids: ["seller-1"]
 """
 
 PRICES = """
@@ -138,7 +140,7 @@ def test_load_settings_substitutes_and_validates(tmp_path: Path) -> None:
     context = tenant_context("default", settings.tenants)
     assert context.allowed_agents == {"direct", "docs"}
     assert context.allowed_tools == {"orders_late@1"}
-    assert context.seller_ids == ["seller-1"]
+    assert settings.tenants.tenants["default"].connectors["olist"].seller_ids == ["seller-1"]
 
 
 def test_missing_variable_in_a_file_is_a_config_error(tmp_path: Path) -> None:
@@ -348,7 +350,9 @@ def test_committed_config_files_load() -> None:
     assert anthropic_price is not None
     assert anthropic_price.source == "https://platform.claude.com/docs/en/about-claude/pricing"
     assert anthropic_price.cache_write_per_million == 2.5
-    assert settings.tenants.tenants["seller_a"].seller_ids == ["955fee9216a65b617aa5c0531780ce60"]
+    assert settings.tenants.tenants["seller_a"].connectors["olist"].seller_ids == [
+        "955fee9216a65b617aa5c0531780ce60"
+    ]
     assert settings.tenants.tenants["default"].retrieval.search == "hybrid"
     assert settings.tenants.tenants["default"].retrieval.rewrite is True
 

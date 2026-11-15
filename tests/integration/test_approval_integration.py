@@ -131,7 +131,6 @@ def context() -> RunContext:
             allowed_agents={"data"},
             allowed_tools={"order_lookup@1", "add_order_note@1"},
             ask_tools={"add_order_note@1"},
-            seller_ids=[SELLER_ID],
             provider="fake",
         ),
         run_token=token,

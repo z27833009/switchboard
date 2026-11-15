@@ -98,7 +98,9 @@ tenants:
     tools:
       allow: ["orders_summary@1", "orders_late@1"]
       ask: []
-    seller_ids: null
+    connectors:
+      olist:
+        seller_ids: null
     retrieval:
       search: hybrid
       rewrite: true
@@ -113,7 +115,9 @@ tenants:
     tools:
       allow: ["orders_summary@1"]
       ask: []
-    seller_ids: ["seller-1"]
+    connectors:
+      olist:
+        seller_ids: ["seller-1"]
     retrieval:
       search: vector
       rewrite: false
@@ -272,7 +276,7 @@ async def test_known_tenant_returns_the_expected_shape(
         "tenant_id": "default",
         "provider": "lmstudio",
         "model": None,
-        "seller_ids": None,
+        "connectors": {"olist": {"seller_ids": None}},
         "agents_allow": ["direct", "docs"],
         "tools_allow": ["orders_summary@1", "orders_late@1"],
         "tools_ask": [],
@@ -351,7 +355,7 @@ async def test_another_tenant_gets_only_its_allowlists(settings_harness: AppHarn
     body = response.json()
 
     assert body["tenant"]["tenant_id"] == "seller_a"
-    assert body["tenant"]["seller_ids"] == ["seller-1"]
+    assert body["tenant"]["connectors"]["olist"]["seller_ids"] == ["seller-1"]
     assert body["tenant"]["agents_allow"] == ["docs"]
     assert body["tenant"]["tools_allow"] == ["orders_summary@1"]
     assert body["tenant"]["retrieval"]["search"] == "vector"

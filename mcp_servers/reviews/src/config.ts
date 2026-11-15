@@ -14,7 +14,16 @@ import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 
 const WIRE_NAME_PATTERN = /^[a-z][a-z0-9_]*@[0-9]+$/;
-const TENANT_KEYS = new Set(["provider", "agents", "tools", "seller_ids", "retrieval", "cache"]);
+const TENANT_KEYS = new Set([
+  "provider",
+  "model",
+  "agents",
+  "tools",
+  "connectors",
+  "retrieval",
+  "cache",
+]);
+const CONNECTOR_KEYS = new Set(["seller_ids"]);
 const AGENT_KEYS = new Set(["allow"]);
 const TOOL_KEYS = new Set(["allow", "ask"]);
 const RETRIEVAL_KEYS = new Set(["k", "min_score", "rewrite", "rewrite_mode", "search"]);
@@ -218,17 +227,46 @@ export function loadTenants(path: string): Map<string, TenantSettings> {
       );
     }
 
-    const sellerIds = entry.seller_ids;
+    const connectors = entry.connectors;
     let sellers: string[] | null = null;
-    if (sellerIds !== undefined && sellerIds !== null) {
-      sellers = names(sellerIds, `tenant ${tenantId} seller_ids`);
-      if (sellers.length === 0) {
-        throw new ConfigError(
-          `tenant ${tenantId} seller_ids must be null (all sellers) or a non-empty list`,
+    if (connectors !== undefined) {
+      if (!isMapping(connectors)) {
+        throw new ConfigError(`tenant ${tenantId} connectors must be a mapping`);
+      }
+      for (const [connectorName, binding] of Object.entries(connectors)) {
+        if (!isMapping(binding)) {
+          throw new ConfigError(
+            `tenant ${tenantId} connector ${connectorName} must be a mapping`,
+          );
+        }
+        checkKnownKeys(
+          binding,
+          CONNECTOR_KEYS,
+          `tenant ${tenantId} connector ${connectorName}`,
         );
       }
-      if (sellers.some((seller) => seller.includes(","))) {
-        throw new ConfigError(`tenant ${tenantId} seller_ids must not contain commas`);
+      const olist = connectors.olist;
+      if (olist !== undefined) {
+        if (!isMapping(olist)) {
+          throw new ConfigError(`tenant ${tenantId} connectors.olist must be a mapping`);
+        }
+        const sellerIds = olist.seller_ids;
+        if (sellerIds !== undefined && sellerIds !== null) {
+          sellers = names(
+            sellerIds,
+            `tenant ${tenantId} connectors.olist.seller_ids`,
+          );
+          if (sellers.length === 0) {
+            throw new ConfigError(
+              `tenant ${tenantId} connector seller_ids must be null or a non-empty list`,
+            );
+          }
+          if (sellers.some((seller) => seller.includes(","))) {
+            throw new ConfigError(
+              `tenant ${tenantId} connector seller_ids must not contain commas`,
+            );
+          }
+        }
       }
     }
 

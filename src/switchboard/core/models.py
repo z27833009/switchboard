@@ -270,7 +270,6 @@ class TenantContext(BaseModel):
     allowed_agents: set[str]
     allowed_tools: set[str]
     ask_tools: set[str] = Field(default_factory=set)
-    seller_ids: list[str] | None = None
     provider: str
     model: str | None = None
     retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)

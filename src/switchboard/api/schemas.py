@@ -633,13 +633,19 @@ class SettingsPlatform(BaseModel):
     limits: Limits
 
 
+class ConnectorBinding(BaseModel):
+    """Per-connector scope such as seller ids (V3.02)."""
+
+    seller_ids: list[str] | None = None
+
+
 class SettingsTenant(BaseModel):
     """The tenant's own configuration and allowlists (design.md section 11)."""
 
     tenant_id: str
     provider: str
     model: str | None = None
-    seller_ids: list[str] | None = None
+    connectors: dict[str, ConnectorBinding] = Field(default_factory=dict)
     agents_allow: list[str] = Field(default_factory=list)
     tools_allow: list[str] = Field(default_factory=list)
     tools_ask: list[str] = Field(default_factory=list)
@@ -689,7 +695,7 @@ class TenantCreation(BaseModel):
     agents_allow: list[str] = Field(default_factory=lambda: ["direct", "docs"], min_length=1)
     tools_allow: list[str] = Field(default_factory=list)
     tools_ask: list[str] = Field(default_factory=list)
-    seller_ids: list[str] | None = None
+    connectors: dict[str, ConnectorBinding] = Field(default_factory=dict)
 
 
 class TenantSettingsUpdate(BaseModel):
@@ -768,6 +774,7 @@ __all__ = [
     "AuthStatus",
     "AuthUserPayload",
     "ChatResponse",
+    "ConnectorBinding",
     "DocumentChunk",
     "DocumentChunksResponse",
     "DocumentIngestResult",

@@ -50,7 +50,9 @@ tenants:
       allow: ["data"]
     tools:
       allow: ["orders_summary@1", "order_lookup@1"]
-    seller_ids: null
+    connectors:
+      olist:
+        seller_ids: null
 `);
   const tenants = loadTenants(path);
   assert.equal(tenants.get("default")?.allowedTools.has("orders_summary@1"), true);
@@ -102,11 +104,21 @@ tenants:
     /wire name/,
   );
   assert.throws(
-    () => loadTenants(tenantsFile("tenants:\n  default:\n    seller_ids: []\n")),
+    () =>
+      loadTenants(
+        tenantsFile(
+          "tenants:\n  default:\n    connectors:\n      olist:\n        seller_ids: []\n",
+        ),
+      ),
     /non-empty list/,
   );
   assert.throws(
-    () => loadTenants(tenantsFile('tenants:\n  default:\n    seller_ids: ["a,b"]\n')),
+    () =>
+      loadTenants(
+        tenantsFile(
+          'tenants:\n  default:\n    connectors:\n      olist:\n        seller_ids: ["a,b"]\n',
+        ),
+      ),
     /commas/,
   );
 });

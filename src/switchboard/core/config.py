@@ -293,6 +293,24 @@ class TenantToolSettings(BaseModel):
         return self
 
 
+class TenantConnectorSettings(BaseModel):
+    """Scope carried by one connector binding, not by the core tenant."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    seller_ids: list[str] | None = None
+
+    @field_validator("seller_ids")
+    @classmethod
+    def _check_seller_ids(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        cleaned = unique_names(value, "connectors.*.seller_ids")
+        if not cleaned:
+            raise ValueError("connector seller_ids must be null or a non-empty list")
+        return cleaned
+
+
 class TenantConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -301,19 +319,9 @@ class TenantConfig(BaseModel):
     model: str | None = None
     agents: TenantAgentSettings = Field(default_factory=TenantAgentSettings)
     tools: TenantToolSettings = Field(default_factory=TenantToolSettings)
-    seller_ids: list[str] | None = None
+    connectors: dict[str, TenantConnectorSettings] = Field(default_factory=dict)
     retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)
     cache: CacheSettings = Field(default_factory=CacheSettings)
-
-    @field_validator("seller_ids")
-    @classmethod
-    def _check_seller_ids(cls, value: list[str] | None) -> list[str] | None:
-        if value is None:
-            return None
-        cleaned = unique_names(value, "seller_ids")
-        if not cleaned:
-            raise ValueError("seller_ids must be null (all sellers) or a non-empty list")
-        return cleaned
 
 
 class TenantsConfig(BaseModel):
@@ -475,7 +483,6 @@ def tenant_context(tenant_id: str, tenants: TenantsConfig) -> TenantContext:
         allowed_agents=set(config.agents.allow),
         allowed_tools=set(config.tools.allow),
         ask_tools=set(config.tools.ask),
-        seller_ids=config.seller_ids,
         provider=config.provider,
         model=config.model,
         retrieval=config.retrieval,

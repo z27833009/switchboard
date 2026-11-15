@@ -14,8 +14,9 @@
 #                 The LangGraph path shows them to the model and pauses the run
 #                 as waiting_approval; the agent-loop path withholds them, so it
 #                 stays read-only. A write tool must be here, never in allow.
-#   seller_ids:   null means every seller (unrestricted demo tenant); a list
-#                 scopes every tool to those sellers, server-side
+#   connectors:   per-connector scope. olist.seller_ids null means every seller
+#                 (unrestricted demo tenant); a list scopes the Olist tools to
+#                 those sellers, server-side. Scope is not a core tenant field.
 #   retrieval:    k, min_score, rewrite, rewrite_mode, search
 #                 (defaults: 5, 0.35, false, conditional, vector). search
 #                 hybrid adds full-text search and RRF; rewrite true enables
@@ -42,7 +43,9 @@ tenants:
         - top_products@1
         - describe_schema@1
       ask: []
-    seller_ids: null
+    connectors:
+      olist:
+        seller_ids: null
     retrieval:
       search: hybrid
       rewrite: true
@@ -73,7 +76,11 @@ tenants:
       # pauses as waiting_approval until POST /runs/{id}/approve.
       ask:
         - add_order_note@1
-    seller_ids: ["955fee9216a65b617aa5c0531780ce60"]
+    connectors:
+      olist:
+        seller_ids: ["955fee9216a65b617aa5c0531780ce60"]
+      reviews:
+        seller_ids: ["955fee9216a65b617aa5c0531780ce60"]
     retrieval:
       search: hybrid
       rewrite: true

@@ -46,7 +46,6 @@ def context(tenant_id: str, allowed_tools: set[str]) -> RunContext:
         allowed_agents={"data"},
         allowed_tools=allowed_tools,
         provider="lmstudio",
-        seller_ids=["955fee9216a65b617aa5c0531780ce60"] if tenant_id == "seller_a" else None,
     )
     return RunContext(
         run_id=str(uuid.uuid4()),

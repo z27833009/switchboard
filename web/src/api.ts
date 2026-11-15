@@ -256,7 +256,7 @@ export interface SettingsTenant {
   tenant_id: string;
   provider: string;
   model: string | null;
-  seller_ids: string[] | null;
+  connectors: Record<string, { seller_ids: string[] | null }>;
   agents_allow: string[];
   tools_allow: string[];
   tools_ask: string[];

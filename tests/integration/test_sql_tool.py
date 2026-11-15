@@ -308,7 +308,6 @@ async def test_demo_tenants_do_not_list_the_sql_tool() -> None:
                 allowed_agents={"data"},
                 allowed_tools=allowed,
                 provider="lmstudio",
-                seller_ids=[SELLER_ID] if tenant_id == "seller_a" else None,
             ),
             run_token=mint(tenant_id)[0],
             trace_parent="00-" + "a" * 32 + "-" + "b" * 16 + "-01",

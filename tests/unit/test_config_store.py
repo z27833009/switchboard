@@ -268,7 +268,7 @@ async def test_create_tenant_writes_both_the_document_and_the_database_row() -> 
         agents_allow=["direct", "docs"],
         tools_allow=[],
         tools_ask=[],
-        seller_ids=None,
+        connectors=None,
         actor="test:admin",
     )
     assert revision == 2
@@ -285,7 +285,7 @@ async def test_create_tenant_writes_both_the_document_and_the_database_row() -> 
             agents_allow=["direct"],
             tools_allow=[],
             tools_ask=[],
-            seller_ids=None,
+            connectors=None,
             actor="test:admin",
         )
     with pytest.raises(ConfigError, match="unknown provider"):
@@ -296,7 +296,7 @@ async def test_create_tenant_writes_both_the_document_and_the_database_row() -> 
             agents_allow=["direct"],
             tools_allow=[],
             tools_ask=[],
-            seller_ids=None,
+            connectors=None,
             actor="test:admin",
         )
 

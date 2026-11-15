@@ -165,7 +165,9 @@ def test_seller_ids_and_retrieval_keys_are_validated(tmp_path: Path) -> None:
         """
 tenants:
   default:
-    seller_ids: []
+    connectors:
+      olist:
+        seller_ids: []
 """,
     )
     with pytest.raises(ServerConfigError, match="non-empty list"):
@@ -176,7 +178,9 @@ tenants:
         """
 tenants:
   default:
-    seller_ids: [123]
+    connectors:
+      olist:
+        seller_ids: [123]
 """,
     )
     with pytest.raises(ServerConfigError, match="entries must be strings"):
@@ -256,7 +260,9 @@ def test_seller_ids_may_not_contain_commas(tmp_path: Path) -> None:
         """
 tenants:
   default:
-    seller_ids: ["seller-1,seller-2"]
+    connectors:
+      olist:
+        seller_ids: ["seller-1,seller-2"]
 """,
     )
     with pytest.raises(ServerConfigError, match="must not contain commas"):

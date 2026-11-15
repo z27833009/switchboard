@@ -940,7 +940,10 @@ async def create_tenant_settings(request: Request, payload: TenantCreation) -> S
             agents_allow=payload.agents_allow,
             tools_allow=payload.tools_allow,
             tools_ask=payload.tools_ask,
-            seller_ids=payload.seller_ids,
+            connectors={
+                name: binding.model_dump(mode="json")
+                for name, binding in payload.connectors.items()
+            },
             actor="local:admin",
         )
     except ConfigError as exc:

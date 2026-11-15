@@ -67,4 +67,4 @@ def test_only_seller_a_allows_the_review_tools() -> None:
         "review_summary@1",
         "order_reviews@1",
     }
-    assert seller.seller_ids == ["955fee9216a65b617aa5c0531780ce60"]
+    assert seller.connectors["olist"].seller_ids == ["955fee9216a65b617aa5c0531780ce60"]

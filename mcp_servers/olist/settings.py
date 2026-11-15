@@ -18,7 +18,10 @@ from typing import Any
 
 import yaml
 
-TENANT_KEYS = frozenset({"provider", "agents", "tools", "seller_ids", "retrieval", "cache"})
+TENANT_KEYS = frozenset(
+    {"provider", "model", "agents", "tools", "connectors", "retrieval", "cache"}
+)
+CONNECTOR_KEYS = frozenset({"seller_ids"})
 AGENT_KEYS = frozenset({"allow"})
 TOOL_KEYS = frozenset({"allow", "ask"})
 RETRIEVAL_KEYS = frozenset({"k", "min_score", "rewrite", "rewrite_mode", "search"})
@@ -189,9 +192,20 @@ def load_tenants(path: Path, manifest: Mapping[str, ToolDefinition]) -> dict[str
                 f"{', '.join(unapproved_writes)}; a write tool must be in tools.ask"
             )
 
-        seller_ids = entry.get("seller_ids")
+        connectors = _mapping(entry.get("connectors", {}), f"tenant {tenant_id!r} connectors")
+        for connector_name, connector in connectors.items():
+            binding = _mapping(connector, f"tenant {tenant_id!r} connector {connector_name!r}")
+            _known_keys(
+                binding,
+                CONNECTOR_KEYS,
+                f"tenant {tenant_id!r} connector {connector_name!r}",
+            )
+        olist_binding = _mapping(
+            connectors.get("olist", {}), f"tenant {tenant_id!r} connectors.olist"
+        )
+        seller_ids = olist_binding.get("seller_ids")
         if seller_ids is not None:
-            sellers = _names(seller_ids, f"tenant {tenant_id!r} seller_ids")
+            sellers = _names(seller_ids, f"tenant {tenant_id!r} connectors.olist.seller_ids")
             if not sellers:
                 raise ServerConfigError(
                     f"tenant {tenant_id!r} seller_ids must be null (all sellers) "
