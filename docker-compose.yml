@@ -101,6 +101,29 @@ services:
       retries: 20
       start_period: 10s
 
+  mcp-catalog:
+    image: switchboard-app:local
+    restart: unless-stopped
+    command: ["python", "-m", "mcp_servers.catalog.server"]
+    environment:
+      SWITCHBOARD_RUN_TOKEN_SECRET: "${SWITCHBOARD_RUN_TOKEN_SECRET:?set SWITCHBOARD_RUN_TOKEN_SECRET in .env (at least 32 bytes)}"
+      CATALOG_TENANT: "acme"
+      MCP_CATALOG_PORT: "8003"
+    ports:
+      - "8003:8003"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/health', timeout=5).read()",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
   api:
     <<: *app
     command:
@@ -129,6 +152,7 @@ services:
       SWITCHBOARD_TOOLS_URL: "http://mcp-olist:8001"
       MCP_OLIST_URL: "http://mcp-olist:8001"
       MCP_REVIEWS_URL: "http://mcp-reviews:8002"
+      MCP_CATALOG_URL: "http://mcp-catalog:8003"
       LMSTUDIO_BASE_URL: "http://host.docker.internal:18080/v1"
       LMSTUDIO_MODEL: "${LMSTUDIO_MODEL:-qwen3-8b}"
       LMSTUDIO_EMBEDDING_MODEL: "${LMSTUDIO_EMBEDDING_MODEL:-bge-m3}"
@@ -153,6 +177,8 @@ services:
       mcp-olist:
         condition: service_healthy
       mcp-reviews:
+        condition: service_healthy
+      mcp-catalog:
         condition: service_healthy
     healthcheck:
       test:
