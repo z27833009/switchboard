@@ -81,6 +81,7 @@ from switchboard.api.schemas import (
     SettingsRevision,
     TenantCreation,
     TenantSettingsUpdate,
+    TenantsResponse,
     TraceResponse,
     UserCreate,
     UsersResponse,
@@ -1174,6 +1175,13 @@ def _auth_payload(user: AuthUser) -> AuthUserPayload:
     )
 
 
+@router.get("/tenants", response_model=TenantsResponse)
+async def list_tenants(request: Request) -> TenantsResponse:
+    """The configured tenant ids, safe to show before sign-in."""
+    deps = _deps(request.app)
+    return TenantsResponse(tenants=sorted(deps.tenants.tenants))
+
+
 @router.get("/auth/status", response_model=AuthStatus)
 async def auth_status(request: Request) -> AuthStatus:
     """Whether this process requires a session, and who the cookie belongs to."""
@@ -1285,7 +1293,7 @@ def create_app(*, deps: AppDeps | None = None) -> FastAPI:
             return cast(Response, await call_next(request))
         path = request.url.path
         public = (
-            path == "/health"
+            path in {"/health", "/tenants"}
             or path.startswith("/auth/")
             or path in {"/docs", "/openapi.json", "/redoc"}
         )

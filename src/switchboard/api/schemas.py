@@ -483,6 +483,12 @@ class AuthUserPayload(BaseModel):
     role: Literal["admin", "member"]
 
 
+class TenantsResponse(BaseModel):
+    """The tenant ids this process knows, for the login and switcher lists."""
+
+    tenants: list[str] = Field(default_factory=list)
+
+
 class AuthStatus(BaseModel):
     auth_required: bool
     authenticated: bool
@@ -793,6 +799,7 @@ __all__ = [
     "SettingsTool",
     "TenantCreation",
     "TenantSettingsUpdate",
+    "TenantsResponse",
     "TraceResponse",
     "TraceSpan",
     "UserCreate",

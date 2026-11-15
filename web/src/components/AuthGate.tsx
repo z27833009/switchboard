@@ -1,7 +1,7 @@
 import type { FormEvent, ReactNode } from "react";
 import { useEffect, useState } from "react";
 
-import { errorMessage, getAuthStatus, login } from "../auth";
+import { errorMessage, getAuthStatus, getTenants, login } from "../auth";
 import type { AuthStatus } from "../auth";
 import { TENANTS } from "../config";
 
@@ -82,11 +82,18 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    getAuthStatus(controller.signal)
-      .then((payload) => {
-        if (!controller.signal.aborted) {
-          setStatus(payload);
+    Promise.all([
+      getAuthStatus(controller.signal),
+      getTenants(controller.signal).catch(() => []),
+    ])
+      .then(([payload, tenants]) => {
+        if (controller.signal.aborted) {
+          return;
         }
+        if (tenants.length > 0) {
+          TENANTS.splice(0, TENANTS.length, ...tenants);
+        }
+        setStatus(payload);
       })
       .catch((caught) => {
         if (!controller.signal.aborted) {

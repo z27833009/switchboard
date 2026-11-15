@@ -785,6 +785,7 @@ async def test_openapi_and_docs_render(harness: AppHarness) -> None:
         "/settings/providers/{provider_name}/credential",
         "/settings/tenants",
         "/settings/tenants/{tenant_id}",
+        "/tenants",
         "/users",
     }
     docs = await harness.client.get("/docs")

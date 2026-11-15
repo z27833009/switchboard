@@ -18,6 +18,11 @@ export function getAuthStatus(signal?: AbortSignal): Promise<AuthStatus> {
   return getJson<AuthStatus>("/auth/status", signal);
 }
 
+export async function getTenants(signal?: AbortSignal): Promise<string[]> {
+  const payload = await getJson<{ tenants: string[] }>("/tenants", signal);
+  return payload.tenants;
+}
+
 export function login(
   email: string,
   password: string,
