@@ -30,6 +30,7 @@ from switchboard.api.step_events import StepEventProcessor, StepEventPublisher
 from switchboard.api.store import PgRunStore, RunStore
 from switchboard.config import load_settings
 from switchboard.config_store import SettingsStore
+from switchboard.control_plane import sync_control_plane
 from switchboard.core.config import PriceEntry, Settings, TenantsConfig, provider_model_key
 from switchboard.core.context import ClearOldestToolResults
 from switchboard.core.errors import ConfigError
@@ -407,6 +408,7 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
         built = build_orchestrator_set(
             settings, registry, pool, answer_delta=step_events.publish_answer_delta
         )
+        await sync_control_plane(pool, settings, registry)
         # A cache that owns a store-side index creates it here, once, so the
         # first run does not pay for it. The adapter logs a warning instead of
         # raising when the store is down: a cache may never fail a run (T3.09).

@@ -38,6 +38,7 @@ SQL_FILES = (
     "13-session-audit.sql",
     "14-auth.sql",
     "15-run-attachments.sql",
+    "16-control-plane.sql",
 )
 ROLES = (
     ("switchboard_app", "SWITCHBOARD_APP_DB_PASSWORD"),

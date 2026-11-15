@@ -1174,13 +1174,15 @@ async def check_postgres(dsn: str) -> dict[str, str]:
     return {"status": "ok"}
 
 
-def check_lmstudio(base_url: str) -> dict[str, Any]:
+def check_lmstudio(base_url: str, api_key: str = "lm-studio") -> dict[str, Any]:
     if not base_url:
         return {"status": "error", "detail": "LMSTUDIO_BASE_URL is not set"}
+    request = urllib.request.Request(
+        base_url.rstrip("/") + "/models",
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
     try:
-        with urllib.request.urlopen(
-            base_url.rstrip("/") + "/models", timeout=HTTP_TIMEOUT_S
-        ) as response:
+        with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_S) as response:
             payload: Any = json.loads(response.read())
     except Exception as exc:
         return {"status": "error", "detail": type(exc).__name__}
@@ -1204,7 +1206,11 @@ def check_http(url: str) -> dict[str, str]:
 async def default_health() -> tuple[int, dict[str, Any]]:
     """The dependency report: postgres, both MCP servers, lmstudio (T1.02, T3.08)."""
     postgres = await check_postgres(os.environ.get("SWITCHBOARD_DATABASE_URL", ""))
-    lmstudio = await asyncio.to_thread(check_lmstudio, os.environ.get("LMSTUDIO_BASE_URL", ""))
+    lmstudio = await asyncio.to_thread(
+        check_lmstudio,
+        os.environ.get("LMSTUDIO_BASE_URL", ""),
+        os.environ.get("LMSTUDIO_API_KEY", "lm-studio"),
+    )
     tools_url = os.environ.get("SWITCHBOARD_TOOLS_URL", "")
     if tools_url:
         mcp_olist = await asyncio.to_thread(check_http, tools_url.rstrip("/") + "/health")
