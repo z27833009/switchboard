@@ -610,6 +610,7 @@ class SettingsTenant(BaseModel):
 
     tenant_id: str
     provider: str
+    model: str | None = None
     seller_ids: list[str] | None = None
     agents_allow: list[str] = Field(default_factory=list)
     tools_allow: list[str] = Field(default_factory=list)
@@ -656,6 +657,7 @@ class TenantCreation(BaseModel):
     tenant_id: str = Field(pattern=r"^[a-z][a-z0-9_-]{1,63}$")
     name: str = Field(min_length=1, max_length=120)
     provider: str = Field(min_length=1, max_length=64)
+    model: str | None = Field(default=None, min_length=1, max_length=200)
     agents_allow: list[str] = Field(default_factory=lambda: ["direct", "docs"], min_length=1)
     tools_allow: list[str] = Field(default_factory=list)
     tools_ask: list[str] = Field(default_factory=list)
@@ -668,6 +670,7 @@ class TenantSettingsUpdate(BaseModel):
     agents_allow: list[str] | None = None
     tools_allow: list[str] | None = None
     tools_ask: list[str] | None = None
+    model: str | None = Field(default=None, min_length=1, max_length=200)
 
 
 class ProviderSettingsUpdate(BaseModel):

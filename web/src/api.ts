@@ -255,6 +255,7 @@ export interface SettingsCache {
 export interface SettingsTenant {
   tenant_id: string;
   provider: string;
+  model: string | null;
   seller_ids: string[] | null;
   agents_allow: string[];
   tools_allow: string[];
@@ -463,6 +464,7 @@ export async function updateTenantSettings(
     agents_allow?: string[];
     tools_allow?: string[];
     tools_ask?: string[];
+    model?: string;
   },
   signal?: AbortSignal,
 ): Promise<SettingsRevision> {

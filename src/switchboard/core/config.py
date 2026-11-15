@@ -297,6 +297,8 @@ class TenantConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     provider: str
+    # Optional per-tenant model override. None uses the provider's model.
+    model: str | None = None
     agents: TenantAgentSettings = Field(default_factory=TenantAgentSettings)
     tools: TenantToolSettings = Field(default_factory=TenantToolSettings)
     seller_ids: list[str] | None = None
@@ -457,6 +459,11 @@ class Settings(BaseModel):
         return self
 
 
+def provider_model_key(provider: str, model: str | None) -> str:
+    """The orchestrator key for one provider plus an optional tenant model."""
+    return provider if model is None else f"{provider}::{model}"
+
+
 def tenant_context(tenant_id: str, tenants: TenantsConfig) -> TenantContext:
     """Resolve one tenant's settings into the per-run context."""
     try:
@@ -470,6 +477,7 @@ def tenant_context(tenant_id: str, tenants: TenantsConfig) -> TenantContext:
         ask_tools=set(config.tools.ask),
         seller_ids=config.seller_ids,
         provider=config.provider,
+        model=config.model,
         retrieval=config.retrieval,
         cache=config.cache,
     )

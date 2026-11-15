@@ -130,7 +130,7 @@ def _check_orchestrator(deps: AppDeps, tenant: TenantContext, name: str | None) 
     if name is None:
         return
     try:
-        deps.orchestrator_for(tenant.provider, name)
+        deps.orchestrator_for(tenant.provider, name, tenant.model)
     except ConfigError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -201,7 +201,7 @@ async def execute_run(
     trace_parent: str,
 ) -> tuple[RunResult, bool]:
     """One run: run row, orchestrator, flush, final row (design 5 and 12.2)."""
-    orchestrator = deps.orchestrator_for(tenant.provider, request.orchestrator)
+    orchestrator = deps.orchestrator_for(tenant.provider, request.orchestrator, tenant.model)
     context = _run_context(deps, tenant, run_id, trace_parent)
     # Loaded before the new run row exists, so the current query is not part of
     # its own history.
@@ -754,7 +754,7 @@ async def _resolve_approval(
         raise HTTPException(
             status_code=409, detail=f"run {row['id']} has no pending tool call"
         ) from exc
-    orchestrator = deps.orchestrator_for(tenant.provider, str(row["orchestrator"]))
+    orchestrator = deps.orchestrator_for(tenant.provider, str(row["orchestrator"]), tenant.model)
     resume = getattr(orchestrator, "resume", None)
     if resume is None:
         raise HTTPException(
@@ -922,6 +922,7 @@ async def create_tenant_settings(request: Request, payload: TenantCreation) -> S
             payload.tenant_id,
             name=payload.name.strip(),
             provider=payload.provider,
+            model=payload.model,
             agents_allow=payload.agents_allow,
             tools_allow=payload.tools_allow,
             tools_ask=payload.tools_ask,
@@ -956,6 +957,7 @@ async def update_tenant_settings(
             agents_allow=payload.agents_allow,
             tools_allow=payload.tools_allow,
             tools_ask=payload.tools_ask,
+            model=payload.model,
             actor="local:admin",
         )
     except ConfigError as exc:

@@ -889,6 +889,7 @@ function SectionBody({
   const [credentialBusy, setCredentialBusy] = useState(false);
   const [credentialMessage, setCredentialMessage] = useState<string | null>(null);
   const [credentialError, setCredentialError] = useState<string | null>(null);
+  const [tenantModelDraft, setTenantModelDraft] = useState(tenant.model ?? "");
   const [agentSelection, setAgentSelection] = useState<string[]>(tenant.agents_allow);
   const [toolsAllow, setToolsAllow] = useState<string[]>(tenant.tools_allow);
   const [toolsAsk, setToolsAsk] = useState<string[]>(tenant.tools_ask);
@@ -899,6 +900,10 @@ function SectionBody({
   useEffect(() => {
     setModelDraft(provider.model ?? "");
   }, [provider.model]);
+
+  useEffect(() => {
+    setTenantModelDraft(tenant.model ?? "");
+  }, [tenant.model]);
 
   useEffect(() => {
     setAgentSelection(tenant.agents_allow);
@@ -955,6 +960,28 @@ function SectionBody({
       setCredentialError(errorMessage(caught));
     } finally {
       setCredentialBusy(false);
+    }
+  }
+
+  async function saveTenantModel(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!tenantModelDraft.trim()) {
+      setSaveError("Enter a model name for this tenant.");
+      return;
+    }
+    setSaveBusy(true);
+    setSaveError(null);
+    setSaveMessage(null);
+    try {
+      const result = await updateTenantSettings(tenant.tenant_id, {
+        model: tenantModelDraft.trim(),
+      });
+      setSaveMessage(`Saved revision ${result.revision}. ${result.note}.`);
+      onSaved();
+    } catch (caught) {
+      setSaveError(errorMessage(caught));
+    } finally {
+      setSaveBusy(false);
     }
   }
 
@@ -1220,6 +1247,27 @@ function SectionBody({
               {saveError}
             </p>
           )}
+        </form>
+        <form className="settings-edit" onSubmit={saveTenantModel}>
+          <h4 className="settings-subheading">Tenant model override</h4>
+          <label className="field">
+            <span className="field-label">Model for {tenant.tenant_id}</span>
+            <input
+              value={tenantModelDraft}
+              onChange={(event) => setTenantModelDraft(event.target.value)}
+              placeholder={provider.model ?? "model name"}
+              disabled={saveBusy}
+            />
+          </label>
+          <p className="muted small">
+            A tenant with an override gets its own provider instance, so two tenants on one
+            provider can use different models. Restart the API to apply.
+          </p>
+          <div className="settings-edit-actions">
+            <button type="submit" className="button button-primary" disabled={saveBusy}>
+              {saveBusy ? "Saving..." : "Save tenant model"}
+            </button>
+          </div>
         </form>
         <form className="settings-edit" onSubmit={saveCredential}>
           <h4 className="settings-subheading">Store an API key</h4>

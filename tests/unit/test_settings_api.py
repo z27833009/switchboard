@@ -271,6 +271,7 @@ async def test_known_tenant_returns_the_expected_shape(
     assert body["tenant"] == {
         "tenant_id": "default",
         "provider": "lmstudio",
+        "model": None,
         "seller_ids": None,
         "agents_allow": ["direct", "docs"],
         "tools_allow": ["orders_summary@1", "orders_late@1"],

@@ -17,7 +17,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from switchboard.core.config import PriceEntry, Settings, TenantConfig
+from switchboard.core.config import PriceEntry, Settings, TenantConfig, provider_model_key
 from switchboard.core.errors import ConfigError
 from switchboard.core.models import AgentSpec, ToolSpec
 from switchboard.eval.manifest import load_tool_specs
@@ -108,7 +108,8 @@ def _tenant_payload(
     available_orchestrators: Sequence[str] | None,
 ) -> dict[str, Any]:
     provider = settings.providers.providers[tenant.provider]
-    price = settings.prices.lookup(tenant.provider, provider.model)
+    effective_model = tenant.model or provider.model
+    price = settings.prices.lookup(tenant.provider, effective_model)
     return {
         "read_only": True,
         "platform": {
@@ -129,6 +130,7 @@ def _tenant_payload(
         "tenant": {
             "tenant_id": tenant_id,
             "provider": tenant.provider,
+            "model": tenant.model,
             "seller_ids": None if tenant.seller_ids is None else list(tenant.seller_ids),
             "agents_allow": list(tenant.agents.allow),
             "tools_allow": list(tenant.tools.allow),
@@ -218,7 +220,7 @@ def build_settings_snapshots(
             tool_sources,
             None
             if available_orchestrators is None
-            else available_orchestrators.get(tenant.provider),
+            else available_orchestrators.get(provider_model_key(tenant.provider, tenant.model)),
         )
         for tenant_id, tenant in sorted(settings.tenants.tenants.items())
     }

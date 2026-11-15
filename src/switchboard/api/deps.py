@@ -30,7 +30,7 @@ from switchboard.api.step_events import StepEventProcessor, StepEventPublisher
 from switchboard.api.store import PgRunStore, RunStore
 from switchboard.config import load_settings
 from switchboard.config_store import SettingsStore
-from switchboard.core.config import PriceEntry, Settings, TenantsConfig
+from switchboard.core.config import PriceEntry, Settings, TenantsConfig, provider_model_key
 from switchboard.core.context import ClearOldestToolResults
 from switchboard.core.errors import ConfigError
 from switchboard.core.ports import ContextPolicy, Judge, Orchestrator
@@ -91,42 +91,41 @@ class AppDeps:
     # The same embedder the retriever uses, exposed for document reindex.
     embedder: Any | None = None
 
-    def orchestrator_for(self, tenant_provider: str, name: str | None = None) -> Orchestrator:
+    def orchestrator_for(
+        self, tenant_provider: str, name: str | None = None, model: str | None = None
+    ) -> Orchestrator:
         """The default orchestrator, or a named replay target when ``name`` is set.
 
-        ``name=None`` is exactly the pre-T3.07 path: one orchestrator per tenant
-        provider. A name is looked up among the optional replay targets built at
-        startup for that provider; the platform default answers to its own name
-        too, so a replay can repeat the default configuration.
+        The key is the provider plus the tenant's optional model override, so
+        two tenants on one provider can run different models in one process.
         """
-        default = self.orchestrators.get(tenant_provider)
+        key = provider_model_key(tenant_provider, model)
+        default = self.orchestrators.get(key)
         if name is None:
             if default is not None:
                 return default
             raise ConfigError(
-                f"no orchestrator for provider {tenant_provider!r}; "
+                f"no orchestrator for provider {key!r}; "
                 f"available: {', '.join(sorted(self.orchestrators)) or 'none'}"
             )
         if default is not None and default.name == name:
             return default
         try:
-            return self.replay_orchestrators[(tenant_provider, name)]
+            return self.replay_orchestrators[(key, name)]
         except KeyError as exc:
-            available = ", ".join(self.available_orchestrators(tenant_provider)) or "none"
+            available = ", ".join(self.available_orchestrators(tenant_provider, model)) or "none"
             raise ConfigError(
-                f"no orchestrator named {name!r} for provider {tenant_provider!r}; "
-                f"available: {available}"
+                f"no orchestrator named {name!r} for provider {key!r}; available: {available}"
             ) from exc
 
-    def available_orchestrators(self, tenant_provider: str) -> list[str]:
-        """The orchestrator names this process can run for one tenant provider."""
+    def available_orchestrators(self, tenant_provider: str, model: str | None = None) -> list[str]:
+        """The orchestrator names this process can run for one provider and model."""
+        key = provider_model_key(tenant_provider, model)
         names: set[str] = set()
-        default = self.orchestrators.get(tenant_provider)
+        default = self.orchestrators.get(key)
         if default is not None:
             names.add(default.name)
-        names.update(
-            name for provider, name in self.replay_orchestrators if provider == tenant_provider
-        )
+        names.update(name for provider, name in self.replay_orchestrators if provider == key)
         return sorted(names)
 
     async def flush(self) -> bool:
@@ -236,17 +235,22 @@ def build_orchestrator_set(
         if name != default_name
     }
 
-    providers: dict[str, Any] = {}
-    prices: dict[str, PriceEntry | None] = {}
+    providers: dict[tuple[str, str | None], Any] = {}
+    prices: dict[tuple[str, str | None], PriceEntry | None] = {}
 
-    def provider_and_price(provider_name: str) -> tuple[Any, PriceEntry | None]:
-        if provider_name not in providers:
+    def provider_and_price(
+        provider_name: str, model_override: str | None
+    ) -> tuple[Any, PriceEntry | None]:
+        key = (provider_name, model_override)
+        if key not in providers:
             try:
                 provider_config = settings.providers.providers[provider_name]
             except KeyError as exc:
                 raise ConfigError(f"unknown provider {provider_name!r}") from exc
+            if model_override is not None:
+                provider_config = provider_config.model_copy(update={"model": model_override})
             price = lookup_price(settings.prices, provider_name, provider_config.model)
-            providers[provider_name] = create_provider(
+            providers[key] = create_provider(
                 registry,
                 provider_name,
                 provider_config,
@@ -254,18 +258,20 @@ def build_orchestrator_set(
                 providers=settings.providers.providers,
                 prices=settings.prices,
             )
-            prices[provider_name] = price
-        return providers[provider_name], prices[provider_name]
+            prices[key] = price
+        return providers[key], prices[key]
 
     # Layer 2 of the gate (design 6.8). Off by default, and built once so both
     # orchestrators and the replay targets share one judge instance.
     judge: Judge | None = None
     if settings.platform.judge.enabled:
-        judge_provider, _judge_price = provider_and_price(settings.platform.judge.provider)
+        judge_provider, _judge_price = provider_and_price(settings.platform.judge.provider, None)
         judge = create_judge(registry, provider=judge_provider, settings=settings.platform.judge)
 
-    def instantiate(orchestrator_class: Any, provider_name: str) -> Orchestrator:
-        provider, price = provider_and_price(provider_name)
+    def instantiate(
+        orchestrator_class: Any, provider_name: str, model_override: str | None
+    ) -> Orchestrator:
+        provider, price = provider_and_price(provider_name, model_override)
         return cast(
             Orchestrator,
             orchestrator_class(
@@ -285,19 +291,23 @@ def build_orchestrator_set(
 
     default: dict[str, Orchestrator] = {}
     replay: dict[tuple[str, str], Orchestrator] = {}
-    provider_names = sorted({tenant.provider for tenant in settings.tenants.tenants.values()})
-    for provider_name in provider_names:
+    provider_models = sorted(
+        {(tenant.provider, tenant.model) for tenant in settings.tenants.tenants.values()},
+        key=lambda item: (item[0], item[1] or ""),
+    )
+    for provider_name, model_override in provider_models:
+        key = provider_model_key(provider_name, model_override)
         # The default target is required: a broken tenant provider still fails
         # startup, exactly as it did before this task.
-        default[provider_name] = instantiate(default_class, provider_name)
+        default[key] = instantiate(default_class, provider_name, model_override)
         for name, orchestrator_class in replay_classes.items():
             try:
-                replay[(provider_name, name)] = instantiate(orchestrator_class, provider_name)
+                replay[(key, name)] = instantiate(orchestrator_class, provider_name, model_override)
             except ConfigError as exc:
                 logger.warning(
                     "skipping replay orchestrator %r for provider %r: %s",
                     name,
-                    provider_name,
+                    key,
                     exc,
                 )
     return BuiltOrchestrators(default=default, replay=replay, cache=cache, embedder=embedder)

@@ -432,7 +432,7 @@ export function ChatPage({
     )
       .then((settings) => {
         if (!controller.signal.aborted) {
-          const model = settings.provider.model;
+          const model = settings.tenant.model ?? settings.provider.model;
           setModelLabel(
             model === null ? settings.provider.name : `${settings.provider.name} / ${model}`,
           );

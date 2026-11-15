@@ -186,6 +186,7 @@ class SettingsStore:
         agents_allow: list[str] | None = None,
         tools_allow: list[str] | None = None,
         tools_ask: list[str] | None = None,
+        model: str | None = None,
     ) -> int:
         """Update one tenant's allowlists in the tenants document."""
         document = await self._read_document("tenants")
@@ -193,6 +194,8 @@ class SettingsStore:
         if tenant_id not in tenants:
             raise ConfigError(f"unknown tenant {tenant_id!r}")
         tenant = dict(tenants[tenant_id])
+        if model is not None:
+            tenant["model"] = model
         if agents_allow is not None:
             tenant["agents"] = {**tenant.get("agents", {}), "allow": list(agents_allow)}
         tools = dict(tenant.get("tools", {}))
@@ -213,7 +216,8 @@ class SettingsStore:
         *,
         name: str,
         provider: str,
-        agents_allow: list[str],
+        model: str | None = None,
+        agents_allow: list[str] | None = None,
         tools_allow: list[str] | None,
         tools_ask: list[str] | None,
         seller_ids: list[str] | None,
@@ -233,7 +237,8 @@ class SettingsStore:
             raise ConfigError(f"unknown provider {provider!r}")
         tenants[tenant_id] = {
             "provider": provider,
-            "agents": {"allow": list(agents_allow)},
+            "model": model,
+            "agents": {"allow": list(agents_allow or [])},
             "tools": {"allow": list(tools_allow or []), "ask": list(tools_ask or [])},
             "seller_ids": seller_ids,
         }
