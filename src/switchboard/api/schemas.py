@@ -279,6 +279,34 @@ class SessionRename(BaseModel):
         return cleaned
 
 
+class SessionAuditRow(BaseModel):
+    """One recorded conversation action (V3.07)."""
+
+    id: str
+    tenant_id: str
+    session_id: str
+    action: Literal["rename", "delete", "restore", "bulk_delete"]
+    actor: str
+    created_at: datetime
+
+    @classmethod
+    def from_row(cls, row: Mapping[str, Any]) -> SessionAuditRow:
+        return cls(
+            id=str(row["id"]),
+            tenant_id=str(row["tenant_id"]),
+            session_id=str(row["session_id"]),
+            action=cast(Literal["rename", "delete", "restore", "bulk_delete"], row["action"]),
+            actor=str(row["actor"]),
+            created_at=cast(datetime, row["created_at"]),
+        )
+
+
+class SessionAuditResponse(BaseModel):
+    tenant_id: str
+    rows: list[SessionAuditRow] = Field(default_factory=list)
+    count: int = 0
+
+
 class SessionBulkDelete(BaseModel):
     """The body of ``POST /sessions/bulk-delete`` (V3.07)."""
 
@@ -722,6 +750,8 @@ __all__ = [
     "RunAggregateRow",
     "RunSummary",
     "RunsResponse",
+    "SessionAuditResponse",
+    "SessionAuditRow",
     "SessionBulkDelete",
     "SessionRename",
     "SettingsAgent",

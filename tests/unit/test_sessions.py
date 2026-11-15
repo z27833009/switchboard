@@ -440,6 +440,12 @@ async def test_a_conversation_can_be_renamed_and_hidden_without_deleting_runs(
     restored_row = next(item for item in active.json()["sessions"] if item["session_id"] == session)
     assert restored_row["deleted_at"] is None
 
+    audit = await harness.client.get("/sessions/audit", params={"tenant_id": "default"})
+    assert audit.status_code == 200
+    actions = [row["action"] for row in audit.json()["rows"] if row["session_id"] == session]
+    assert actions == ["restore", "delete", "rename"]
+    assert all(row["actor"] == "local:admin" for row in audit.json()["rows"])
+
     # The hidden conversation's runs are still stored and remain readable.
     runs = await harness.client.get("/runs", params={"tenant_id": "default", "session_id": session})
     assert runs.status_code == 200

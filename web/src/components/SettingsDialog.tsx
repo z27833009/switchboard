@@ -23,6 +23,8 @@ import {
 import type {
   DocumentChunk,
   DocumentSummary,
+  SessionAuditResponse,
+  SessionAuditRow,
   SessionsResponse,
   SessionSummary,
   SettingsAgent,
@@ -488,6 +490,26 @@ function ConversationsSection({ tenantId }: { tenantId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
+  const [audit, setAudit] = useState<SessionAuditRow[]>([]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getJson<SessionAuditResponse>(
+      `/sessions/audit?tenant_id=${encodeURIComponent(tenantId)}&limit=20`,
+      controller.signal,
+    )
+      .then((payload) => {
+        if (!controller.signal.aborted) {
+          setAudit(payload.rows);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setAudit([]);
+        }
+      });
+    return () => controller.abort();
+  }, [tenantId, reload]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -582,6 +604,22 @@ function ConversationsSection({ tenantId }: { tenantId: string }) {
           </li>
         ))}
       </ul>
+      <h4 className="settings-subheading">Recent conversation actions</h4>
+      {audit.length === 0 ? (
+        <p className="muted small">No rename, hide or restore action is recorded.</p>
+      ) : (
+        <ul className="audit-list">
+          {audit.map((row) => (
+            <li key={row.id} className="audit-row">
+              <span className="tag tag-neutral">{row.action}</span>
+              <code>{row.session_id.slice(0, 12)}</code>
+              <span className="muted">
+                {row.actor}, {new Date(row.created_at).toLocaleString()}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

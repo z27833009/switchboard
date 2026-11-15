@@ -2119,6 +2119,25 @@ dialog::backdrop {
   font-variant-numeric: tabular-nums;
 }
 
+.audit-list {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.audit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
 .mcp-add > .settings-subheading {
   margin: 0;
 }

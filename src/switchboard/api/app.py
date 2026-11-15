@@ -58,6 +58,8 @@ from switchboard.api.schemas import (
     RunAggregateRow,
     RunsResponse,
     RunSummary,
+    SessionAuditResponse,
+    SessionAuditRow,
     SessionBulkDelete,
     SessionRename,
     SessionsResponse,
@@ -383,6 +385,23 @@ async def list_sessions(
     )
 
 
+@router.get("/sessions/audit", response_model=SessionAuditResponse)
+async def list_session_audit(
+    request: Request,
+    tenant_id: str = Query(min_length=1),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> SessionAuditResponse:
+    """The conversation rename, hide and restore actions for one tenant."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, tenant_id)
+    rows = await deps.store.list_session_actions(tenant_id=tenant.tenant_id, limit=limit)
+    return SessionAuditResponse(
+        tenant_id=tenant.tenant_id,
+        rows=[SessionAuditRow.from_row(row) for row in rows],
+        count=len(rows),
+    )
+
+
 @router.patch("/sessions/{session_id}", status_code=204)
 async def rename_session(request: Request, session_id: str, payload: SessionRename) -> Response:
     """Rename one conversation without changing its runs or traces."""
@@ -393,6 +412,12 @@ async def rename_session(request: Request, session_id: str, payload: SessionRena
     )
     if not renamed:
         raise HTTPException(status_code=404, detail="session not found")
+    await deps.store.record_session_action(
+        tenant_id=tenant.tenant_id,
+        session_id=session_id,
+        action="rename",
+        actor="local:admin",
+    )
     return Response(status_code=204)
 
 
@@ -408,6 +433,12 @@ async def delete_session(
     deleted = await deps.store.delete_session(tenant_id=tenant.tenant_id, session_id=session_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="session not found")
+    await deps.store.record_session_action(
+        tenant_id=tenant.tenant_id,
+        session_id=session_id,
+        action="delete",
+        actor="local:admin",
+    )
     return Response(status_code=204)
 
 
@@ -423,6 +454,12 @@ async def restore_session(
     restored = await deps.store.restore_session(tenant_id=tenant.tenant_id, session_id=session_id)
     if not restored:
         raise HTTPException(status_code=404, detail="conversation is not deleted")
+    await deps.store.record_session_action(
+        tenant_id=tenant.tenant_id,
+        session_id=session_id,
+        action="restore",
+        actor="local:admin",
+    )
     return Response(status_code=204)
 
 
@@ -438,6 +475,13 @@ async def bulk_delete_sessions(
         deleted = await deps.store.delete_session(tenant_id=tenant.tenant_id, session_id=session_id)
         if not deleted:
             missing.append(session_id)
+        else:
+            await deps.store.record_session_action(
+                tenant_id=tenant.tenant_id,
+                session_id=session_id,
+                action="bulk_delete",
+                actor="local:admin",
+            )
     return {
         "deleted": [value for value in payload.session_ids if value not in missing],
         "missing": missing,

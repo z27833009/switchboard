@@ -67,6 +67,7 @@ class MemoryRunStore:
         self.session_titles: dict[tuple[str, str], str] = {}
         self.deleted_sessions: set[tuple[str, str]] = set()
         self.documents: dict[str, dict[str, Any]] = {}
+        self.session_audit: list[dict[str, Any]] = []
         self.users: dict[str, dict[str, Any]] = {}
         self.memberships: dict[tuple[str, str], str] = {}
 
@@ -229,6 +230,32 @@ class MemoryRunStore:
             return False
         self.deleted_sessions.remove(key)
         return True
+
+    async def record_session_action(
+        self,
+        *,
+        tenant_id: str,
+        session_id: str,
+        action: Literal["rename", "delete", "restore", "bulk_delete"],
+        actor: str,
+    ) -> None:
+        self.session_audit.append(
+            {
+                "id": str(uuid.uuid4()),
+                "tenant_id": tenant_id,
+                "session_id": session_id,
+                "action": action,
+                "actor": actor,
+                "created_at": datetime.now(UTC),
+            }
+        )
+
+    async def list_session_actions(
+        self, *, tenant_id: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        rows = [dict(row) for row in self.session_audit if row["tenant_id"] == tenant_id]
+        rows.sort(key=lambda row: (row["created_at"], row["id"]), reverse=True)
+        return rows[:limit]
 
     async def list_users(self, *, tenant_id: str) -> list[dict[str, Any]]:
         rows = []

@@ -133,6 +133,21 @@ export interface SessionsResponse {
   count: number;
 }
 
+export interface SessionAuditRow {
+  id: string;
+  tenant_id: string;
+  session_id: string;
+  action: "rename" | "delete" | "restore" | "bulk_delete";
+  actor: string;
+  created_at: string;
+}
+
+export interface SessionAuditResponse {
+  tenant_id: string;
+  rows: SessionAuditRow[];
+  count: number;
+}
+
 export interface UserSummary {
   user_id: string;
   email: string;

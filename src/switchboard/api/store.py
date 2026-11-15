@@ -110,6 +110,19 @@ ORDER BY l.last_run_at DESC, f.session_id DESC
 LIMIT $2
 """
 
+INSERT_SESSION_AUDIT_SQL = """
+INSERT INTO public.session_audit (tenant_id, session_id, action, actor)
+VALUES ($1, $2, $3, $4)
+"""
+
+LIST_SESSION_AUDIT_SQL = """
+SELECT id::text AS id, tenant_id, session_id, action, actor, created_at
+FROM public.session_audit
+WHERE tenant_id = $1
+ORDER BY created_at DESC, id DESC
+LIMIT $2
+"""
+
 LIST_USERS_SQL = """
 SELECT u.id, u.email, u.display_name, u.created_at, m.role
 FROM public.users u
@@ -386,6 +399,19 @@ class RunStore(Protocol):
 
     async def restore_session(self, *, tenant_id: str, session_id: str) -> bool: ...
 
+    async def record_session_action(
+        self,
+        *,
+        tenant_id: str,
+        session_id: str,
+        action: Literal["rename", "delete", "restore", "bulk_delete"],
+        actor: str,
+    ) -> None: ...
+
+    async def list_session_actions(
+        self, *, tenant_id: str, limit: int = 50
+    ) -> list[dict[str, Any]]: ...
+
     async def list_users(self, *, tenant_id: str) -> list[dict[str, Any]]: ...
 
     async def create_user(
@@ -527,6 +553,22 @@ class PgRunStore:
     async def restore_session(self, *, tenant_id: str, session_id: str) -> bool:
         row = await self._pool.fetchrow(RESTORE_SESSION_SQL, tenant_id, session_id)
         return row is not None
+
+    async def record_session_action(
+        self,
+        *,
+        tenant_id: str,
+        session_id: str,
+        action: Literal["rename", "delete", "restore", "bulk_delete"],
+        actor: str,
+    ) -> None:
+        await self._pool.execute(INSERT_SESSION_AUDIT_SQL, tenant_id, session_id, action, actor)
+
+    async def list_session_actions(
+        self, *, tenant_id: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        rows = await self._pool.fetch(LIST_SESSION_AUDIT_SQL, tenant_id, limit)
+        return [dict(row) for row in rows]
 
     async def list_users(self, *, tenant_id: str) -> list[dict[str, Any]]:
         rows = await self._pool.fetch(LIST_USERS_SQL, tenant_id)
@@ -680,8 +722,10 @@ __all__ = [
     "BUMP_DOC_INDEX_SQL",
     "CLAIM_APPROVAL_SQL",
     "DELETE_DOCUMENT_SQL",
+    "INSERT_SESSION_AUDIT_SQL",
     "LIST_DOCUMENTS_SQL",
     "LIST_DOCUMENT_CHUNKS_SQL",
+    "LIST_SESSION_AUDIT_SQL",
     "LIST_USERS_SQL",
     "SESSION_TURNS_SQL",
     "UPSERT_MEMBERSHIP_SQL",

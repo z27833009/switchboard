@@ -762,6 +762,7 @@ async def test_openapi_and_docs_render(harness: AppHarness) -> None:
         "/chat/stream",
         "/runs",
         "/sessions",
+        "/sessions/audit",
         "/sessions/bulk-delete",
         "/sessions/{session_id}",
         "/sessions/{session_id}/restore",
