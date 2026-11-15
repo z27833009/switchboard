@@ -74,13 +74,19 @@ function TreeGuides({
 }) {
   // YouTube-style thread: the line continues below the elbow only while the
   // current node still has a later sibling at this depth.
+  //
+  // Column j is the trunk of the depth-j ancestor. It continues through this
+  // row when the depth-(j+1) ancestor has a later sibling, which is
+  // guides[j + 1]. guides[0] (a root's siblings) has no column, so the guide
+  // cells read guides from index 1; reading from index 0 shifted every column
+  // by one level and broke the trunks.
   const continueLine = !row.isLast;
   const hasVisibleChildren =
     row.span.children.length > 0 && expanded.has(row.span.span_id);
   return (
     <span className="tree-guides" aria-hidden="true">
       {row.depth > 0
-        ? row.guides.slice(0, -1).map((hasLine, index) => (
+        ? row.guides.slice(1).map((hasLine, index) => (
             <span key={index} className={`tree-guide${hasLine ? " has-line" : ""}`} />
           ))
         : null}
