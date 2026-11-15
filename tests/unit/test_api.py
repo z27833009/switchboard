@@ -780,6 +780,7 @@ async def test_openapi_and_docs_render(harness: AppHarness) -> None:
         "/documents/{document_id}/chunks",
         "/documents/{document_id}/reindex",
         "/settings",
+        "/settings/apply",
         "/settings/mcp-servers",
         "/settings/providers/{provider_name}",
         "/settings/providers/{provider_name}/credential",

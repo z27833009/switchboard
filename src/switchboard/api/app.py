@@ -1040,6 +1040,28 @@ async def save_provider_credential(
     )
 
 
+@router.post("/settings/apply", response_model=SettingsRevision)
+async def apply_settings(request: Request) -> SettingsRevision:
+    """Rebuild the runtime dependency graph from the control plane without a restart."""
+    application = request.app
+    reloader = getattr(application.state, "reloader", None)
+    if reloader is None:
+        raise HTTPException(
+            status_code=503,
+            detail="this process cannot rebuild its runtime settings",
+        )
+    old = application.state.deps
+    new = await reloader()
+    application.state.deps = new
+    if old is not None and old.closer is not None:
+        await old.closer()
+    return SettingsRevision(
+        status="ok",
+        revision=0,
+        note="runtime settings rebuilt from the control plane",
+    )
+
+
 @router.get("/audit", response_model=AuditResponse)
 async def list_audit(
     request: Request,
@@ -1271,6 +1293,7 @@ def create_app(*, deps: AppDeps | None = None) -> FastAPI:
         if app.state.deps is None:
             built = await build_app_deps()
             app.state.deps = built
+            app.state.reloader = build_app_deps
         try:
             yield
         finally:

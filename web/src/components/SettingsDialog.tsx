@@ -1502,6 +1502,24 @@ export function SettingsDialog({
   const [narrow, setNarrow] = useState(() =>
     typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches,
   );
+  const [applyBusy, setApplyBusy] = useState(false);
+  const [applyNotice, setApplyNotice] = useState<string | null>(null);
+  const [applyError, setApplyError] = useState<string | null>(null);
+
+  async function applySettings() {
+    setApplyBusy(true);
+    setApplyNotice(null);
+    setApplyError(null);
+    try {
+      const result = await postJson<{ note: string }>("/settings/apply", {});
+      setApplyNotice(result.note);
+      setReloadKey((value) => value + 1);
+    } catch (caught) {
+      setApplyError(errorMessage(caught));
+    } finally {
+      setApplyBusy(false);
+    }
+  }
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -1647,24 +1665,41 @@ export function SettingsDialog({
               tenant <code>{tenantId}</code>
             </p>
           </div>
-          <button
-            ref={closeRef}
-            type="button"
-            className="icon-button"
-            onClick={() => dialogRef.current?.close()}
-          >
-            <CloseIcon />
-            <span className="visually-hidden">Close settings</span>
-          </button>
+          <div className="settings-header-actions">
+            <button
+              type="button"
+              className="button button-quiet"
+              onClick={() => void applySettings()}
+              disabled={applyBusy}
+            >
+              {applyBusy ? "Applying..." : "Apply changes"}
+            </button>
+            <button
+              ref={closeRef}
+              type="button"
+              className="icon-button"
+              onClick={() => dialogRef.current?.close()}
+            >
+              <CloseIcon />
+              <span className="visually-hidden">Close settings</span>
+            </button>
+          </div>
         </header>
+
+        {applyNotice === null ? null : <p className="muted small">{applyNotice}</p>}
+        {applyError === null ? null : (
+          <p className="error-text small" role="alert">
+            {applyError}
+          </p>
+        )}
 
         <p className="read-only-note">
           <ShieldIcon className="read-only-icon" />
           <span>
             Runtime settings. MCP servers, the provider model, agent and tool allowlists can be
-            edited here; ingested documents can be reviewed and deleted. Credentials and hot apply
-            are next. Settings changes apply after an API restart. No API key or base URL is sent to
-            the browser.
+            edited here; ingested documents can be reviewed and deleted. Apply changes rebuilds the
+            runtime graph without restarting the process. No API key or base URL is sent to the
+            browser.
           </span>
         </p>
 

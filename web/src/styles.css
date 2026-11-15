@@ -1851,6 +1851,12 @@ dialog::backdrop {
   min-height: 0;
 }
 
+.settings-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .settings-header {
   display: flex;
   align-items: flex-start;
