@@ -158,24 +158,6 @@ class DataAgent(BaseAgent):
                         )
                     )
                     continue
-                except Exception as exc:
-                    message = f"{type(exc).__name__}: {exc}"
-                    messages.append(
-                        Message(
-                            role="tool",
-                            content=json.dumps({"error": message}),
-                            tool_call_id=call.call_id,
-                        )
-                    )
-                    records.append(
-                        ToolCallRecord(
-                            tool=call.name,
-                            arguments=call.arguments,
-                            status="error",
-                            error=message,
-                        )
-                    )
-                    continue
 
                 if result.tool == "result_page@1" and result.result_id:
                     result_id = result.result_id

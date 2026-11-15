@@ -40,7 +40,9 @@ def test_the_reviews_manifest_loads_two_read_only_tenant_scoped_tools() -> None:
 def test_the_committed_config_declares_both_sources() -> None:
     settings = load_settings(REPO / "config", ENV)
     names = {source.name for source in settings.platform.tool_sources}
-    assert names == {"olist", "reviews"}
+    assert names == {"catalog", "olist", "reviews"}
+    catalog = next(s for s in settings.platform.tool_sources if s.name == "catalog")
+    assert catalog.adapter == "catalog"
     reviews = next(s for s in settings.platform.tool_sources if s.name == "reviews")
     assert reviews.adapter == "mcp"
     assert reviews.url == "http://localhost:8002/mcp"

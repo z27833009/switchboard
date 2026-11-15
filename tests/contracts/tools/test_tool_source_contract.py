@@ -81,7 +81,7 @@ def contract(request: pytest.FixtureRequest) -> ToolContract:
 
 
 def test_registered_tool_source_adapter_has_a_contract_module() -> None:
-    assert Registry().names(TOOL_SOURCES) == ["mcp"]
+    assert Registry().names(TOOL_SOURCES) == ["catalog", "mcp"]
 
 
 async def test_list_tools_returns_read_specs(contract: ToolContract) -> None:
