@@ -1256,7 +1256,13 @@ def _auth_payload(user: AuthUser) -> AuthUserPayload:
 async def list_tenants(request: Request) -> TenantsResponse:
     """The configured tenant ids, safe to show before sign-in."""
     deps = _deps(request.app)
-    return TenantsResponse(tenants=sorted(deps.tenants.tenants))
+    tenants = sorted(deps.tenants.tenants)
+    # The demo tenant is the one the seeded administrator belongs to. Keep it
+    # first so the sign-in page does not default to a tenant with no users.
+    if "default" in tenants:
+        tenants.remove("default")
+        tenants.insert(0, "default")
+    return TenantsResponse(tenants=tenants)
 
 
 @router.get("/auth/status", response_model=AuthStatus)

@@ -5,12 +5,29 @@ import { errorMessage, getAuthStatus, getTenants, login } from "../auth";
 import type { AuthStatus } from "../auth";
 import { TENANTS } from "../config";
 
+function defaultTenant(): string {
+  return TENANTS.includes("default") ? "default" : (TENANTS[0] ?? "default");
+}
+
+function emailForTenant(tenant: string): string {
+  return tenant === "default" ? "admin@local.invalid" : `${tenant}@local.invalid`;
+}
+
 function LoginPage({ onLoggedIn }: { onLoggedIn: (status: AuthStatus) => void }) {
-  const [tenantId, setTenantId] = useState(TENANTS[0] ?? "default");
-  const [email, setEmail] = useState("admin@local.invalid");
+  const [tenantId, setTenantId] = useState(defaultTenant);
+  const [email, setEmail] = useState(() => emailForTenant(defaultTenant()));
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function changeTenant(next: string) {
+    setTenantId(next);
+    // Keep the email in step while it still looks like one of the seeded
+    // tenant administrators. A hand-typed address is never overwritten.
+    setEmail((current) =>
+      TENANTS.map(emailForTenant).includes(current) ? emailForTenant(next) : current,
+    );
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -32,7 +49,7 @@ function LoginPage({ onLoggedIn }: { onLoggedIn: (status: AuthStatus) => void })
         <p className="muted">Sign in to the local workspace.</p>
         <label className="field">
           <span className="field-label">Tenant</span>
-          <select value={tenantId} onChange={(event) => setTenantId(event.target.value)}>
+          <select value={tenantId} onChange={(event) => changeTenant(event.target.value)}>
             {TENANTS.map((tenant) => (
               <option key={tenant} value={tenant}>
                 {tenant}

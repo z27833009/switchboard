@@ -524,7 +524,7 @@ function ProfileMenu({
             <ArrowUpRightIcon className="menu-chevron" />
           </a>
           <p className="menu-note">
-            This build has no sign-in. The tenant is a workspace switch, not an account.
+            Switch the workspace here. Your role controls which settings you can change.
           </p>
         </div>
       ) : null}

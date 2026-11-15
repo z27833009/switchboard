@@ -815,7 +815,7 @@ export function ChatPage({
           <p id="composer-hint" className="muted small composer-hint">
             Enter sends, Shift+Enter adds a line. Model{" "}
             <code>{modelLabel ?? "not loaded"}</code>; preset{" "}
-            <code>{preset}</code>; tenant <code>{tenant}</code>. This build has no sign-in.
+            <code>{preset}</code>; tenant <code>{tenant}</code>.
           </p>
         </div>
       </div>
