@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from switchboard.core.config import Limits
 from switchboard.core.models import (
+    Attachment,
     CacheSettings,
     Citation,
     ErrorRecord,
@@ -164,6 +165,7 @@ class RunSummary(BaseModel):
     ended_at: datetime | None = None
     answer: str | None = None
     citations: list[Citation] = Field(default_factory=list)
+    attachments: list[Attachment] = Field(default_factory=list)
     errors: list[ErrorRecord] = Field(default_factory=list)
     # Only a waiting run has one; it comes from the row the orchestrator wrote,
     # never from a request body (T3.01).
@@ -207,6 +209,10 @@ class RunSummary(BaseModel):
             ended_at=cast(datetime | None, row.get("ended_at")),
             answer=cast(str | None, row.get("answer")),
             citations=citations,
+            attachments=[
+                Attachment.model_validate(item)
+                for item in cast(list[dict[str, Any]], row.get("attachments") or [])
+            ],
             errors=errors,
             pending_approval=(
                 PendingApproval.model_validate(row["pending_approval"])

@@ -94,6 +94,7 @@ function StepList({ steps }: { steps: StepEvent[] }) {
 interface TurnView {
   id: string;
   question: string;
+  attachments: Array<{ name: string }>;
   result: ChatResponse | null;
   streamed: string;
   steps: StepEvent[];
@@ -144,6 +145,7 @@ function runToTurn(run: RunSummary): TurnView {
   return {
     id: run.run_id,
     question: run.query,
+    attachments: run.attachments.map((attachment) => ({ name: attachment.name })),
     result: runToChatResponse(run),
     streamed: "",
     steps: [],
@@ -285,6 +287,16 @@ function TurnArticle({
       <article className="turn turn-user">
         <p className="turn-author">You</p>
         <p className="turn-text">{turn.question}</p>
+        {turn.attachments.length === 0 ? null : (
+          <p className="turn-meta">
+            attachments:{" "}
+            {turn.attachments.map((attachment) => (
+              <span key={attachment.name} className="tag tag-neutral">
+                {attachment.name}
+              </span>
+            ))}
+          </p>
+        )}
       </article>
       <article
         className={`turn turn-assistant${clarifying ? " turn-clarify" : ""}`}
@@ -537,6 +549,7 @@ export function ChatPage({
       {
         id: turnId,
         question: trimmed,
+        attachments: sentAttachments.map((attachment) => ({ name: attachment.name })),
         result: null,
         streamed: "",
         steps: [],

@@ -229,6 +229,7 @@ async def execute_run(
         # The provider a tenant is configured with. Recorded so `GET /runs`
         # can aggregate cost per provider (AC-19b).
         provider=tenant.provider,
+        attachments=[attachment.model_dump(mode="json") for attachment in request.attachments],
     )
     try:
         result = await orchestrator.run(request, context)

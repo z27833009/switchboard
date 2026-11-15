@@ -72,6 +72,11 @@ export interface ChatResponse {
   trace_incomplete: boolean;
 }
 
+export interface Attachment {
+  name: string;
+  content: string;
+}
+
 export interface RunSummary {
   run_id: string;
   tenant_id: string;
@@ -92,6 +97,7 @@ export interface RunSummary {
   ended_at: string | null;
   answer: string | null;
   citations: Citation[];
+  attachments: Attachment[];
   errors: ErrorRecord[];
   // Only a waiting run carries one; the run list leaves it null.
   pending_approval: PendingApproval | null;

@@ -80,6 +80,7 @@ class MemoryRunStore:
         query: str,
         orchestrator: str,
         provider: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> None:
         self.runs[run_id] = {
             "id": run_id,
@@ -101,6 +102,7 @@ class MemoryRunStore:
             "cost_usd": None,
             "trace_complete": True,
             "pending_approval": None,
+            "attachments": list(attachments or []),
             "started_at": datetime.now(UTC),
             "ended_at": None,
         }

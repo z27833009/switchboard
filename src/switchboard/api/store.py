@@ -27,7 +27,8 @@ from switchboard.tracing.runs import insert_run
 RUN_COLUMNS = """
     id, tenant_id, session_id, query, orchestrator, provider, plan, answer, citations,
     errors, status, cache_hit, attempts, input_tokens, cached_input_tokens,
-    output_tokens, cost_usd, started_at, ended_at, trace_complete, pending_approval
+    output_tokens, cost_usd, started_at, ended_at, trace_complete, pending_approval,
+    attachments
 """
 
 SPAN_COLUMNS = """
@@ -319,6 +320,7 @@ def run_row(row: Mapping[str, Any]) -> dict[str, Any]:
     payload["id"] = str(payload["id"])
     payload["citations"] = decode_json(payload.get("citations"), [])
     payload["errors"] = decode_json(payload.get("errors"), [])
+    payload["attachments"] = decode_json(payload.get("attachments"), [])
     # A waiting run carries the tool call the graph paused on (T3.01). It is
     # null for every other status.
     payload["pending_approval"] = decode_json(payload.get("pending_approval"), None)
@@ -387,6 +389,7 @@ class RunStore(Protocol):
         query: str,
         orchestrator: str,
         provider: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> None: ...
 
     async def finish_run(self, result: RunResult, *, trace_complete: bool) -> None: ...
@@ -489,6 +492,7 @@ class PgRunStore:
         query: str,
         orchestrator: str,
         provider: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> None:
         await insert_run(
             self._pool,
@@ -498,6 +502,7 @@ class PgRunStore:
             orchestrator=orchestrator,
             session_id=session_id,
             provider=provider,
+            attachments=attachments,
         )
 
     async def finish_run(self, result: RunResult, *, trace_complete: bool) -> None:

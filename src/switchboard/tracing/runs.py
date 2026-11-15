@@ -8,14 +8,18 @@ status values and counters; ``spans.run_id`` has no foreign key to it.
 
 from __future__ import annotations
 
+import json
 import uuid
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 import asyncpg
 
 INSERT_RUN_SQL = """
 INSERT INTO public.runs (
-    id, tenant_id, session_id, query, orchestrator, provider, status, started_at
-) VALUES ($1, $2, $3, $4, $5, $6, 'running', now())
+    id, tenant_id, session_id, query, orchestrator, provider, status, started_at,
+    attachments
+) VALUES ($1, $2, $3, $4, $5, $6, 'running', now(), $7::jsonb)
 ON CONFLICT (id) DO NOTHING
 """
 
@@ -29,6 +33,7 @@ async def insert_run(
     orchestrator: str,
     session_id: str | None = None,
     provider: str | None = None,
+    attachments: Sequence[Mapping[str, Any]] | None = None,
 ) -> None:
     """Insert the run row with status ``running`` at the start of a run."""
     await pool.execute(
@@ -39,4 +44,5 @@ async def insert_run(
         query,
         orchestrator,
         provider,
+        json.dumps(list(attachments or []), separators=(",", ":")),
     )
