@@ -5,9 +5,11 @@ import {
   asNumber,
   asString,
   asStringArray,
+  deleteRunAttachment,
   errorMessage,
   getJson,
   isAbortError,
+  parsePdfAttachment,
   postChatStream,
   toChatResponse,
 } from "../api";
@@ -273,8 +275,10 @@ function RunSummaryBar({ turn }: { turn: TurnView }) {
 
 function TurnArticle({
   turn,
+  onRemoveAttachment,
 }: {
   turn: TurnView;
+  onRemoveAttachment: (turnId: string, runId: string, name: string) => void;
 }) {
   const result = turn.result;
   const clarifying = result !== null && result.status === "needs_clarification";
@@ -293,6 +297,18 @@ function TurnArticle({
             {turn.attachments.map((attachment) => (
               <span key={attachment.name} className="tag tag-neutral">
                 {attachment.name}
+                {result === null ? null : (
+                  <button
+                    type="button"
+                    className="attachment-delete"
+                    aria-label={`Delete attachment ${attachment.name}`}
+                    onClick={() =>
+                      onRemoveAttachment(turn.id, result.run_id, attachment.name)
+                    }
+                  >
+                    ×
+                  </button>
+                )}
               </span>
             ))}
           </p>
@@ -517,8 +533,26 @@ export function ChatPage({
     setAttachmentError(null);
     const accepted: ComposerAttachment[] = [];
     for (const file of files) {
+      if (/\.pdf$/i.test(file.name)) {
+        if (file.size > 10_000_000) {
+          setAttachmentError(`${file.name} is larger than 10 MB.`);
+          continue;
+        }
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        let binary = "";
+        for (const byte of bytes) {
+          binary += String.fromCharCode(byte);
+        }
+        try {
+          const parsed = await parsePdfAttachment(file.name, btoa(binary));
+          accepted.push(parsed);
+        } catch (caught) {
+          setAttachmentError(errorMessage(caught));
+        }
+        continue;
+      }
       if (!/\.(md|txt)$/i.test(file.name)) {
-        setAttachmentError("Attach a .md or .txt file.");
+        setAttachmentError("Attach a .md, .txt or .pdf file.");
         continue;
       }
       if (file.size > 100_000) {
@@ -528,6 +562,34 @@ export function ChatPage({
       accepted.push({ name: file.name, content: await file.text() });
     }
     setAttachments((current) => [...current, ...accepted].slice(0, 3));
+  }
+
+  async function removeAttachmentFromRun(
+    turnId: string,
+    runId: string,
+    name: string,
+  ) {
+    try {
+      await deleteRunAttachment(runId, tenant, name);
+      setTurns((current) =>
+        current.map((turn) =>
+          turn.id === turnId
+            ? {
+                ...turn,
+                attachments: turn.attachments.filter(
+                  (attachment) => attachment.name !== name,
+                ),
+              }
+            : turn,
+        ),
+      );
+    } catch (caught) {
+      setTurns((current) =>
+        current.map((turn) =>
+          turn.id === turnId ? { ...turn, error: errorMessage(caught) } : turn,
+        ),
+      );
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -655,7 +717,13 @@ export function ChatPage({
             </section>
           ) : null}
           {turns.map((turn) => (
-            <TurnArticle key={turn.id} turn={turn} />
+            <TurnArticle
+              key={turn.id}
+              turn={turn}
+              onRemoveAttachment={(turnId, runId, name) =>
+                void removeAttachmentFromRun(turnId, runId, name)
+              }
+            />
           ))}
         </div>
       </div>
@@ -695,7 +763,7 @@ export function ChatPage({
               <span className="visually-hidden">Attach a file</span>
               <input
                 type="file"
-                accept=".md,.txt,text/markdown,text/plain"
+                accept=".md,.txt,.pdf,text/markdown,text/plain,application/pdf"
                 multiple
                 disabled={busy}
                 onChange={(event) => {

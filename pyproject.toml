@@ -30,6 +30,7 @@ dependencies = [
   "opentelemetry-sdk==1.45.2",
   "pydantic==2.14.3",
   "pyjwt==2.15.1",
+  "pypdf>=7.1.0",
   "pyyaml==6.0.3",
   "sqlglot==30.31.0",
   "typer==0.29.1",

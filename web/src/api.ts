@@ -77,6 +77,33 @@ export interface Attachment {
   content: string;
 }
 
+export async function parsePdfAttachment(
+  filename: string,
+  contentBase64: string,
+  signal?: AbortSignal,
+): Promise<Attachment> {
+  return postJson<Attachment>(
+    "/attachments/parse",
+    { filename, content_base64: contentBase64 },
+    signal,
+  );
+}
+
+export async function deleteRunAttachment(
+  runId: string,
+  tenantId: string,
+  name: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/runs/${encodeURIComponent(runId)}/attachments/${encodeURIComponent(name)}?tenant_id=${encodeURIComponent(tenantId)}`,
+    { method: "DELETE", signal, headers: { Accept: "application/json" } },
+  );
+  if (!response.ok) {
+    throw new ApiError(await describeHttpError(response), response.status);
+  }
+}
+
 export interface RunSummary {
   run_id: string;
   tenant_id: string;

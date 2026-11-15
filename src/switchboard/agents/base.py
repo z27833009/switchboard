@@ -48,7 +48,10 @@ class BaseAgent:
             messages.append(
                 Message(
                     role="user",
-                    content=f"[Attached file: {attachment.name}]\n{attachment.content}",
+                    content=(
+                        f"[Attached file: {attachment.name}]\n{attachment.content}\n"
+                        f"When you use this file, cite it as [attachment: {attachment.name}]."
+                    ),
                 )
             )
         messages.append(Message(role="user", content=task.query))

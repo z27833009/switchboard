@@ -14,7 +14,10 @@ trace endpoint reads, and the run starts emitting before it ends.
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import hmac
+import io
 import json
 import logging
 import os
@@ -29,6 +32,7 @@ import asyncpg
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.telemetry import TelemetryConfig
+from pypdf import PdfReader
 
 from switchboard.api.audit import AuditQuery, as_utc
 from switchboard.api.auth import (
@@ -47,6 +51,8 @@ from switchboard.api.run_tokens import (
     require_run_token_secret,
 )
 from switchboard.api.schemas import (
+    AttachmentParse,
+    AttachmentParsed,
     AuditResponse,
     AuditRow,
     AuditStatus,
@@ -533,6 +539,27 @@ async def create_user(request: Request, payload: UserCreate) -> UserSummary:
     return UserSummary.from_row(row)
 
 
+@router.post("/attachments/parse", response_model=AttachmentParsed)
+async def parse_attachment(payload: AttachmentParse) -> AttachmentParsed:
+    """Extract plain text from one PDF; no OCR and no stored file."""
+    if not payload.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=422, detail="only .pdf attachments are parsed here")
+    try:
+        raw = base64.b64decode(payload.content_base64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="content_base64 is not valid base64") from exc
+    if len(raw) > 10_000_000:
+        raise HTTPException(status_code=413, detail="PDF is larger than 10 MB")
+    try:
+        reader = PdfReader(io.BytesIO(raw))
+        text = "\n\n".join((page.extract_text() or "").strip() for page in reader.pages).strip()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"PDF could not be read: {exc}") from exc
+    if not text:
+        raise HTTPException(status_code=422, detail="the PDF contains no extractable text")
+    return AttachmentParsed(name=payload.filename, content=text)
+
+
 @router.get("/documents", response_model=DocumentsResponse)
 async def list_documents(
     request: Request,
@@ -706,6 +733,24 @@ async def get_run(
         run_id=str(row["id"]), tenant_id=str(row["tenant_id"])
     )
     return RunSummary.from_row(row, latest_feedback=feedback)
+
+
+@router.delete("/runs/{run_id}/attachments/{attachment_name}", status_code=204)
+async def delete_run_attachment(
+    request: Request,
+    run_id: str,
+    attachment_name: str,
+    tenant_id: str = Query(min_length=1),
+) -> Response:
+    """Remove one attachment from a stored run without touching the answer."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, tenant_id)
+    rows = await deps.store.delete_run_attachment(
+        run_id=run_id, tenant_id=tenant.tenant_id, name=attachment_name
+    )
+    if rows is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    return Response(status_code=204)
 
 
 @router.post("/runs/{run_id}/feedback", response_model=FeedbackSummary, status_code=201)

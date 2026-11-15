@@ -2125,6 +2125,21 @@ dialog::backdrop {
   font-variant-numeric: tabular-nums;
 }
 
+.attachment-delete {
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+}
+
+.attachment-delete:hover {
+  color: var(--text);
+}
+
 .login-shell {
   display: grid;
   min-height: 100vh;

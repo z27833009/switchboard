@@ -480,5 +480,8 @@ def test_attachment_is_injected_before_the_question() -> None:
             attachments=[Attachment(name="notes.md", content="The return window is 30 days.")],
         )
     )
-    assert messages[-2].content == ("[Attached file: notes.md]\nThe return window is 30 days.")
+    assert messages[-2].content == (
+        "[Attached file: notes.md]\nThe return window is 30 days.\n"
+        "When you use this file, cite it as [attachment: notes.md]."
+    )
     assert messages[-1].content == "Summarize the file"

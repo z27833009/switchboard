@@ -639,6 +639,20 @@ class SettingsPlatform(BaseModel):
     limits: Limits
 
 
+class AttachmentParse(BaseModel):
+    """A base64 PDF sent from the composer for text extraction."""
+
+    filename: str = Field(min_length=1, max_length=200)
+    content_base64: str = Field(min_length=1, max_length=20_000_000)
+
+
+class AttachmentParsed(BaseModel):
+    """The text extracted from one attachment."""
+
+    name: str
+    content: str
+
+
 class ConnectorBinding(BaseModel):
     """Per-connector scope such as seller ids (V3.02)."""
 
@@ -773,6 +787,8 @@ class SettingsResponse(BaseModel):
 __all__ = [
     "FEEDBACK_NOTE_MAX_CHARS",
     "REDACTED_ARGUMENT",
+    "AttachmentParse",
+    "AttachmentParsed",
     "AuditResponse",
     "AuditRow",
     "AuditStatus",

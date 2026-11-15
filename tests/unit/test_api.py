@@ -124,6 +124,47 @@ async def test_unknown_tenant_is_404(harness: AppHarness) -> None:
     assert harness.store.runs == {}
 
 
+async def test_pdf_attachment_parse_validates_the_payload(harness: AppHarness) -> None:
+    wrong_type = await harness.client.post(
+        "/attachments/parse",
+        json={"filename": "notes.md", "content_base64": "aGVsbG8="},
+    )
+    assert wrong_type.status_code == 422
+    bad_base64 = await harness.client.post(
+        "/attachments/parse",
+        json={"filename": "notes.pdf", "content_base64": "not base64!"},
+    )
+    assert bad_base64.status_code == 400
+    not_pdf = await harness.client.post(
+        "/attachments/parse",
+        json={"filename": "notes.pdf", "content_base64": "aGVsbG8="},
+    )
+    assert not_pdf.status_code == 400
+
+
+async def test_a_stored_attachment_can_be_deleted(harness: AppHarness) -> None:
+    response = await harness.client.post(
+        "/chat",
+        json={
+            "query": "summarize this",
+            "tenant_id": "default",
+            "attachments": [{"name": "notes.md", "content": "Return window is 21 days."}],
+        },
+    )
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+    deleted = await harness.client.delete(
+        f"/runs/{run_id}/attachments/notes.md", params={"tenant_id": "default"}
+    )
+    assert deleted.status_code == 204
+    stored = await harness.client.get(f"/runs/{run_id}", params={"tenant_id": "default"})
+    assert stored.json()["attachments"] == []
+    again = await harness.client.delete(
+        f"/runs/{run_id}/attachments/notes.md", params={"tenant_id": "default"}
+    )
+    assert again.status_code == 204
+
+
 async def test_documents_list_and_delete(harness: AppHarness) -> None:
     from datetime import datetime
 
@@ -757,6 +798,7 @@ async def test_openapi_and_docs_render(harness: AppHarness) -> None:
     schema = await harness.client.get("/openapi.json")
     assert schema.status_code == 200
     assert set(schema.json()["paths"]) == {
+        "/attachments/parse",
         "/audit",
         "/auth/login",
         "/auth/logout",
@@ -771,6 +813,7 @@ async def test_openapi_and_docs_render(harness: AppHarness) -> None:
         "/sessions/{session_id}/restore",
         "/runs/{run_id}",
         "/runs/{run_id}/approve",
+        "/runs/{run_id}/attachments/{attachment_name}",
         "/runs/{run_id}/feedback",
         "/runs/{run_id}/reject",
         "/runs/{run_id}/trace",

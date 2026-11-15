@@ -17,7 +17,7 @@ import json
 import uuid
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, cast
 
 import asyncpg
 
@@ -59,6 +59,20 @@ WHERE id = $1
 # WHERE clause, so a foreign run, a run that is not waiting, and a second click
 # on the same approval all return no row (the API answers 409). The status goes
 # back to running for the resumed graph, which finishes it normally.
+DELETE_RUN_ATTACHMENT_SQL = """
+UPDATE public.runs
+SET attachments = COALESCE(
+    (
+        SELECT jsonb_agg(value)
+        FROM jsonb_array_elements(attachments) AS value
+        WHERE value->>'name' <> $3
+    ),
+    '[]'::jsonb
+)
+WHERE id = $1 AND tenant_id = $2
+RETURNING attachments
+"""
+
 CLAIM_APPROVAL_SQL = """
 UPDATE public.runs SET status = 'running'
 WHERE id = $1 AND tenant_id = $2 AND status = 'waiting_approval'
@@ -476,6 +490,10 @@ class RunStore(Protocol):
 
     async def latest_feedback(self, *, run_id: str, tenant_id: str) -> dict[str, Any] | None: ...
 
+    async def delete_run_attachment(
+        self, *, run_id: str, tenant_id: str, name: str
+    ) -> list[dict[str, Any]] | None: ...
+
 
 class PgRunStore:
     """Runs and spans in PostgreSQL through the application role."""
@@ -731,6 +749,16 @@ class PgRunStore:
     async def latest_feedback(self, *, run_id: str, tenant_id: str) -> dict[str, Any] | None:
         row = await self._pool.fetchrow(LATEST_FEEDBACK_SQL, uuid.UUID(run_id), tenant_id)
         return None if row is None else feedback_row(row)
+
+    async def delete_run_attachment(
+        self, *, run_id: str, tenant_id: str, name: str
+    ) -> list[dict[str, Any]] | None:
+        row = await self._pool.fetchrow(
+            DELETE_RUN_ATTACHMENT_SQL, uuid.UUID(run_id), tenant_id, name
+        )
+        if row is None:
+            return None
+        return cast(list[dict[str, Any]], decode_json(row["attachments"], []))
 
 
 def parse_run_id(run_id: str) -> str:

@@ -432,6 +432,19 @@ class MemoryRunStore:
         rows.sort(key=lambda item: (item[1]["created_at"], item[0]), reverse=True)
         return dict(rows[0][1])
 
+    async def delete_run_attachment(
+        self, *, run_id: str, tenant_id: str, name: str
+    ) -> list[dict[str, Any]] | None:
+        row = self.runs.get(run_id)
+        if row is None or row["tenant_id"] != tenant_id:
+            return None
+        row["attachments"] = [
+            attachment
+            for attachment in row.get("attachments", [])
+            if attachment.get("name") != name
+        ]
+        return list(row["attachments"])
+
     async def list_audit(self, query: AuditQuery) -> list[dict[str, Any]]:
         """The same tenant filter, ordering and offset as ``LIST_AUDIT_SQL``."""
         rows: list[dict[str, Any]] = []
