@@ -1,0 +1,12 @@
+[
+  {"sku": "acme-keyboard", "name": "Acme Mechanical Keyboard", "category": "electronics", "price_usd": 89.0, "in_stock": true},
+  {"sku": "acme-mouse", "name": "Acme Wireless Mouse", "category": "electronics", "price_usd": 39.0, "in_stock": true},
+  {"sku": "acme-monitor", "name": "Acme 27-inch Monitor", "category": "electronics", "price_usd": 249.0, "in_stock": false},
+  {"sku": "acme-desk", "name": "Acme Standing Desk", "category": "furniture", "price_usd": 319.0, "in_stock": true},
+  {"sku": "acme-chair", "name": "Acme Ergonomic Chair", "category": "furniture", "price_usd": 279.0, "in_stock": true},
+  {"sku": "acme-lamp", "name": "Acme Desk Lamp", "category": "furniture", "price_usd": 49.0, "in_stock": true},
+  {"sku": "acme-notebook", "name": "Acme Dot Grid Notebook", "category": "stationery", "price_usd": 12.0, "in_stock": true},
+  {"sku": "acme-pen", "name": "Acme Gel Pen Set", "category": "stationery", "price_usd": 9.0, "in_stock": true},
+  {"sku": "acme-backpack", "name": "Acme Travel Backpack", "category": "accessories", "price_usd": 119.0, "in_stock": true},
+  {"sku": "acme-bottle", "name": "Acme Insulated Bottle", "category": "accessories", "price_usd": 29.0, "in_stock": true}
+]

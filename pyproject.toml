@@ -51,6 +51,7 @@ openai_compatible = "switchboard.adapters.embedders.openai_compat:OpenAICompatib
 mock = "switchboard.adapters.embedders.mock:MockEmbedder"
 
 [project.entry-points."switchboard.tool_sources"]
+catalog = "switchboard.adapters.tools.catalog:CatalogToolSource"
 mcp = "switchboard.adapters.tools.mcp_client:McpToolSource"
 
 [project.entry-points."switchboard.retrievers"]

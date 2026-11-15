@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -111,6 +112,8 @@ MAX_CORRECTIVE_ACTIONS = 1
 # never streams because every step carries tools, but the API passes the sink so
 # both orchestrators are built the same way (T2.08, design.md 12.5).
 AnswerDeltaSink = Callable[[str, str], None]
+
+logger = logging.getLogger(__name__)
 
 
 class _LoopStep(BaseAgent):
@@ -228,7 +231,12 @@ class AgentLoopOrchestrator:
         specs: dict[str, ToolSpec] = {}
         owners: dict[str, ToolSource] = {}
         for source in sources:
-            for spec in await source.list_tools(deps.ctx):
+            try:
+                source_specs = await source.list_tools(deps.ctx)
+            except Exception as exc:
+                logger.warning("tool source %r is unavailable: %s", source.name, exc)
+                continue
+            for spec in source_specs:
                 if spec.risk != "read" or spec.wire_name in deps.ctx.tenant.ask_tools:
                     continue
                 specs[spec.wire_name] = spec

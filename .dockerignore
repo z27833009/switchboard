@@ -7,7 +7,9 @@
 dist
 build
 docs
-data
+data/*
+!data/catalog
+!data/catalog/**
 evals
 web/node_modules
 **/__pycache__

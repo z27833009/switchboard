@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 from switchboard.agents.base import BaseAgent, partial_result
 from switchboard.agents.citations import CitationRegistry
@@ -32,6 +33,8 @@ from switchboard.core.models import (
 from switchboard.core.ports import AgentDeps, ToolSource
 from switchboard.core.pricing import add_cost
 
+logger = logging.getLogger(__name__)
+
 
 class DataAgent(BaseAgent):
     spec = AgentSpec(
@@ -55,7 +58,12 @@ class DataAgent(BaseAgent):
         specs: dict[str, ToolSpec] = {}
         owners: dict[str, ToolSource] = {}
         for source in sources:
-            for spec in await source.list_tools(deps.ctx):
+            try:
+                source_specs = await source.list_tools(deps.ctx)
+            except Exception as exc:
+                logger.warning("tool source %r is unavailable: %s", source.name, exc)
+                continue
+            for spec in source_specs:
                 specs[spec.wire_name] = spec
                 owners[spec.wire_name] = source
         return [specs[name] for name in sorted(specs)], owners, store
@@ -147,6 +155,24 @@ class DataAgent(BaseAgent):
                             arguments=call.arguments,
                             status="error",
                             error=str(exc),
+                        )
+                    )
+                    continue
+                except Exception as exc:
+                    message = f"{type(exc).__name__}: {exc}"
+                    messages.append(
+                        Message(
+                            role="tool",
+                            content=json.dumps({"error": message}),
+                            tool_call_id=call.call_id,
+                        )
+                    )
+                    records.append(
+                        ToolCallRecord(
+                            tool=call.name,
+                            arguments=call.arguments,
+                            status="error",
+                            error=message,
                         )
                     )
                     continue

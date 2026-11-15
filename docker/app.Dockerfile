@@ -15,6 +15,7 @@ COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY src ./src
 COPY mcp_servers ./mcp_servers
 COPY config ./config
+COPY data ./data
 RUN uv sync --locked --no-dev --no-editable
 
 EXPOSE 8000 8001
