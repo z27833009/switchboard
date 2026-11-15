@@ -232,6 +232,59 @@ async def test_document_upload_chunks_and_returns_counts(harness: AppHarness) ->
     assert unavailable.status_code == 503
 
 
+async def test_reindex_re_embeds_the_stored_chunks(harness: AppHarness) -> None:
+    from datetime import datetime
+
+    document_id = str(uuid.uuid4())
+    harness.store.documents[document_id] = {
+        "id": document_id,
+        "tenant_id": "default",
+        "source": "faq.md",
+        "title": "FAQ",
+        "content_hash": "abc123",
+        "chunks": 2,
+        "ingested_at": datetime(2026, 11, 15, tzinfo=UTC),
+        "chunk_rows": [
+            {"ordinal": 0, "text": "Returns take 30 days."},
+            {"ordinal": 1, "text": "The buyer pays shipping."},
+        ],
+    }
+
+    class FakeEmbedder:
+        dimension = 3
+
+        def __init__(self) -> None:
+            self.texts: list[str] = []
+
+        async def embed(self, texts: list[str]) -> list[list[float]]:
+            self.texts = list(texts)
+            return [[0.1, 0.2, 0.3] for _ in texts]
+
+    embedder = FakeEmbedder()
+    app = create_app(deps=replace(harness.deps, embedder=embedder))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            f"/documents/{document_id}/reindex", params={"tenant_id": "default"}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json() == {
+            "status": "ok",
+            "document_id": document_id,
+            "chunks_embedded": 2,
+            "index_version": 1,
+        }
+        assert embedder.texts == ["Returns take 30 days.", "The buyer pays shipping."]
+        other = await client.post(
+            f"/documents/{document_id}/reindex", params={"tenant_id": "seller_a"}
+        )
+        assert other.status_code == 404
+
+    unavailable = await harness.client.post(
+        f"/documents/{document_id}/reindex", params={"tenant_id": "default"}
+    )
+    assert unavailable.status_code == 503
+
+
 async def test_users_are_created_and_listed_per_tenant(harness: AppHarness) -> None:
     created = await harness.client.post(
         "/users",
@@ -721,6 +774,7 @@ async def test_openapi_and_docs_render(harness: AppHarness) -> None:
         "/documents",
         "/documents/{document_id}",
         "/documents/{document_id}/chunks",
+        "/documents/{document_id}/reindex",
         "/settings",
         "/settings/mcp-servers",
         "/settings/providers/{provider_name}",

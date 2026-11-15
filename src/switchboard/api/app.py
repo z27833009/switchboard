@@ -44,6 +44,7 @@ from switchboard.api.schemas import (
     DocumentChunk,
     DocumentChunksResponse,
     DocumentIngestResult,
+    DocumentReindexResult,
     DocumentsResponse,
     DocumentSummary,
     DocumentUpload,
@@ -504,6 +505,44 @@ async def list_document_chunks(
         document_id=document_id,
         chunks=[DocumentChunk(ordinal=int(row["ordinal"]), text=str(row["text"])) for row in rows],
         count=len(rows),
+    )
+
+
+@router.post("/documents/{document_id}/reindex", response_model=DocumentReindexResult)
+async def reindex_document(
+    request: Request,
+    document_id: str,
+    tenant_id: str = Query(min_length=1),
+) -> DocumentReindexResult:
+    """Re-embed the stored chunks of one document without re-chunking it."""
+    deps = _deps(request.app)
+    tenant = _tenant(deps, tenant_id)
+    if deps.embedder is None:
+        raise HTTPException(status_code=503, detail="the embedder is not available")
+    chunks = await deps.store.list_document_chunks(
+        tenant_id=tenant.tenant_id, document_id=document_id
+    )
+    if not chunks:
+        raise HTTPException(status_code=404, detail="document has no stored chunks")
+    texts = [str(row["text"]) for row in chunks]
+    try:
+        vectors = await deps.embedder.embed(texts)
+        version = await deps.store.reindex_document(
+            tenant_id=tenant.tenant_id,
+            document_id=document_id,
+            embeddings=vectors,
+        )
+    except ProviderTransientError as exc:
+        raise HTTPException(status_code=503, detail=f"the embedder is unavailable: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if version is None:
+        raise HTTPException(status_code=404, detail="document not found")
+    return DocumentReindexResult(
+        status="ok",
+        document_id=document_id,
+        chunks_embedded=len(vectors),
+        index_version=version,
     )
 
 

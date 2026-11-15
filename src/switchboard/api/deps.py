@@ -88,6 +88,8 @@ class AppDeps:
     # Uploaded markdown/text ingestion (V3.05). None in a test app, so the
     # upload route answers 503 instead of pretending to embed.
     ingest_document: Any | None = None
+    # The same embedder the retriever uses, exposed for document reindex.
+    embedder: Any | None = None
 
     def orchestrator_for(self, tenant_provider: str, name: str | None = None) -> Orchestrator:
         """The default orchestrator, or a named replay target when ``name`` is set.
@@ -443,6 +445,7 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
         settings_snapshot=settings_snapshot,
         settings_store=settings_store,
         ingest_document=build_document_ingester(pool, built.embedder),
+        embedder=built.embedder,
     )
 
 

@@ -378,6 +378,13 @@ export async function listDocuments(
   );
 }
 
+export interface DocumentReindexResult {
+  status: string;
+  document_id: string;
+  chunks_embedded: number;
+  index_version: number;
+}
+
 export interface DocumentIngestResult {
   status: string;
   added: number;
@@ -398,6 +405,21 @@ export async function uploadDocument(
     { tenant_id: tenantId, filename, content },
     signal,
   );
+}
+
+export async function reindexDocument(
+  documentId: string,
+  tenantId: string,
+  signal?: AbortSignal,
+): Promise<DocumentReindexResult> {
+  const response = await fetch(
+    `${API_BASE}/documents/${encodeURIComponent(documentId)}/reindex?tenant_id=${encodeURIComponent(tenantId)}`,
+    { method: "POST", signal, headers: { Accept: "application/json" } },
+  );
+  if (!response.ok) {
+    throw new ApiError(await describeHttpError(response), response.status);
+  }
+  return (await response.json()) as DocumentReindexResult;
 }
 
 export async function deleteDocument(

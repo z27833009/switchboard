@@ -533,6 +533,15 @@ class DocumentIngestResult(BaseModel):
     index_version: int
 
 
+class DocumentReindexResult(BaseModel):
+    """What one re-embedding pass changed."""
+
+    status: str
+    document_id: str
+    chunks_embedded: int
+    index_version: int
+
+
 class SettingsPrice(BaseModel):
     """One price row as the settings dialog shows it (design.md section 12.4).
 
@@ -694,6 +703,7 @@ __all__ = [
     "DocumentChunk",
     "DocumentChunksResponse",
     "DocumentIngestResult",
+    "DocumentReindexResult",
     "DocumentSummary",
     "DocumentUpload",
     "DocumentsResponse",

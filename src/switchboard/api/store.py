@@ -403,6 +403,14 @@ class RunStore(Protocol):
         self, *, tenant_id: str, document_id: str
     ) -> list[dict[str, Any]]: ...
 
+    async def reindex_document(
+        self,
+        *,
+        tenant_id: str,
+        document_id: str,
+        embeddings: list[list[float]],
+    ) -> int | None: ...
+
     async def delete_document(self, *, tenant_id: str, document_id: str) -> bool: ...
 
     async def aggregate_runs(
@@ -554,6 +562,52 @@ class PgRunStore:
             return []
         rows = await self._pool.fetch(LIST_DOCUMENT_CHUNKS_SQL, parsed, tenant_id)
         return [dict(row) for row in rows]
+
+    async def reindex_document(
+        self,
+        *,
+        tenant_id: str,
+        document_id: str,
+        embeddings: list[list[float]],
+    ) -> int | None:
+        """Replace the stored vectors of every chunk and bump the index version."""
+        try:
+            parsed = uuid.UUID(document_id)
+        except ValueError:
+            return None
+        async with self._pool.acquire() as connection, connection.transaction():
+            exists = await connection.fetchval(
+                "SELECT 1 FROM public.documents WHERE id = $1 AND tenant_id = $2",
+                parsed,
+                tenant_id,
+            )
+            if exists is None:
+                return None
+            ordinals = await connection.fetch(
+                "SELECT ordinal FROM public.chunks WHERE document_id = $1 AND tenant_id = $2 "
+                "ORDER BY ordinal ASC",
+                parsed,
+                tenant_id,
+            )
+            if len(ordinals) != len(embeddings):
+                raise ValueError(
+                    f"document has {len(ordinals)} chunks but {len(embeddings)} vectors were given"
+                )
+            for row, vector in zip(ordinals, embeddings, strict=True):
+                await connection.execute(
+                    "UPDATE public.chunks SET embedding = $3::vector "
+                    "WHERE document_id = $1 AND tenant_id = $2 AND ordinal = $4",
+                    parsed,
+                    tenant_id,
+                    json.dumps(vector, separators=(",", ":")),
+                    int(row["ordinal"]),
+                )
+            version = await connection.fetchval(
+                "UPDATE public.tenants SET doc_index_version = doc_index_version + 1 "
+                "WHERE id = $1 RETURNING doc_index_version",
+                tenant_id,
+            )
+        return None if version is None else int(version)
 
     async def delete_document(self, *, tenant_id: str, document_id: str) -> bool:
         """Delete one document and its chunks, then invalidate the tenant index version."""

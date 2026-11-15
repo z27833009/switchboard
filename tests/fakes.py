@@ -275,6 +275,20 @@ class MemoryRunStore:
             return []
         return [dict(chunk) for chunk in row.get("chunk_rows", [])]
 
+    async def reindex_document(
+        self,
+        *,
+        tenant_id: str,
+        document_id: str,
+        embeddings: list[list[float]],
+    ) -> int | None:
+        row = self.documents.get(document_id)
+        if row is None or row["tenant_id"] != tenant_id:
+            return None
+        if len(row.get("chunk_rows", [])) != len(embeddings):
+            raise ValueError("chunk and vector counts differ")
+        return 1
+
     async def delete_document(self, *, tenant_id: str, document_id: str) -> bool:
         row = self.documents.get(document_id)
         if row is None or row["tenant_id"] != tenant_id:

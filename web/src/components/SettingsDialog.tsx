@@ -13,6 +13,7 @@ import {
   isAbortError,
   listDocuments,
   postJson,
+  reindexDocument,
   restoreSession,
   updateProviderModel,
   updateTenantSettings,
@@ -229,6 +230,9 @@ function KnowledgeSection({ tenantId }: { tenantId: string }) {
   const [previewChunks, setPreviewChunks] = useState<DocumentChunk[]>([]);
   const [previewBusy, setPreviewBusy] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [reindexing, setReindexing] = useState<string | null>(null);
+  const [reindexNotice, setReindexNotice] = useState<string | null>(null);
+  const [reindexError, setReindexError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -302,6 +306,23 @@ function KnowledgeSection({ tenantId }: { tenantId: string }) {
     }
   }
 
+  async function reindex(document: DocumentSummary) {
+    setReindexing(document.document_id);
+    setReindexNotice(null);
+    setReindexError(null);
+    try {
+      const result = await reindexDocument(document.document_id, tenantId);
+      setReindexNotice(
+        `Revision ${result.index_version}: re-embedded ${result.chunks_embedded} chunks.`,
+      );
+      setReload((value) => value + 1);
+    } catch (caught) {
+      setReindexError(errorMessage(caught));
+    } finally {
+      setReindexing(null);
+    }
+  }
+
   const uploadPanel = (
     <div className="settings-edit">
       <h4 className="settings-subheading">Upload a document</h4>
@@ -369,6 +390,12 @@ function KnowledgeSection({ tenantId }: { tenantId: string }) {
         its chunks and bumps the tenant index version, so the next retrieval rebuilds from what
         remains.
       </p>
+      {reindexNotice === null ? null : <p className="muted small">{reindexNotice}</p>}
+      {reindexError === null ? null : (
+        <p className="error-text small" role="alert">
+          {reindexError}
+        </p>
+      )}
       <ul className="card-list">
         {documents.map((document) => (
           <li key={document.document_id} className="card">
@@ -391,6 +418,14 @@ function KnowledgeSection({ tenantId }: { tenantId: string }) {
                 aria-expanded={previewId === document.document_id}
               >
                 {previewId === document.document_id ? "Hide chunks" : "Preview chunks"}
+              </button>
+              <button
+                type="button"
+                className="button button-quiet"
+                onClick={() => void reindex(document)}
+                disabled={reindexing !== null}
+              >
+                {reindexing === document.document_id ? "Reindexing..." : "Reindex"}
               </button>
               {confirming === document.document_id ? (
                 <>
