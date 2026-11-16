@@ -139,6 +139,25 @@ def _tenant(deps: AppDeps, tenant_id: str) -> TenantContext:
         raise HTTPException(status_code=404, detail=f"unknown tenant {tenant_id!r}") from exc
 
 
+def _check_preset(tenant: TenantContext, preset: str) -> None:
+    """Reject an agent preset the tenant cannot run (V3.09).
+
+    The composer lists the tenant's allowed agents from ``GET /settings``. The
+    API repeats the check before a run row exists, so a hand-written request
+    cannot select an unregistered or disallowed agent. The orchestrator keeps
+    its own guard as the second line of defence.
+    """
+    if preset == "auto" or preset in tenant.allowed_agents:
+        return
+    raise HTTPException(
+        status_code=422,
+        detail=(
+            f"agent preset {preset!r} is not allowed for tenant "
+            f"{tenant.tenant_id!r}; allowed: {', '.join(sorted(tenant.allowed_agents)) or 'none'}"
+        ),
+    )
+
+
 def _check_orchestrator(deps: AppDeps, tenant: TenantContext, name: str | None) -> None:
     """Reject an unknown replay target before a run row exists (T3.07).
 
@@ -316,6 +335,7 @@ async def chat(request: Request, payload: ChatRequest) -> ChatResponse:
     """Run one request and return the final payload (AC-01a)."""
     deps = _deps(request.app)
     tenant = _tenant(deps, payload.tenant_id)
+    _check_preset(tenant, payload.preset)
     _check_orchestrator(deps, tenant, payload.orchestrator)
     run_id = str(uuid.uuid4())
     try:
@@ -341,6 +361,7 @@ async def chat_stream(request: Request, payload: ChatRequest) -> StreamingRespon
     """Stream the run's steps as server-sent events (AC-22a, design 12.5)."""
     deps = _deps(request.app)
     tenant = _tenant(deps, payload.tenant_id)
+    _check_preset(tenant, payload.preset)
     _check_orchestrator(deps, tenant, payload.orchestrator)
     run_id = str(uuid.uuid4())
     queue = deps.publisher.register(run_id)

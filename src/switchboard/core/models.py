@@ -366,9 +366,10 @@ class ChatRequest(BaseModel):
     session_id: str | None = None
     history: list[Turn] = Field(default_factory=list)
     attachments: list[Attachment] = Field(default_factory=list, max_length=3)
-    # V3.04: skip the supervisor and run one agent the user picked. ``auto``
-    # keeps the normal routing path unchanged.
-    preset: Literal["auto", "direct", "docs", "data"] = "auto"
+    # V3.04/V3.09: skip the supervisor and run one registered agent the user
+    # picked. ``auto`` keeps the normal routing path unchanged; any other
+    # value must name an agent the tenant is allowed to use.
+    preset: str = Field(default="auto", min_length=1)
     # Run this request on a registered orchestrator by name instead of the
     # platform default (T3.07). None keeps the default path unchanged.
     orchestrator: str | None = Field(default=None, min_length=1)

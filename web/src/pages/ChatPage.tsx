@@ -33,6 +33,12 @@ interface ComposerAttachment {
   content: string;
 }
 
+function agentLabel(name: string): string {
+  return name
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
 function stepSummary(step: StepEvent): string {
   switch (step.type) {
     case "run.started":
@@ -459,7 +465,8 @@ export function ChatPage({
   const [query, setQuery] = useState("");
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
-  const [preset, setPreset] = useState<"auto" | "direct" | "docs" | "data">("auto");
+  const [preset, setPreset] = useState<string>("auto");
+  const [agentOptions, setAgentOptions] = useState<string[]>([]);
   const [modelLabel, setModelLabel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(routeSessionId !== null);
@@ -479,6 +486,8 @@ export function ChatPage({
 
   useEffect(() => {
     const controller = new AbortController();
+    setAgentOptions([]);
+    setPreset("auto");
     getJson<SettingsResponse>(
       `/settings?tenant_id=${encodeURIComponent(tenant)}`,
       controller.signal,
@@ -489,11 +498,21 @@ export function ChatPage({
           setModelLabel(
             model === null ? settings.provider.name : `${settings.provider.name} / ${model}`,
           );
+          // The control plane lists every registered agent and marks the ones
+          // this tenant may use (V3.09). The composer never names an agent
+          // itself, so a newly registered or newly allowed agent appears here.
+          const allowed = settings.agents
+            .filter((agent) => agent.allowed)
+            .map((agent) => agent.name);
+          setAgentOptions(allowed);
+          setPreset((current) => (current === "auto" || allowed.includes(current) ? current : "auto"));
         }
       })
       .catch((caught) => {
         if (!isAbortError(caught)) {
           setModelLabel(null);
+          setAgentOptions([]);
+          setPreset("auto");
         }
       });
     return () => controller.abort();
@@ -806,15 +825,15 @@ export function ChatPage({
               id="composer-preset"
               className="composer-preset"
               value={preset}
-              onChange={(event) =>
-                setPreset(event.target.value as "auto" | "direct" | "docs" | "data")
-              }
+              onChange={(event) => setPreset(event.target.value)}
               disabled={busy}
             >
               <option value="auto">Auto</option>
-              <option value="direct">Direct</option>
-              <option value="docs">Docs</option>
-              <option value="data">Data</option>
+              {agentOptions.map((name) => (
+                <option key={name} value={name}>
+                  {agentLabel(name)}
+                </option>
+              ))}
             </select>
             <label className="visually-hidden" htmlFor="composer-input">
               Message

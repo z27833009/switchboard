@@ -111,6 +111,38 @@ async def test_chat_validates_the_core_models(harness: AppHarness) -> None:
     assert with_attachment.status_code == 200
 
 
+async def test_chat_rejects_an_unregistered_or_disallowed_agent_preset(
+    harness: AppHarness,
+) -> None:
+    unknown = await harness.client.post(
+        "/chat",
+        json={"query": "hello", "tenant_id": "default", "preset": "not-an-agent"},
+    )
+    assert unknown.status_code == 422
+    assert "not allowed" in unknown.json()["detail"]
+
+    disallowed = await harness.client.post(
+        "/chat",
+        json={"query": "hello", "tenant_id": "seller_a", "preset": "direct"},
+    )
+    assert disallowed.status_code == 422
+    assert "seller_a" in disallowed.json()["detail"]
+
+    # The same guard runs before a streaming run creates a row.
+    stream = await harness.client.post(
+        "/chat/stream",
+        json={"query": "hello", "tenant_id": "default", "preset": "not-an-agent"},
+    )
+    assert stream.status_code == 422
+    assert harness.store.runs == {}
+
+    allowed = await harness.client.post(
+        "/chat",
+        json={"query": "hello", "tenant_id": "default", "preset": "docs"},
+    )
+    assert allowed.status_code == 200, allowed.text
+
+
 async def test_unknown_tenant_is_404(harness: AppHarness) -> None:
     chat = await harness.client.post("/chat", json={"query": "hello", "tenant_id": "acme"})
     assert chat.status_code == 404
