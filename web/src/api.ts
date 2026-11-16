@@ -260,6 +260,7 @@ export interface SettingsLimits {
   model_view_rows: number;
   context_fill: number;
   history_turns: number;
+  history_tokens: number;
 }
 
 export interface SettingsPlatform {

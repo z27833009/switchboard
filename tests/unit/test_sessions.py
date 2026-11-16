@@ -334,7 +334,7 @@ async def test_stored_history_is_authoritative_over_client_history(
     ]
 
 
-async def test_history_is_limited_to_the_configured_turn_count(
+async def test_history_is_trimmed_to_the_configured_token_budget(
     store: MemoryRunStore,
     publisher: StepEventPublisher,
     tracer_provider: TracerProvider,
@@ -346,7 +346,7 @@ async def test_history_is_limited_to_the_configured_turn_count(
         publisher=publisher,
         provider=tracer_provider,
         orchestrator=orchestrator,
-        history_turns=1,
+        history_tokens=30,
     )
     try:
         session = str(uuid.uuid4())

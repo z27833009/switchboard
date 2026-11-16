@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "test:markdown": "node scripts/check-markdown.mjs",
+    "test:citations": "node scripts/check-citations.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

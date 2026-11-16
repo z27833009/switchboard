@@ -71,3 +71,4 @@ limits:
   model_view_rows: 20
   context_fill: 0.7
   history_turns: 3
+  history_tokens: 1200

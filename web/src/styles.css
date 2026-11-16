@@ -1555,6 +1555,11 @@ textarea {
   text-underline-offset: 2px;
 }
 
+.markdown .link-host {
+  color: var(--text-secondary);
+  font-size: 0.86em;
+}
+
 .clarify-question {
   margin: 4px 0 8px;
   font-size: 16px;

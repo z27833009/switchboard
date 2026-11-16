@@ -4,6 +4,7 @@ from switchboard.core.context import (
     ClearOldestToolResults,
     cleared_marker,
     estimate_message_tokens,
+    estimate_tokens,
 )
 from switchboard.core.models import ContextBudget, Message
 
@@ -27,6 +28,12 @@ def budget(fill_ratio: float = 0.7) -> ContextBudget:
 
 def total_tokens(messages: list[Message]) -> int:
     return sum(estimate_message_tokens(message) for message in messages)
+
+
+def test_cjk_characters_count_as_about_one_token_each() -> None:
+    assert estimate_tokens("退货政策") == 4
+    assert estimate_tokens("退货 policy") == 5
+    assert estimate_tokens("") == 0
 
 
 def test_under_the_limit_is_returned_unchanged() -> None:

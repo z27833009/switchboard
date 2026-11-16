@@ -127,6 +127,8 @@ class Limits(BaseModel):
     model_view_rows: int = Field(default=20, ge=1)
     context_fill: float = Field(default=0.7, gt=0.0, le=1.0)
     history_turns: int = Field(default=3, ge=0)
+    # V3.12: maximum estimated tokens of session history attached to a run.
+    history_tokens: int = Field(default=1200, ge=0)
 
 
 class PlatformConfig(BaseModel):

@@ -100,6 +100,7 @@ from switchboard.api.step_events import RUN_FINISHED, StepEvent
 from switchboard.api.store import parse_run_id, rows_are_complete
 from switchboard.api.trace import assemble_trace
 from switchboard.core.config import tenant_context
+from switchboard.core.context import estimate_tokens
 from switchboard.core.errors import ApprovalUnavailable, ConfigError, ProviderTransientError
 from switchboard.core.models import (
     ApprovalDecision,
@@ -109,6 +110,7 @@ from switchboard.core.models import (
     RunContext,
     RunResult,
     TenantContext,
+    Turn,
 )
 
 logger = logging.getLogger(__name__)
@@ -218,20 +220,29 @@ async def request_with_history(deps: AppDeps, request: ChatRequest) -> ChatReque
     """Attach the session's stored turns, when the request names a session.
 
     Server-side history is authoritative: a request with a ``session_id`` gets
-    the last ``deps.history_turns`` completed runs of that tenant and session
-    (oldest first), and any client-supplied ``history`` is ignored. That way the
-    browser only has to keep a session id, and a client cannot inject turns.
-    Without a ``session_id`` the client history is used unchanged (design.md
-    6.3, AC-23a).
+    the newest completed runs of that tenant and session (oldest first) whose
+    estimated tokens fit ``deps.history_tokens``, and any client-supplied
+    ``history`` is ignored. That way the browser only has to keep a session id,
+    and a client cannot inject turns. Without a ``session_id`` the client
+    history is used unchanged (design.md 6.3, AC-23a).
     """
     if not request.session_id:
         return request
     turns = await deps.store.load_session_turns(
         tenant_id=request.tenant_id,
         session_id=request.session_id,
-        limit=deps.history_turns,
+        limit=50,
     )
-    return request.model_copy(update={"history": turns})
+    kept: list[Turn] = []
+    estimated = 0
+    for turn in reversed(turns):
+        cost = 4 + estimate_tokens(turn.content)
+        if kept and estimated + cost > deps.history_tokens:
+            break
+        kept.append(turn)
+        estimated += cost
+    kept.reverse()
+    return request.model_copy(update={"history": kept})
 
 
 async def execute_run(

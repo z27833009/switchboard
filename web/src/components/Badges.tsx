@@ -114,18 +114,30 @@ export function CitationChips({
   if (citations.length === 0) {
     return <p className="muted small">No citations were returned for this answer.</p>;
   }
+  // V3.15: one chip per source document or tool result, listing every ref it
+  // backs. Inline markers are unchanged; only the chip row groups.
+  const groups = new Map<string, { first: Citation; refs: string[] }>();
+  for (const citation of citations) {
+    const key = `${citation.kind}:${citation.source_id}`;
+    const group = groups.get(key);
+    if (group === undefined) {
+      groups.set(key, { first: citation, refs: [citation.ref] });
+    } else {
+      group.refs.push(citation.ref);
+    }
+  }
   return (
     <div className="chips" aria-label="Citations">
-      {citations.map((citation, index) => {
-        const label = citation.kind === "tool" ? `tool ${citation.ref}` : `doc ${citation.ref}`;
+      {Array.from(groups.values()).map(({ first, refs }) => {
+        const label = first.kind === "tool" ? "tool" : "doc";
         return (
           <a
-            key={`${citation.kind}-${citation.ref}-${index}`}
-            className={`chip chip-${citation.kind}`}
-            href={citationHref(runId, tenantId, citation, sessionId)}
-            title={`${citation.source_id}\n${citation.snippet}`}
+            key={`${first.kind}:${first.source_id}`}
+            className={`chip chip-${first.kind}`}
+            href={citationHref(runId, tenantId, first, sessionId)}
+            title={`${first.source_id}\n${refs.join(", ")}`}
           >
-            {label}
+            {label} {refs.join(", ")}
           </a>
         );
       })}

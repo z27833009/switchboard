@@ -272,6 +272,7 @@ async def test_known_tenant_returns_the_expected_shape(
             "model_view_rows": 20,
             "context_fill": 0.7,
             "history_turns": 3,
+            "history_tokens": 1200,
         },
     }
     assert body["tenant"] == {

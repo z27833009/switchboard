@@ -75,9 +75,10 @@ class AppDeps:
     # Optional replay targets keyed by (tenant provider, registered orchestrator
     # name). The default path never reads this map (T3.07).
     replay_orchestrators: Mapping[tuple[str, str], Orchestrator] = field(default_factory=dict)
-    # How many completed turns of a session the API gives the orchestrator
-    # (limits.history_turns in config/platform.yaml, design.md 6.3).
+    # Completed turns and the estimated token budget of session history the API
+    # gives the orchestrator (limits in config/platform.yaml, design.md 6.3).
     history_turns: int = 3
+    history_tokens: int = 1200
     publisher: StepEventPublisher = field(default_factory=StepEventPublisher)
     tracing: TracerFlusher | None = None
     health: HealthCheck | None = None
@@ -489,6 +490,7 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
         run_token_secret=secret,
         run_timeout_s=settings.platform.limits.run_timeout_s,
         history_turns=settings.platform.limits.history_turns,
+        history_tokens=settings.platform.limits.history_tokens,
         publisher=publisher,
         tracing=tracing,
         closer=close,

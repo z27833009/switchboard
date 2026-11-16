@@ -8,17 +8,24 @@ provider's reported usage later shows the estimate's error.
 from __future__ import annotations
 
 import math
+import re
 
 from switchboard.core.models import ContextBudget, FitResult, Message
 
 CHARS_PER_TOKEN = 3
 MESSAGE_OVERHEAD_TOKENS = 4
+# CJK scripts do not have space-delimited words and tokenizers typically emit
+# about one token per character. Counting a character as a third of a token
+# would undercount Chinese history by several times (V3.12).
+CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]")
 
 
 def estimate_tokens(text: str) -> int:
     if not text:
         return 0
-    return max(1, math.ceil(len(text) / CHARS_PER_TOKEN))
+    cjk = len(CJK.findall(text))
+    other = len(text) - cjk
+    return max(1, cjk + math.ceil(other / CHARS_PER_TOKEN))
 
 
 def estimate_message_tokens(message: Message) -> int:

@@ -60,10 +60,12 @@ function inline(text: string, cite?: CitationRenderer): ReactNode[] {
     } else {
       const link = /^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/.exec(token);
       const href = link === null ? null : safeHref(link[2]);
-      if (link !== null && href !== null) {
+      const image = match.index > 0 && text[match.index - 1] === "!";
+      if (link !== null && href !== null && !image) {
+        const host = new URL(href).host;
         parts.push(
           <a key={key} href={href} target="_blank" rel="noreferrer">
-            {link[1]}
+            {link[1]} <span className="link-host">{host}</span>
           </a>,
         );
       } else {
