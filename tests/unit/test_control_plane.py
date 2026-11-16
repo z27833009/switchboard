@@ -26,3 +26,17 @@ def test_projection_has_providers_models_sources_and_agents() -> None:
     assert any(row[0] == "lmstudio" and row[1] == "qwen3-8b" for row in rows.models)
     assert {row[0] for row in rows.mcp_servers} == {"catalog", "olist", "reviews"}
     assert {row[0] for row in rows.agents} >= {"data", "direct", "docs", "clarify"}
+    assert {row[0] for row in rows.agent_versions} == {row[0] for row in rows.agents}
+    assert all(row[1] == 1 for row in rows.agent_versions)
+
+    tools = {(row[0], row[1]) for row in rows.mcp_tools}
+    assert ("olist", "orders_late@1") in tools
+    assert ("reviews", "review_summary@1") in tools
+    assert ("catalog", "catalog_search@1") in tools
+    assert all(row[5] in {"read", "write"} for row in rows.mcp_tools)
+
+    bindings = {row[0]: row for row in rows.tenant_bindings}
+    assert {"default", "seller_a"} <= set(bindings)
+    assert bindings["default"][1] == "lmstudio"
+    assert bindings["default"][3] == '["direct", "docs", "data", "clarify"]'
+    assert '"seller_ids"' in bindings["seller_a"][6]
