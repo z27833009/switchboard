@@ -57,8 +57,10 @@ def main() -> int:
             questions.add(question)
         if case.get("review") not in REVIEW:
             errors.append(f"{where}.review must be pending or approved")
-        if not isinstance(expected, list) or not expected or not all(
-            isinstance(item, str) and item for item in expected
+        if (
+            not isinstance(expected, list)
+            or not expected
+            or not all(isinstance(item, str) and item for item in expected)
         ):
             errors.append(f"{where}.expected_contains must be a non-empty string list")
         elif isinstance(question, str):
