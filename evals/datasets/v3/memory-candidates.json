@@ -1,0 +1,167 @@
+{
+  "version": "memory-v1-candidates",
+  "status": "candidate",
+  "note": "AI-generated candidates for the author to review and edit. A case is not part of the frozen dataset until the author changes its review status to approved.",
+  "cases": [
+    {
+      "id": "mem-001",
+      "category": "order_reference",
+      "fact": "The audit code for the March return is ZX-417.",
+      "question": "What audit code did I give you for the March return?",
+      "expected_contains": ["ZX-417"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-002",
+      "category": "logistics",
+      "fact": "The preferred courier for seller 955fee is Northwind Express.",
+      "question": "Which courier did I say seller 955fee prefers?",
+      "expected_contains": ["Northwind Express"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-003",
+      "category": "project_name",
+      "fact": "The internal name for the late-delivery pilot is Project Lantern.",
+      "question": "What is the internal name of the late-delivery pilot?",
+      "expected_contains": ["Project Lantern"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-004",
+      "category": "return_window",
+      "fact": "The return window for the blue jacket is 12 calendar days.",
+      "question": "How many calendar days do I have to return the blue jacket?",
+      "expected_contains": ["12"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-005",
+      "category": "order_reference",
+      "fact": "The replacement order id is ORD-88231.",
+      "question": "What is the replacement order id?",
+      "expected_contains": ["ORD-88231"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-006",
+      "category": "contact",
+      "fact": "The warehouse contact is Mira Chen.",
+      "question": "Who is the warehouse contact?",
+      "expected_contains": ["Mira Chen"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-007",
+      "category": "customer_profile",
+      "fact": "The customer's loyalty tier is Silver Oak.",
+      "question": "What loyalty tier did I mention for the customer?",
+      "expected_contains": ["Silver Oak"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-008",
+      "category": "refund",
+      "fact": "The approved refund amount is 47.25 USD.",
+      "question": "What refund amount was approved?",
+      "expected_contains": ["47.25"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-009",
+      "category": "escalation",
+      "fact": "The escalation code is KITE-9.",
+      "question": "What escalation code should I use?",
+      "expected_contains": ["KITE-9"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-010",
+      "category": "schedule",
+      "fact": "The pickup window is 14:00 to 16:00 on Friday.",
+      "question": "When is the pickup window?",
+      "expected_contains": ["14:00", "16:00", "Friday"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-011",
+      "category": "seller",
+      "fact": "The seller's display name is Harbor Goods.",
+      "question": "What is the seller's display name?",
+      "expected_contains": ["Harbor Goods"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-012",
+      "category": "product",
+      "fact": "The product SKU for the desk lamp is LMP-330.",
+      "question": "What is the SKU for the desk lamp?",
+      "expected_contains": ["LMP-330"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-013",
+      "category": "approval",
+      "fact": "The policy exception was approved by Dana Ruiz.",
+      "question": "Who approved the policy exception?",
+      "expected_contains": ["Dana Ruiz"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-014",
+      "category": "shipping",
+      "fact": "The free-shipping threshold is 89 USD.",
+      "question": "What is the free-shipping threshold?",
+      "expected_contains": ["89"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-015",
+      "category": "date",
+      "fact": "The order was placed on 2026-02-17.",
+      "question": "On what date was the order placed?",
+      "expected_contains": ["2026-02-17"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-016",
+      "category": "invoice",
+      "fact": "The invoice number is INV-2026-0417.",
+      "question": "What is the invoice number?",
+      "expected_contains": ["INV-2026-0417"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-017",
+      "category": "damage",
+      "fact": "The damaged item was a ceramic mug.",
+      "question": "Which item was damaged?",
+      "expected_contains": ["ceramic mug"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-018",
+      "category": "logistics",
+      "fact": "The replacement carrier is Bluefin Logistics.",
+      "question": "Which carrier handles the replacement?",
+      "expected_contains": ["Bluefin Logistics"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-019",
+      "category": "support",
+      "fact": "The support ticket is TCK-5521.",
+      "question": "What is the support ticket number?",
+      "expected_contains": ["TCK-5521"],
+      "review": "pending"
+    },
+    {
+      "id": "mem-020",
+      "category": "promotion",
+      "fact": "The internal discount code is ORCHID-12.",
+      "question": "What internal discount code did I mention?",
+      "expected_contains": ["ORCHID-12"],
+      "review": "pending"
+    }
+  ]
+}
