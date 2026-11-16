@@ -40,6 +40,7 @@ SQL_FILES = (
     "15-run-attachments.sql",
     "16-control-plane.sql",
     "17-attachment-expiry.sql",
+    "18-mcp-tool-pinning.sql",
 )
 ROLES = (
     ("switchboard_app", "SWITCHBOARD_APP_DB_PASSWORD"),

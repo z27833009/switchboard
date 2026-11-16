@@ -6,6 +6,7 @@ import type {
 import { useEffect, useRef, useState } from "react";
 
 import {
+  approveMcpServer,
   deleteDocument,
   errorMessage,
   getDocumentChunks,
@@ -132,6 +133,9 @@ function ToolCards({
             <span className="muted">
               name {tool.name}, version {tool.version}
             </span>
+            {tool.approval_status === "approved" ? null : (
+              <span className="tag tag-warning">changed, needs approval</span>
+            )}
           </p>
           </li>
         );
@@ -899,6 +903,9 @@ function SectionBody({
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [approveBusy, setApproveBusy] = useState<string | null>(null);
+  const [approveMessage, setApproveMessage] = useState<string | null>(null);
+  const [approveError, setApproveError] = useState<string | null>(null);
 
   useEffect(() => {
     setModelDraft(provider.model ?? "");
@@ -1047,6 +1054,21 @@ function SectionBody({
         ? [...current.filter((name) => name !== tool.wire_name), tool.wire_name]
         : current.filter((name) => name !== tool.wire_name),
     );
+  }
+
+  async function approveServer(name: string) {
+    setApproveBusy(name);
+    setApproveMessage(null);
+    setApproveError(null);
+    try {
+      const result = await approveMcpServer(name);
+      setApproveMessage(`Approved. ${result.note}.`);
+      onSaved();
+    } catch (caught) {
+      setApproveError(errorMessage(caught));
+    } finally {
+      setApproveBusy(null);
+    }
   }
 
   async function saveTools(event: FormEvent<HTMLFormElement>) {
@@ -1392,6 +1414,21 @@ function SectionBody({
                 </button>
                 {open ? (
                   <div className="mcp-server-card-body">
+                    {tools.some((tool) => tool.approval_status !== "approved") ? (
+                      <div className="mcp-approve-row">
+                        <span className="muted small">
+                          A tool changed or appeared. Approve the current fingerprints to enable it.
+                        </span>
+                        <button
+                          type="button"
+                          className="button button-primary"
+                          onClick={() => void approveServer(server.name)}
+                          disabled={approveBusy !== null}
+                        >
+                          {approveBusy === server.name ? "Approving..." : "Approve tools"}
+                        </button>
+                      </div>
+                    ) : null}
                     {tools.length === 0 ? (
                       <p className="muted small">No manifest tool is exposed by this server.</p>
                     ) : (
@@ -1416,6 +1453,12 @@ function SectionBody({
               {saveBusy ? "Saving..." : "Save tools"}
             </button>
           </div>
+          {approveMessage === null ? null : <p className="muted small">{approveMessage}</p>}
+          {approveError === null ? null : (
+            <p className="error-text small" role="alert">
+              {approveError}
+            </p>
+          )}
           {saveMessage === null ? null : <p className="muted small">{saveMessage}</p>}
           {saveError === null ? null : (
             <p className="error-text small" role="alert">

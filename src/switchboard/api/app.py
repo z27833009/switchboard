@@ -1009,6 +1009,25 @@ async def add_mcp_server(request: Request, submission: McpServerSubmission) -> M
     return McpServerResult(status="ok", revision=revision, note=note)
 
 
+@router.post("/settings/mcp-servers/{server_name}/approve", response_model=SettingsRevision)
+async def approve_mcp_server(request: Request, server_name: str) -> SettingsRevision:
+    """Approve the current fingerprints of one source's tools (V3.10)."""
+    deps = _deps(request.app)
+    if deps.approve_tools is None:
+        raise HTTPException(
+            status_code=503,
+            detail="the control-plane tool approval store is not available",
+        )
+    count = await deps.approve_tools(server_name)
+    if count == 0:
+        raise HTTPException(status_code=404, detail=f"unknown MCP server {server_name!r}")
+    return SettingsRevision(
+        status="ok",
+        revision=0,
+        note=f"approved {count} tool(s); apply changes to enable them",
+    )
+
+
 @router.post("/settings/tenants", response_model=SettingsRevision, status_code=201)
 async def create_tenant_settings(request: Request, payload: TenantCreation) -> SettingsRevision:
     """Create a tenant, its database row and its allowlists in one revision."""

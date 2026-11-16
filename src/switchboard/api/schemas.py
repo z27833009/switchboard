@@ -764,6 +764,7 @@ class SettingsTool(BaseModel):
     tenant_scoped: bool
     source: str
     allowed: bool
+    approval_status: Literal["approved", "needs_approval"] = "approved"
 
 
 class SettingsAgent(BaseModel):

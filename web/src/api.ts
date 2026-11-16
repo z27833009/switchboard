@@ -319,6 +319,7 @@ export interface SettingsTool {
   tenant_scoped: boolean;
   source: string;
   allowed: boolean;
+  approval_status: "approved" | "needs_approval";
 }
 
 export interface SettingsAgent {
@@ -531,6 +532,17 @@ export async function saveProviderCredential(
     throw new ApiError(await describeHttpError(response), response.status);
   }
   return (await response.json()) as SettingsRevision;
+}
+
+export async function approveMcpServer(
+  serverName: string,
+  signal?: AbortSignal,
+): Promise<SettingsRevision> {
+  return postJson(
+    `/settings/mcp-servers/${encodeURIComponent(serverName)}/approve`,
+    {},
+    signal,
+  );
 }
 
 export async function testProviderConnection(

@@ -2096,6 +2096,18 @@ dialog::backdrop {
   background: var(--bg-sidebar);
 }
 
+.mcp-approve-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid #f0c36b;
+  border-radius: var(--radius-sm);
+  background: #fff8e8;
+}
+
 .mcp-group > .settings-subheading {
   display: flex;
   align-items: baseline;

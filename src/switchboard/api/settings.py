@@ -108,6 +108,7 @@ def _tenant_payload(
     tool_specs: list[ToolSpec],
     tool_sources: Mapping[str, str],
     available_orchestrators: Sequence[str] | None,
+    tool_statuses: Mapping[tuple[str, str], str] | None = None,
 ) -> dict[str, Any]:
     provider = settings.providers.providers[tenant.provider]
     effective_model = tenant.model or provider.model
@@ -179,6 +180,10 @@ def _tenant_payload(
                 "tenant_scoped": spec.tenant_scoped,
                 "source": tool_sources.get(spec.wire_name, "unknown"),
                 "allowed": spec.wire_name in tenant.tools.allow,
+                "approval_status": (tool_statuses or {}).get(
+                    (tool_sources.get(spec.wire_name, "unknown"), spec.wire_name),
+                    "approved",
+                ),
             }
             for spec in tool_specs
         ],
@@ -201,6 +206,7 @@ def build_settings_snapshots(
     registry: Registry,
     *,
     available_orchestrators: Mapping[str, Sequence[str]] | None = None,
+    tool_statuses: Mapping[tuple[str, str], str] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """One JSON-safe settings payload per configured tenant, keyed by tenant id.
 
@@ -228,6 +234,7 @@ def build_settings_snapshots(
             None
             if available_orchestrators is None
             else available_orchestrators.get(provider_model_key(tenant.provider, tenant.model)),
+            tool_statuses,
         )
         for tenant_id, tenant in sorted(settings.tenants.tenants.items())
     }

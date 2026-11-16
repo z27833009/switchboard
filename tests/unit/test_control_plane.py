@@ -34,6 +34,7 @@ def test_projection_has_providers_models_sources_and_agents() -> None:
     assert ("reviews", "review_summary@1") in tools
     assert ("catalog", "catalog_search@1") in tools
     assert all(row[5] in {"read", "write"} for row in rows.mcp_tools)
+    assert all(len(row[9]) == 64 for row in rows.mcp_tools)
 
     bindings = {row[0]: row for row in rows.tenant_bindings}
     assert {"default", "seller_a"} <= set(bindings)

@@ -874,6 +874,7 @@ async def test_openapi_and_docs_render(harness: AppHarness) -> None:
         "/settings",
         "/settings/apply",
         "/settings/mcp-servers",
+        "/settings/mcp-servers/{server_name}/approve",
         "/settings/providers/{provider_name}",
         "/settings/providers/{provider_name}/credential",
         "/settings/providers/{provider_name}/test",

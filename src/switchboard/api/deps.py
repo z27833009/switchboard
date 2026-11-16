@@ -23,6 +23,7 @@ from switchboard.adapters.embedders.factory import create_embedder
 from switchboard.adapters.judges.factory import create_judge
 from switchboard.adapters.providers.factory import create_provider
 from switchboard.adapters.retrievers.ingest import IngestResult, ingest_directory
+from switchboard.adapters.tools.mcp_client import PinnedToolSource
 from switchboard.api.audit import AuditStore, PgAuditStore, load_sensitive_args
 from switchboard.api.run_tokens import require_run_token_secret
 from switchboard.api.settings import build_settings_snapshots
@@ -30,7 +31,12 @@ from switchboard.api.step_events import StepEventProcessor, StepEventPublisher
 from switchboard.api.store import PgRunStore, RunStore
 from switchboard.config import load_settings
 from switchboard.config_store import SettingsStore
-from switchboard.control_plane import sync_control_plane
+from switchboard.control_plane import (
+    approve_tool_source,
+    load_tool_approvals,
+    load_tool_statuses,
+    sync_control_plane,
+)
 from switchboard.core.config import PriceEntry, Settings, TenantsConfig, provider_model_key
 from switchboard.core.context import ClearOldestToolResults
 from switchboard.core.errors import ConfigError
@@ -86,6 +92,9 @@ class AppDeps:
     # The database control-plane writer (V3.03). None with YAML or an injected
     # test app; the write route answers 503 rather than guessing a database.
     settings_store: Any | None = None
+    # Re-approve one source's current tool fingerprints (V3.10). None in a test
+    # app, which answers 503 instead of touching a database.
+    approve_tools: Callable[[str], Awaitable[int]] | None = None
     # Uploaded markdown/text ingestion (V3.05). None in a test app, so the
     # upload route answers 503 instead of pretending to embed.
     ingest_document: Any | None = None
@@ -147,14 +156,21 @@ def context_policy_for(name: str) -> ContextPolicy:
     raise ConfigError(f"unknown context policy {name!r}")
 
 
-def build_tool_sources(settings: Settings, registry: Registry) -> list[Any]:
+def build_tool_sources(
+    settings: Settings,
+    registry: Registry,
+    approved_tools: Mapping[str, Mapping[str, str]] | None = None,
+) -> list[Any]:
     sources: list[Any] = []
     for source in settings.platform.tool_sources:
         component: Any = registry.load(TOOL_SOURCES, source.adapter)
         factory = getattr(component, "from_config", None)
         if factory is None:
             raise ConfigError(f"tool source adapter {source.adapter!r} has no from_config")
-        sources.append(factory(source))
+        built = factory(source)
+        if approved_tools is not None and source.name in approved_tools:
+            built = PinnedToolSource(built, approved_tools[source.name])
+        sources.append(built)
     return sources
 
 
@@ -216,6 +232,7 @@ def build_orchestrator_set(
     pool: asyncpg.Pool,
     *,
     answer_delta: Callable[[str, str], None] | None = None,
+    approved_tools: Mapping[str, Mapping[str, str]] | None = None,
 ) -> BuiltOrchestrators:
     """Build every orchestrator instance the API needs (design 6.1, 16, T3.07).
 
@@ -231,7 +248,7 @@ def build_orchestrator_set(
     embedder = create_embedder(settings.platform.embedder, embedder_config)
     retriever = build_retriever(settings, registry, pool, embedder)
     cache = build_cache(settings, registry, pool, embedder)
-    tool_sources = build_tool_sources(settings, registry)
+    tool_sources = build_tool_sources(settings, registry, approved_tools)
     context_policy = context_policy_for(settings.platform.context_policy)
     default_name = settings.platform.orchestrator
     default_class: Any = registry.load(ORCHESTRATORS, default_name)
@@ -405,10 +422,17 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
     pool = await asyncpg.create_pool(dsn=dsn, min_size=1, max_size=10)
     try:
         registry = Registry()
-        built = build_orchestrator_set(
-            settings, registry, pool, answer_delta=step_events.publish_answer_delta
-        )
+        # Pin tools before any MCP source is built (V3.10).
         await sync_control_plane(pool, settings, registry)
+        approved_tools = await load_tool_approvals(pool)
+        tool_statuses = await load_tool_statuses(pool)
+        built = build_orchestrator_set(
+            settings,
+            registry,
+            pool,
+            answer_delta=step_events.publish_answer_delta,
+            approved_tools=approved_tools,
+        )
         # A cache that owns a store-side index creates it here, once, so the
         # first run does not pay for it. The adapter logs a warning instead of
         # raising when the store is down: a cache may never fail a run (T3.09).
@@ -425,7 +449,10 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
         # Built once from the same config, registry and manifests the
         # orchestrators use, so GET /settings cannot drift from what runs.
         settings_snapshot = build_settings_snapshots(
-            settings, registry, available_orchestrators=available
+            settings,
+            registry,
+            available_orchestrators=available,
+            tool_statuses=tool_statuses,
         )
         settings_connection = None
         settings_store = None
@@ -468,6 +495,7 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
         sensitive_args=load_sensitive_args(settings.platform.tool_sources),
         settings_snapshot=settings_snapshot,
         settings_store=settings_store,
+        approve_tools=lambda server: approve_tool_source(pool, server),
         ingest_document=build_document_ingester(pool, built.embedder),
         embedder=built.embedder,
         auth_required=source.get("SWITCHBOARD_AUTH_REQUIRED", "").strip().lower()

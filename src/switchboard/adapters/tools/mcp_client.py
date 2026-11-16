@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from typing import Any, Literal, cast
 
@@ -33,6 +33,7 @@ from switchboard.core.errors import (
 )
 from switchboard.core.guardrails import guardrail_span_attributes, scan
 from switchboard.core.models import RunContext, ToolResult, ToolSpec
+from switchboard.core.tool_pinning import tool_fingerprint
 from switchboard.tracing.spans import (
     args_hash,
     inject_traceparent,
@@ -120,6 +121,29 @@ def parse_payload(result: CallToolResult) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ToolExecutionError("MCP tool result must be a JSON object")
     return cast(dict[str, Any], payload)
+
+
+class PinnedToolSource:
+    """Hide or deny a tool whose current fingerprint is not approved (V3.10)."""
+
+    def __init__(self, inner: McpToolSource, approved: Mapping[str, str]) -> None:
+        self._inner = inner
+        self._approved = dict(approved)
+        self.name = inner.name
+
+    async def list_tools(self, ctx: RunContext) -> list[ToolSpec]:
+        specs = await self._inner.list_tools(ctx)
+        return [
+            spec for spec in specs if self._approved.get(spec.wire_name) == tool_fingerprint(spec)
+        ]
+
+    async def call(self, name: str, args: dict[str, Any], ctx: RunContext) -> ToolResult:
+        specs = await self._inner.list_tools(ctx)
+        current = next((spec for spec in specs if spec.wire_name == name), None)
+        approved = self._approved.get(name)
+        if current is None or approved is None or approved != tool_fingerprint(current):
+            raise ToolPermissionError(f"tool {name!r} is not approved")
+        return await self._inner.call(name, args, ctx)
 
 
 class McpToolSource:
