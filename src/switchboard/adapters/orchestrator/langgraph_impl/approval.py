@@ -108,7 +108,6 @@ class ApprovalGate:
         reason = approval_reason(self._specs.get(name), name, ctx)
         if reason is None:
             return await self._source.call(name, args, ctx)
-
         digest = args_hash(args)
         key = (ctx.run_id, name, digest)
         span = trace.get_current_span()
@@ -142,6 +141,12 @@ class ApprovalGate:
         result = await self._source.call(name, args, ctx)
         self._executed[key] = result
         return result
+
+    async def close_run(self, run_id: str) -> None:
+        """Release the wrapped source's per-run resources (V3.11)."""
+        close = getattr(self._source, "close_run", None)
+        if close is not None:
+            await close(run_id)
 
 
 def wrap_tool_sources(sources: list[ToolSource]) -> tuple[list[ToolSource], list[ApprovalGate]]:

@@ -699,10 +699,8 @@ class AgentLoopOrchestrator:
     async def _execute(self, request: ChatRequest, ctx: RunContext) -> RunResult:
         started_at = datetime.now(UTC)
         try:
-            return await asyncio.wait_for(
-                self._gated(request, ctx, started_at),
-                timeout=self._limits.run_timeout_s,
-            )
+            async with asyncio.timeout(self._limits.run_timeout_s):
+                return await self._gated(request, ctx, started_at)
         except TimeoutError:
             return RunResult(
                 run_id=ctx.run_id,
@@ -755,33 +753,49 @@ class AgentLoopOrchestrator:
             )
 
     async def run(self, request: ChatRequest, ctx: RunContext) -> RunResult:
-        with run_span(
-            self._tracer,
-            tenant_id=ctx.tenant.tenant_id,
-            run_id=ctx.run_id,
-            orchestrator=self.name,
-        ) as span:
+        try:
+            with run_span(
+                self._tracer,
+                tenant_id=ctx.tenant.tenant_id,
+                run_id=ctx.run_id,
+                orchestrator=self.name,
+            ) as span:
+                try:
+                    result = await self._execute(request, ctx)
+                except asyncio.CancelledError:
+                    raise
+                except BaseException as exc:
+                    record_error(span, exc)
+                    raise
+                set_attributes(
+                    span,
+                    {
+                        "switchboard.plan": result.plan.label if result.plan else None,
+                        "switchboard.cache.hit": result.cache_hit,
+                        "switchboard.attempts": result.attempts,
+                        "switchboard.status": result.status,
+                    },
+                )
+                if result.status == "ok":
+                    span.set_status(trace.Status(trace.StatusCode.OK))
+                elif result.status in {"timeout", "provider_error", "auth_error"}:
+                    span.set_status(trace.Status(trace.StatusCode.ERROR, result.status))
+                return result
+        finally:
+            await self._close_tool_sources(ctx.run_id)
+
+    async def _close_tool_sources(self, run_id: str) -> None:
+        """Close one run's MCP sessions; cleanup never changes the run result."""
+        for source in self._tool_sources:
+            close = getattr(source, "close_run", None)
+            if close is None:
+                continue
             try:
-                result = await self._execute(request, ctx)
-            except asyncio.CancelledError:
-                raise
-            except BaseException as exc:
-                record_error(span, exc)
-                raise
-            set_attributes(
-                span,
-                {
-                    "switchboard.plan": result.plan.label if result.plan else None,
-                    "switchboard.cache.hit": result.cache_hit,
-                    "switchboard.attempts": result.attempts,
-                    "switchboard.status": result.status,
-                },
-            )
-            if result.status == "ok":
-                span.set_status(trace.Status(trace.StatusCode.OK))
-            elif result.status in {"timeout", "provider_error", "auth_error"}:
-                span.set_status(trace.Status(trace.StatusCode.ERROR, result.status))
-            return result
+                await close(run_id)
+            except Exception as exc:
+                logger.warning(
+                    "closing tool source %r for run %s failed: %s", source.name, run_id, exc
+                )
 
 
 __all__ = [

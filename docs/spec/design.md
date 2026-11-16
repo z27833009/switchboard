@@ -601,6 +601,8 @@ The second server (T3.08) keeps verification inside each server instead of addin
 
 The tenants file is shared. Each MCP server enforces only the wire names it serves and ignores the rest; the API checks every allowlist entry against the union of the declared manifests, so a typo still fails a process at startup.
 
+`McpToolSource` opens one MCP client session per run and source, instead of one session per call. A dedicated task owns the transport because the streamable HTTP client uses an anyio cancel scope, and an anyio scope must be exited in the task that entered it; `tools/list`, `tools/call` and close are serialized through that task. The session caches the `tools/list` result, and `notifications/tools/list_changed` clears the cache so the next list asks the server again and `PinnedToolSource` re-evaluates every fingerprint (V3.10, V3.11). The HTTP auth hook reads the `traceparent` of the caller's active tool span for each command, so every server span still nests under its own client call while the session itself is reused (V3.13). The orchestrator closes the session in a `finally`, outside the run's timeout, so a normal run and a timed-out run both release the transport.
+
 ### 7.4 Audit
 
 The MCP server writes one row to `tool_audit` per call before returning (tenant id and run id from the token, tool, version, SHA-256 of canonical JSON args, redacted args, status, duration). The audit write is inside the tool span so a failed audit write fails the call. Denied calls and rejected tokens are audited too.

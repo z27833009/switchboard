@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime
@@ -71,6 +72,8 @@ MAX_CORRECTIVE_ACTIONS = 1
 # wires it to the step event queue; eval runs and unit tests leave it None
 # (T2.08, design.md 12.5).
 AnswerDeltaSink = Callable[[str, str], None]
+
+logger = logging.getLogger(__name__)
 
 
 def merge_results(
@@ -850,21 +853,37 @@ class LangGraphOrchestrator:
         }
 
     async def run(self, request: ChatRequest, ctx: RunContext) -> RunResult:
-        with run_span(
-            self._tracer,
-            tenant_id=ctx.tenant.tenant_id,
-            run_id=ctx.run_id,
-            orchestrator=self.name,
-        ) as span:
+        try:
+            with run_span(
+                self._tracer,
+                tenant_id=ctx.tenant.tenant_id,
+                run_id=ctx.run_id,
+                orchestrator=self.name,
+            ) as span:
+                try:
+                    result = await self._execute(request, ctx)
+                except asyncio.CancelledError:
+                    raise
+                except BaseException as exc:
+                    record_error(span, exc)
+                    raise
+                self._set_run_span_attributes(span, result)
+                return result
+        finally:
+            await self._close_tool_sources(ctx.run_id)
+
+    async def _close_tool_sources(self, run_id: str) -> None:
+        """Close one run's MCP sessions; cleanup never changes the run result."""
+        for source in self._tool_sources:
+            close = getattr(source, "close_run", None)
+            if close is None:
+                continue
             try:
-                result = await self._execute(request, ctx)
-            except asyncio.CancelledError:
-                raise
-            except BaseException as exc:
-                record_error(span, exc)
-                raise
-            self._set_run_span_attributes(span, result)
-            return result
+                await close(run_id)
+            except Exception as exc:
+                logger.warning(
+                    "closing tool source %r for run %s failed: %s", source.name, run_id, exc
+                )
 
     def _set_run_span_attributes(self, span: trace.Span, result: RunResult) -> None:
         set_attributes(
@@ -947,10 +966,8 @@ class LangGraphOrchestrator:
         }
         self._reset_approvals(ctx.run_id)
         try:
-            final = await asyncio.wait_for(
-                self._graph.ainvoke(initial, self._config(ctx.run_id)),
-                timeout=self._limits.run_timeout_s,
-            )
+            async with asyncio.timeout(self._limits.run_timeout_s):
+                final = await self._graph.ainvoke(initial, self._config(ctx.run_id))
         except TimeoutError:
             return RunResult(
                 run_id=ctx.run_id,
@@ -1036,53 +1053,54 @@ class LangGraphOrchestrator:
         if ctx is not None:
             paused_ctx = ctx
             await self._graph.aupdate_state(self._config(run_id), {"ctx": ctx})
-        with run_span(
-            self._tracer,
-            tenant_id=paused_ctx.tenant.tenant_id,
-            run_id=run_id,
-            orchestrator=self.name,
-        ) as span:
-            span.set_attribute("switchboard.approval.resumed", True)
-            span.set_attribute("switchboard.approval.decision", decision.approved)
-            self._reset_approvals(run_id)
-            try:
-                final = await asyncio.wait_for(
-                    self._graph.ainvoke(
-                        Command(resume=decision.model_dump(mode="json")),
-                        self._config(run_id),
-                    ),
-                    timeout=self._limits.run_timeout_s,
-                )
-            except TimeoutError:
-                self._drop_thread(run_id)
-                result = RunResult(
-                    run_id=run_id,
-                    tenant_id=paused_ctx.tenant.tenant_id,
-                    query=request.query,
-                    status="timeout",
-                    errors=[
-                        ErrorRecord(
-                            kind="RunTimeout",
-                            message=f"run exceeded {self._limits.run_timeout_s}s",
-                            stage="orchestrator",
+        try:
+            with run_span(
+                self._tracer,
+                tenant_id=paused_ctx.tenant.tenant_id,
+                run_id=run_id,
+                orchestrator=self.name,
+            ) as span:
+                span.set_attribute("switchboard.approval.resumed", True)
+                span.set_attribute("switchboard.approval.decision", decision.approved)
+                self._reset_approvals(run_id)
+                try:
+                    async with asyncio.timeout(self._limits.run_timeout_s):
+                        final = await self._graph.ainvoke(
+                            Command(resume=decision.model_dump(mode="json")),
+                            self._config(run_id),
                         )
-                    ],
-                    started_at=values.get("started_at"),
-                    ended_at=datetime.now(UTC),
-                )
+                except TimeoutError:
+                    self._drop_thread(run_id)
+                    result = RunResult(
+                        run_id=run_id,
+                        tenant_id=paused_ctx.tenant.tenant_id,
+                        query=request.query,
+                        status="timeout",
+                        errors=[
+                            ErrorRecord(
+                                kind="RunTimeout",
+                                message=f"run exceeded {self._limits.run_timeout_s}s",
+                                stage="orchestrator",
+                            )
+                        ],
+                        started_at=values.get("started_at"),
+                        ended_at=datetime.now(UTC),
+                    )
+                    self._set_run_span_attributes(span, result)
+                    return result
+                if self._interrupt_value(final) is not None:
+                    # The model asked for another tool that needs approval; the run
+                    # pauses again with the new call (one decision per call).
+                    result = self._waiting_result(
+                        request, paused_ctx, final, started_at=values.get("started_at")
+                    )
+                    self._set_run_span_attributes(span, result)
+                    return result
+                result = self._finished(paused_ctx, final)
                 self._set_run_span_attributes(span, result)
                 return result
-            if self._interrupt_value(final) is not None:
-                # The model asked for another tool that needs approval; the run
-                # pauses again with the new call (one decision per call).
-                result = self._waiting_result(
-                    request, paused_ctx, final, started_at=values.get("started_at")
-                )
-                self._set_run_span_attributes(span, result)
-                return result
-            result = self._finished(paused_ctx, final)
-            self._set_run_span_attributes(span, result)
-            return result
+        finally:
+            await self._close_tool_sources(run_id)
 
 
 __all__ = [
