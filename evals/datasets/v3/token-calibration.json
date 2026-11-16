@@ -1,0 +1,47 @@
+{
+  "version": "token-calibration-v1",
+  "split": "dev",
+  "note": "Ten Chinese dev prompts for the V3.12 token-estimate calibration. They are measurement cases, not routing or answer-quality cases, and are never used to tune a prompt.",
+  "cases": [
+    {
+      "id": "cal-01",
+      "query": "2017 年一共有多少订单？"
+    },
+    {
+      "id": "cal-02",
+      "query": "2018 年 4 月延迟送达超过 5 天的订单有多少？"
+    },
+    {
+      "id": "cal-03",
+      "query": "请总结 2017 年最畅销的五个商品类目。"
+    },
+    {
+      "id": "cal-04",
+      "query": "卖家 955fee 在 2017 年的平均评分是多少？"
+    },
+    {
+      "id": "cal-05",
+      "query": "2018 年 1 月的差评主要集中在哪些商品？"
+    },
+    {
+      "id": "cal-06",
+      "query": "订单 32456d61929e3998187cd0d02d238ec9 的收货状态是什么？"
+    },
+    {
+      "id": "cal-07",
+      "query": "2017 年 3 月到 5 月之间，销售额最高的前三个州是哪里？"
+    },
+    {
+      "id": "cal-08",
+      "query": "退货政策允许在收到商品后多少天内申请退款？"
+    },
+    {
+      "id": "cal-09",
+      "query": "如果买家收到的商品破损，应该先联系卖家还是平台？请说明理由。"
+    },
+    {
+      "id": "cal-10",
+      "query": "请用三句话总结 2018 年第一季度延迟交付的主要原因，并给出一个可以改进的运营建议。"
+    }
+  ]
+}

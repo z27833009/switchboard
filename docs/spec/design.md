@@ -761,6 +761,8 @@ Rationale and alternatives in ADR 0012. Layers, cheapest and least lossy first:
 
 The default policy `ClearOldestToolResults` lives in core as a pure function. Token estimation in core uses a conservative character heuristic (core has no tokenizer dependency); the provider's reported usage is recorded afterward so the estimate's error is visible in traces. Spans record `switchboard.context.tokens_estimated`, `switchboard.context.compacted` and `switchboard.context.cleared_results`.
 
+V3.12 also attaches session history by token budget rather than a fixed turn count. `request_with_history` loads up to 50 stored turns and keeps the newest suffix whose estimated cost fits `limits.history_tokens` (default 1200). On 10 Chinese dev prompts against LM Studio `qwen3-8b`, the raw estimate's relative error was p50 32.0 percent and p95 52.2 percent; the calibration and the remaining headroom are recorded in ADR 0012 and `evals/reports/token-estimate-v1.md`. The trace keeps the estimated and actual input tokens side by side, so a later run can refine the heuristic instead of hiding the gap.
+
 Full tool results are kept for the life of the run in the result store and written to the tool span as an event, capped at 64 KB, so the trace can show what the model did not see.
 
 ## 9. Knowledge layer

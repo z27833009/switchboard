@@ -18,6 +18,12 @@ Apply layers in order of cost and information loss, cheapest and least lossy fir
 
 The default policy is a pure function in core. Token estimation in core is a conservative character heuristic; actual usage reported by the provider is recorded so the estimate's error is visible. Spans record estimated tokens, whether compaction ran and how many results were cleared. The full tool result is attached to the tool span (capped at 64 KB), so the trace shows what the model did not see.
 
+## Calibration (V3.12)
+
+`estimate_tokens` counts CJK characters as one token each and other characters at three characters per token. On 2026-11-16 the V3.12 calibration sent 10 Chinese dev prompts to LM Studio `qwen3-8b`, one user message per request, so the reported prompt tokens were the chat template plus that text and not the system prompt or tool schemas. Raw relative error against `usage.prompt_tokens`: p50 32.0 percent, p95 52.2 percent, maximum 52.2 percent. A least-squares fit `actual = 0.449 * estimate + 18.94` reduced p50 to 6.3 percent and p95 to 37.4 percent. The fit is a diagnostic on this dev set, not a runtime multiplier; core stays dependency free and the trace carries both `switchboard.context.tokens_estimated` and `gen_ai.usage.input_tokens` for later calibration on real runs. The report is `evals/reports/token-estimate-v1.md` with the JSON beside it.
+
+The measured worst undercount is about 2.1 times. `limits.history_tokens` defaults to 1200, so a session that fills the estimated history budget can be about 2500 actual tokens, still inside the 8192 token window before the system prompt and tool schemas. The history trim therefore keeps a long session under the context limit even at the measured p95, and a run that reaches the limit is visible in the trace rather than silent.
+
 ## Alternatives
 
 - **Send everything and rely on a large context window.** Rejected: it fails on the local model, costs more on paid ones, and long contexts degrade answer quality.

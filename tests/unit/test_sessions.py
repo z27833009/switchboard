@@ -32,7 +32,7 @@ from switchboard.agents.docs import DocsAgent
 from switchboard.api.step_events import RUN_FINISHED, StepEventPublisher
 from switchboard.api.store import session_turns
 from switchboard.core.config import Limits
-from switchboard.core.context import ClearOldestToolResults
+from switchboard.core.context import ClearOldestToolResults, estimate_tokens
 from switchboard.core.models import (
     AgentResult,
     AgentSpec,
@@ -360,6 +360,9 @@ async def test_history_is_trimmed_to_the_configured_token_budget(
         Turn(role="user", content="question 2"),
         Turn(role="assistant", content=FAKE_ANSWER),
     ]
+    assert (
+        sum(4 + estimate_tokens(turn.content) for turn in harness.orchestrator.histories[3]) <= 30
+    )
 
 
 async def test_the_run_list_can_be_narrowed_to_one_session(harness: AppHarness) -> None:

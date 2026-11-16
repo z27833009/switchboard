@@ -1,0 +1,118 @@
+{
+  "version": "token-calibration-v1",
+  "provider": "lmstudio",
+  "model": "qwen3-8b",
+  "summary": {
+    "cases": 10,
+    "fit_slope": 0.449,
+    "fit_intercept_tokens": 18.9373,
+    "raw_p50_relative_error": 0.32,
+    "raw_p95_relative_error": 0.5217,
+    "raw_max_relative_error": 0.5217,
+    "calibrated_p50_relative_error": 0.0628,
+    "calibrated_p95_relative_error": 0.3736,
+    "calibrated_max_relative_error": 0.3736
+  },
+  "cases": [
+    {
+      "id": "cal-01",
+      "query": "2017 年一共有多少订单？",
+      "characters": 14,
+      "estimated": 10,
+      "actual": 19,
+      "raw_relative_error": 0.47368421052631576,
+      "calibrated": 23.43,
+      "calibrated_relative_error": 0.23299163116404742
+    },
+    {
+      "id": "cal-02",
+      "query": "2018 年 4 月延迟送达超过 5 天的订单有多少？",
+      "characters": 27,
+      "estimated": 19,
+      "actual": 29,
+      "raw_relative_error": 0.3448275862068966,
+      "calibrated": 27.47,
+      "calibrated_relative_error": 0.05284792712276806
+    },
+    {
+      "id": "cal-03",
+      "query": "请总结 2017 年最畅销的五个商品类目。",
+      "characters": 21,
+      "estimated": 17,
+      "actual": 25,
+      "raw_relative_error": 0.32,
+      "calibrated": 26.57,
+      "calibrated_relative_error": 0.06278023457027501
+    },
+    {
+      "id": "cal-04",
+      "query": "卖家 955fee 在 2017 年的平均评分是多少？",
+      "characters": 27,
+      "estimated": 17,
+      "actual": 27,
+      "raw_relative_error": 0.37037037037037035,
+      "calibrated": 26.57,
+      "calibrated_relative_error": 0.015944227249745358
+    },
+    {
+      "id": "cal-05",
+      "query": "2018 年 1 月的差评主要集中在哪些商品？",
+      "characters": 23,
+      "estimated": 17,
+      "actual": 26,
+      "raw_relative_error": 0.34615384615384615,
+      "calibrated": 26.57,
+      "calibrated_relative_error": 0.021904071702187514
+    },
+    {
+      "id": "cal-06",
+      "query": "订单 32456d61929e3998187cd0d02d238ec9 的收货状态是什么？",
+      "characters": 45,
+      "estimated": 22,
+      "actual": 46,
+      "raw_relative_error": 0.5217391304347826,
+      "calibrated": 28.81,
+      "calibrated_relative_error": 0.3736029024518696
+    },
+    {
+      "id": "cal-07",
+      "query": "2017 年 3 月到 5 月之间，销售额最高的前三个州是哪里？",
+      "characters": 32,
+      "estimated": 24,
+      "actual": 33,
+      "raw_relative_error": 0.2727272727272727,
+      "calibrated": 29.71,
+      "calibrated_relative_error": 0.09963118980615607
+    },
+    {
+      "id": "cal-08",
+      "query": "退货政策允许在收到商品后多少天内申请退款？",
+      "characters": 21,
+      "estimated": 21,
+      "actual": 21,
+      "raw_relative_error": 0.0,
+      "calibrated": 28.37,
+      "calibrated_relative_error": 0.35072925536297966
+    },
+    {
+      "id": "cal-09",
+      "query": "如果买家收到的商品破损，应该先联系卖家还是平台？请说明理由。",
+      "characters": 30,
+      "estimated": 28,
+      "actual": 25,
+      "raw_relative_error": 0.12,
+      "calibrated": 31.51,
+      "calibrated_relative_error": 0.2603191693905019
+    },
+    {
+      "id": "cal-10",
+      "query": "请用三句话总结 2018 年第一季度延迟交付的主要原因，并给出一个可以改进的运营建议。",
+      "characters": 43,
+      "estimated": 38,
+      "actual": 34,
+      "raw_relative_error": 0.11764705882352941,
+      "calibrated": 36.0,
+      "calibrated_relative_error": 0.05875001413755269
+    }
+  ]
+}
