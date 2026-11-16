@@ -18,8 +18,11 @@ import asyncpg
 INSERT_RUN_SQL = """
 INSERT INTO public.runs (
     id, tenant_id, session_id, query, orchestrator, provider, status, started_at,
-    attachments
-) VALUES ($1, $2, $3, $4, $5, $6, 'running', now(), $7::jsonb)
+    attachments, attachments_expires_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, 'running', now(), $7::jsonb,
+    CASE WHEN $7::jsonb = '[]'::jsonb THEN NULL ELSE now() + interval '7 days' END
+)
 ON CONFLICT (id) DO NOTHING
 """
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import replace
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from httpx import ASGITransport, AsyncClient
@@ -154,6 +154,23 @@ async def test_unknown_tenant_is_404(harness: AppHarness) -> None:
     )
     assert stream_validation.status_code == 422
     assert harness.store.runs == {}
+
+
+async def test_expired_attachments_are_cleared(harness: AppHarness) -> None:
+    run_id = str(uuid.uuid4())
+    await harness.store.start_run(
+        run_id=run_id,
+        tenant_id="default",
+        session_id=None,
+        query="attach",
+        orchestrator="fake",
+        attachments=[{"name": "notes.md", "content": "text"}],
+    )
+    harness.store.runs[run_id]["attachments_expires_at"] = datetime.now(UTC) - timedelta(seconds=1)
+    assert await harness.store.expire_attachments() == 1
+    row = await harness.store.get_run(run_id, tenant_id="default")
+    assert row is not None
+    assert row["attachments"] == []
 
 
 async def test_pdf_attachment_parse_validates_the_payload(harness: AppHarness) -> None:

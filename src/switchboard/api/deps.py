@@ -440,6 +440,11 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
             tracing.shutdown()
         raise
 
+    run_store = PgRunStore(pool)
+    # Attachment bodies are request-scoped and expire; clear them before the
+    # process serves the first request.
+    await run_store.expire_attachments()
+
     async def close() -> None:
         await _close_cache(built.cache)
         if settings_connection is not None:
@@ -449,7 +454,7 @@ async def build_app_deps(env: Mapping[str, str] | None = None) -> AppDeps:
             tracing.shutdown()
 
     return AppDeps(
-        store=PgRunStore(pool),
+        store=run_store,
         audit=PgAuditStore(pool),
         orchestrators=built.default,
         replay_orchestrators=built.replay,

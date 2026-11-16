@@ -12,6 +12,7 @@ import {
   parsePdfAttachment,
   postChatStream,
   toChatResponse,
+  uploadDocument,
 } from "../api";
 import type {
   ChatResponse,
@@ -465,6 +466,9 @@ export function ChatPage({
   const [query, setQuery] = useState("");
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [ingesting, setIngesting] = useState<string | null>(null);
+  const [ingestMessage, setIngestMessage] = useState<string | null>(null);
+  const [ingestError, setIngestError] = useState<string | null>(null);
   const [preset, setPreset] = useState<string>("auto");
   const [agentOptions, setAgentOptions] = useState<string[]>([]);
   const [modelLabel, setModelLabel] = useState<string | null>(null);
@@ -606,6 +610,23 @@ export function ChatPage({
       accepted.push({ name: file.name, content: await file.text() });
     }
     setAttachments((current) => [...current, ...accepted].slice(0, 3));
+  }
+
+  async function ingestAttachment(attachment: ComposerAttachment) {
+    setIngesting(attachment.name);
+    setIngestMessage(null);
+    setIngestError(null);
+    try {
+      const result = await uploadDocument(tenant, attachment.name, attachment.content);
+      setIngestMessage(
+        `Added ${attachment.name} to Knowledge: revision ${result.index_version}, ` +
+          `${result.chunks_written} chunks written.`,
+      );
+    } catch (caught) {
+      setIngestError(errorMessage(caught));
+    } finally {
+      setIngesting(null);
+    }
   }
 
   async function removeAttachmentFromRun(
@@ -782,6 +803,14 @@ export function ChatPage({
                   <span>{attachment.name}</span>
                   <button
                     type="button"
+                    className="composer-attachment-ingest"
+                    onClick={() => void ingestAttachment(attachment)}
+                    disabled={ingesting !== null}
+                  >
+                    {ingesting === attachment.name ? "Ingesting..." : "Add to Knowledge"}
+                  </button>
+                  <button
+                    type="button"
                     className="composer-attachment-remove"
                     onClick={() =>
                       setAttachments((current) =>
@@ -799,6 +828,12 @@ export function ChatPage({
           {attachmentError === null ? null : (
             <p className="error-text small" role="alert">
               {attachmentError}
+            </p>
+          )}
+          {ingestMessage === null ? null : <p className="muted small">{ingestMessage}</p>}
+          {ingestError === null ? null : (
+            <p className="error-text small" role="alert">
+              {ingestError}
             </p>
           )}
           <form className="composer" onSubmit={handleSubmit}>

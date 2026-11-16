@@ -1772,6 +1772,25 @@ textarea {
   color: var(--text);
 }
 
+.composer-attachment-ingest {
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.composer-attachment-ingest:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.composer-attachment-ingest:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 .composer-send {
   flex: none;
   min-height: 32px;

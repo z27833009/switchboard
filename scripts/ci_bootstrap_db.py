@@ -39,6 +39,7 @@ SQL_FILES = (
     "14-auth.sql",
     "15-run-attachments.sql",
     "16-control-plane.sql",
+    "17-attachment-expiry.sql",
 )
 ROLES = (
     ("switchboard_app", "SWITCHBOARD_APP_DB_PASSWORD"),

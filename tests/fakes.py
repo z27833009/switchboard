@@ -111,6 +111,7 @@ class MemoryRunStore:
             "trace_complete": True,
             "pending_approval": None,
             "attachments": list(attachments or []),
+            "attachments_expires_at": (started_at + timedelta(days=7) if attachments else None),
             "started_at": started_at,
             "ended_at": None,
         }
@@ -452,6 +453,17 @@ class MemoryRunStore:
             if attachment.get("name") != name
         ]
         return list(row["attachments"])
+
+    async def expire_attachments(self) -> int:
+        now = datetime.now(UTC)
+        expired = 0
+        for row in self.runs.values():
+            expires_at = row.get("attachments_expires_at")
+            if isinstance(expires_at, datetime) and expires_at <= now:
+                row["attachments"] = []
+                row["attachments_expires_at"] = None
+                expired += 1
+        return expired
 
     async def list_audit(self, query: AuditQuery) -> list[dict[str, Any]]:
         """The same tenant filter, ordering and offset as ``LIST_AUDIT_SQL``."""

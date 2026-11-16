@@ -28,7 +28,7 @@ RUN_COLUMNS = """
     id, tenant_id, session_id, query, orchestrator, provider, plan, answer, citations,
     errors, status, cache_hit, attempts, input_tokens, cached_input_tokens,
     output_tokens, cost_usd, started_at, ended_at, trace_complete, pending_approval,
-    attachments
+    attachments, attachments_expires_at
 """
 
 SPAN_COLUMNS = """
@@ -71,6 +71,14 @@ SET attachments = COALESCE(
 )
 WHERE id = $1 AND tenant_id = $2
 RETURNING attachments
+"""
+
+EXPIRE_ATTACHMENTS_SQL = """
+UPDATE public.runs
+SET attachments = '[]'::jsonb, attachments_expires_at = NULL
+WHERE attachments_expires_at IS NOT NULL
+  AND attachments_expires_at <= now()
+RETURNING id
 """
 
 CLAIM_APPROVAL_SQL = """
@@ -335,6 +343,9 @@ def run_row(row: Mapping[str, Any]) -> dict[str, Any]:
     payload["citations"] = decode_json(payload.get("citations"), [])
     payload["errors"] = decode_json(payload.get("errors"), [])
     payload["attachments"] = decode_json(payload.get("attachments"), [])
+    expires_at = payload.get("attachments_expires_at")
+    if isinstance(expires_at, datetime) and expires_at <= datetime.now(UTC):
+        payload["attachments"] = []
     # A waiting run carries the tool call the graph paused on (T3.01). It is
     # null for every other status.
     payload["pending_approval"] = decode_json(payload.get("pending_approval"), None)
@@ -493,6 +504,8 @@ class RunStore(Protocol):
     async def delete_run_attachment(
         self, *, run_id: str, tenant_id: str, name: str
     ) -> list[dict[str, Any]] | None: ...
+
+    async def expire_attachments(self) -> int: ...
 
 
 class PgRunStore:
@@ -759,6 +772,10 @@ class PgRunStore:
         if row is None:
             return None
         return cast(list[dict[str, Any]], decode_json(row["attachments"], []))
+
+    async def expire_attachments(self) -> int:
+        rows = await self._pool.fetch(EXPIRE_ATTACHMENTS_SQL)
+        return len(rows)
 
 
 def parse_run_id(run_id: str) -> str:
