@@ -533,6 +533,13 @@ export async function saveProviderCredential(
   return (await response.json()) as SettingsRevision;
 }
 
+export async function testProviderConnection(
+  providerName: string,
+  signal?: AbortSignal,
+): Promise<{ status: "ok" | "error"; detail: string; models: string[] }> {
+  return postJson(`/settings/providers/${encodeURIComponent(providerName)}/test`, {}, signal);
+}
+
 export async function updateProviderModel(
   providerName: string,
   model: string,

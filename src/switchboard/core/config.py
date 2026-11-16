@@ -21,6 +21,7 @@ from switchboard.core.models import (
     ProviderCapabilities,
     RetrievalSettings,
     TenantContext,
+    ToolSpec,
 )
 
 # ``${VAR}`` is required, ``${VAR:-default}`` falls back to the default (which
@@ -72,6 +73,20 @@ class ToolSourceConfig(BaseModel):
     # (design.md sections 7.2 and 11). The path is relative to the process
     # working directory, like the other file paths in the project.
     manifest: str | None = None
+    # Tools discovered from a running server when no manifest is supplied
+    # (V3.03). Inline specs are the result of ``tools/list`` and serve the same
+    # validation and settings-snapshot role as a manifest.
+    tools: list[ToolSpec] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def inline_tools_are_unique_and_versioned(self) -> Self:
+        wires = [spec.wire_name for spec in self.tools]
+        for wire in wires:
+            if WIRE_NAME_PATTERN.fullmatch(wire) is None:
+                raise ValueError(f"tool wire name {wire!r} must be name@major")
+        if len(set(wires)) != len(wires):
+            raise ValueError("a tool source cannot declare the same wire name twice")
+        return self
 
 
 class TracingSettings(BaseModel):

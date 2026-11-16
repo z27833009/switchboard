@@ -686,7 +686,9 @@ class McpServerSubmission(BaseModel):
 
     name: str = Field(min_length=1, max_length=64)
     url: str = Field(min_length=1, max_length=2000)
-    manifest: str = Field(min_length=1, max_length=4000)
+    # V3.03: a manifest is optional. When it is absent the API discovers the
+    # tools through ``tools/list`` and stores them inline on the source.
+    manifest: str | None = Field(default=None, max_length=4000)
 
 
 class McpServerResult(BaseModel):
@@ -695,6 +697,18 @@ class McpServerResult(BaseModel):
     status: str
     revision: int
     note: str
+
+
+class ProviderTestResult(BaseModel):
+    """The result of a provider connectivity check (V3.03).
+
+    The response never contains the key or the base URL; it names the models
+    the provider reported, or the failure class.
+    """
+
+    status: Literal["ok", "error"]
+    detail: str
+    models: list[str] = Field(default_factory=list)
 
 
 class SettingsRevision(BaseModel):

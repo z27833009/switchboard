@@ -21,6 +21,7 @@ import io
 import json
 import logging
 import os
+import urllib.error
 import urllib.request
 import uuid
 from collections.abc import AsyncIterator
@@ -34,6 +35,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.telemetry import TelemetryConfig
 from pypdf import PdfReader
 
+from switchboard.adapters.tools.mcp_client import discover_tools
 from switchboard.api.audit import AuditQuery, as_utc
 from switchboard.api.auth import (
     SESSION_COOKIE,
@@ -73,6 +75,7 @@ from switchboard.api.schemas import (
     McpServerSubmission,
     ProviderCredentialUpdate,
     ProviderSettingsUpdate,
+    ProviderTestResult,
     RunAggregateResponse,
     RunAggregateRow,
     RunsResponse,
@@ -961,9 +964,10 @@ async def get_settings(
 async def add_mcp_server(request: Request, submission: McpServerSubmission) -> McpServerResult:
     """Add one MCP source to the database control plane (V3.03).
 
-    The runtime keeps the sources it built at startup, so the response says a
-    restart is required. A manifest is required because the settings snapshot
-    and tenant validation read wire names from it.
+    A manifest is optional: without one the API reads ``tools/list`` from the
+    running server, stores the discovered specs inline on the source and uses
+    them for tenant validation and the settings snapshot. ``POST /settings/apply``
+    then rebuilds the runtime tool sources.
     """
     deps = _deps(request.app)
     store = deps.settings_store
@@ -972,20 +976,37 @@ async def add_mcp_server(request: Request, submission: McpServerSubmission) -> M
             status_code=503,
             detail="the settings control plane is not available; set SWITCHBOARD_CONFIG_SOURCE=db",
         )
+    manifest = (submission.manifest or "").strip() or None
+    discovered_tools = None
+    if manifest is None:
+        try:
+            specs = await discover_tools(submission.url)
+        except ConfigError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not specs:
+            raise HTTPException(
+                status_code=400,
+                detail="the MCP server returned no tools to discover",
+            )
+        discovered_tools = [spec.model_dump(mode="json") for spec in specs]
     try:
         revision = await store.add_tool_source(
             name=submission.name,
             url=submission.url,
-            manifest=submission.manifest,
+            manifest=manifest,
+            tools=discovered_tools,
             actor="local:admin",
         )
     except ConfigError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return McpServerResult(
-        status="ok",
-        revision=revision,
-        note="restart the API to build and expose the new MCP server",
-    )
+    if discovered_tools is None:
+        note = "apply changes to build and expose the new MCP server"
+    else:
+        note = (
+            f"discovered {len(discovered_tools)} tools; "
+            "apply changes to build and expose the new MCP server"
+        )
+    return McpServerResult(status="ok", revision=revision, note=note)
 
 
 @router.post("/settings/tenants", response_model=SettingsRevision, status_code=201)
@@ -1102,8 +1123,31 @@ async def save_provider_credential(
     return SettingsRevision(
         status="ok",
         revision=revision,
-        note="credential stored encrypted; restart the API to use it",
+        note="credential stored encrypted; apply changes to use it",
     )
+
+
+@router.post("/settings/providers/{provider_name}/test", response_model=ProviderTestResult)
+async def test_provider_connection(request: Request, provider_name: str) -> ProviderTestResult:
+    """Ask the provider for its model list without returning the secret (V3.03)."""
+    deps = _deps(request.app)
+    store = deps.settings_store
+    if store is None:
+        raise HTTPException(
+            status_code=503,
+            detail="the settings control plane is not available; set SWITCHBOARD_CONFIG_SOURCE=db",
+        )
+    try:
+        settings = await store.load()
+        settings = await store.apply_stored_credentials(settings)
+    except ConfigError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    provider = settings.providers.providers.get(provider_name)
+    if provider is None:
+        raise HTTPException(status_code=404, detail=f"unknown provider {provider_name!r}")
+    key = provider.api_key or os.environ.get(provider.api_key_env or "", "")
+    result = await asyncio.to_thread(check_provider, provider.base_url or "", key, provider.adapter)
+    return ProviderTestResult.model_validate(result)
 
 
 @router.post("/settings/apply", response_model=SettingsRevision)
@@ -1213,6 +1257,37 @@ def check_lmstudio(base_url: str, api_key: str = "lm-studio") -> dict[str, Any]:
         if isinstance(item, dict) and item.get("id")
     ]
     return {"status": "ok", "models": sorted(models)}
+
+
+def check_provider(base_url: str, api_key: str, adapter: str) -> dict[str, Any]:
+    """One provider connectivity check without returning the key (V3.03)."""
+    if not base_url:
+        return {"status": "error", "detail": "provider has no base URL"}
+    base = base_url.rstrip("/")
+    if adapter == "anthropic":
+        url = base + ("/models" if base.endswith("/v1") else "/v1/models")
+        headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01"}
+    else:
+        url = base + "/models"
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    request = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_S) as response:
+            payload: Any = json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        return {"status": "error", "detail": f"HTTP {exc.code} from the provider"}
+    except Exception as exc:
+        return {"status": "error", "detail": type(exc).__name__}
+    models = [
+        item.get("id")
+        for item in payload.get("data", [])
+        if isinstance(item, dict) and item.get("id")
+    ]
+    return {
+        "status": "ok",
+        "detail": f"provider returned {len(models)} model(s)",
+        "models": sorted(str(model) for model in models),
+    }
 
 
 def check_http(url: str) -> dict[str, str]:

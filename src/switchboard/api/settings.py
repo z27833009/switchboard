@@ -54,16 +54,17 @@ def load_agent_specs(registry: Registry) -> list[AgentSpec]:
 def load_manifest_tool_specs(settings: Settings) -> list[ToolSpec]:
     """The tool specs every configured manifest declares, one per wire name.
 
-    A tool source without a manifest contributes nothing: the in-process
-    platform tools (``search_docs@1``, ``result_page@1``) are not described by a
-    manifest, so the snapshot does not invent rows for them.
+    A source without a manifest contributes its inline discovered tools; the
+    in-process platform tools (``search_docs@1``, ``result_page@1``) are not
+    described by a source, so the snapshot does not invent rows for them.
     """
     specs: dict[str, ToolSpec] = {}
     for source in settings.platform.tool_sources:
-        if not source.manifest:
-            continue
-        for spec in load_tool_specs(Path(source.manifest)):
+        for spec in source.tools:
             specs.setdefault(spec.wire_name, spec)
+        if source.manifest:
+            for spec in load_tool_specs(Path(source.manifest)):
+                specs.setdefault(spec.wire_name, spec)
     return sorted(specs.values(), key=lambda spec: spec.wire_name)
 
 
@@ -77,10 +78,11 @@ def load_manifest_tool_sources(settings: Settings) -> dict[str, str]:
     """
     sources: dict[str, str] = {}
     for source in settings.platform.tool_sources:
-        if not source.manifest:
-            continue
-        for spec in load_tool_specs(Path(source.manifest)):
+        for spec in source.tools:
             sources.setdefault(spec.wire_name, source.name)
+        if source.manifest:
+            for spec in load_tool_specs(Path(source.manifest)):
+                sources.setdefault(spec.wire_name, source.name)
     return sources
 
 

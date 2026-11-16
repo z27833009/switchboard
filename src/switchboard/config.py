@@ -20,6 +20,7 @@ from switchboard.core.config import (
     ProvidersConfig,
     Settings,
     TenantsConfig,
+    ToolSourceConfig,
     substitute_env,
 )
 from switchboard.core.errors import ConfigError
@@ -45,32 +46,38 @@ def load_model[ModelT: BaseModel](
         raise ConfigError(f"{path}: {exc}") from exc
 
 
-def declared_tool_names(settings: Settings) -> set[str]:
-    """Wire names of every tool source that declares a manifest.
+def source_tool_specs(source: ToolSourceConfig) -> list[Any]:
+    """Manifest tools plus inline discovered tools for one source."""
+    specs = list(source.tools)
+    if source.manifest:
+        specs.extend(load_tool_specs(Path(source.manifest)))
+    return specs
 
-    A source without a manifest cannot be checked; the committed config points
-    at ``mcp_servers/olist/manifest.yaml`` so the demo tenant files are
+
+def declared_tool_names(settings: Settings) -> set[str]:
+    """Wire names of every tool a source declares, manifest or discovered.
+
+    A source with neither a manifest nor inline tools cannot be checked; the
+    committed config points at the manifests so the demo tenant files are
     validated. The path is relative to the process working directory.
     """
     names: set[str] = set()
     for source in settings.platform.tool_sources:
-        if source.manifest:
-            names.update(spec.wire_name for spec in load_tool_specs(Path(source.manifest)))
+        names.update(spec.wire_name for spec in source_tool_specs(source))
     return names
 
 
 def declared_tool_risks(settings: Settings) -> dict[str, str]:
-    """Wire name to manifest risk for every tool a source declares.
+    """Wire name to risk for every tool a source declares.
 
-    The startup check needs the risk, not only the name: a tool the manifest
-    declares ``write`` must never sit in ``tools.allow``, because that would let
-    it run without an approval (design.md section 6.7, ADR 0015).
+    The startup check needs the risk, not only the name: a tool declared
+    ``write`` must never sit in ``tools.allow``, because that would let it run
+    without an approval (design.md section 6.7, ADR 0015).
     """
     risks: dict[str, str] = {}
     for source in settings.platform.tool_sources:
-        if source.manifest:
-            for spec in load_tool_specs(Path(source.manifest)):
-                risks[spec.wire_name] = spec.risk
+        for spec in source_tool_specs(source):
+            risks[spec.wire_name] = spec.risk
     return risks
 
 

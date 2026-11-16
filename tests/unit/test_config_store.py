@@ -10,8 +10,10 @@ import pytest
 import yaml
 from cryptography.fernet import Fernet
 
+from switchboard.api.settings import load_manifest_tool_specs
 from switchboard.config_store import SettingsStore
 from switchboard.core.errors import ConfigError
+from switchboard.core.models import ToolSpec
 
 REPO = Path(__file__).resolve().parents[2]
 CONFIG_ENV = {
@@ -221,6 +223,40 @@ async def test_add_tool_source_appends_and_validates() -> None:
             name="bad-url",
             url="ftp://bad",
             manifest=str(manifest),
+            actor="test:admin",
+        )
+
+
+@pytest.mark.asyncio
+async def test_add_tool_source_accepts_inline_discovered_tools() -> None:
+    db = FakeDB()
+    store = SettingsStore(db, REPO / "config", CONFIG_ENV)
+    await store.seed_if_empty()
+    tool = ToolSpec(
+        name="crm_lookup",
+        version="1",
+        description="Look up one CRM account.",
+        input_schema={"type": "object", "properties": {"id": {"type": "string"}}},
+        risk="read",
+        tenant_scoped=True,
+    )
+    revision = await store.add_tool_source(
+        name="crm",
+        url="http://crm:9000/mcp",
+        tools=[tool.model_dump(mode="json")],
+        actor="test:admin",
+    )
+    assert revision == 2
+    source = db.documents["platform"]["payload"]["tool_sources"][-1]
+    assert "manifest" not in source
+    assert source["tools"][0]["name"] == "crm_lookup"
+    loaded = await store.load()
+    assert "crm_lookup@1" in {spec.wire_name for spec in load_manifest_tool_specs(loaded)}
+
+    with pytest.raises(ConfigError, match="needs discovered tools"):
+        await store.add_tool_source(
+            name="empty",
+            url="http://empty:9000/mcp",
             actor="test:admin",
         )
 

@@ -68,6 +68,31 @@ def to_tool_spec(tool: McpTool) -> ToolSpec:
     )
 
 
+async def discover_tools(url: str, *, timeout_s: float = 10.0) -> list[ToolSpec]:
+    """Read a server's tool list without a run token (V3.03).
+
+    The MCP servers expose ``tools/list`` as a public catalog: the run token is
+    required to call a tool, not to describe it. The discovered specs are stored
+    inline on the source so a later restart can validate tenant allowlists
+    without a manifest file.
+    """
+    clean = url.strip()
+    if not clean.startswith(("http://", "https://")):
+        raise ConfigError("MCP server URL must start with http:// or https://")
+    endpoint = clean if clean.endswith("/mcp") else clean.rstrip("/") + "/mcp"
+    try:
+        async with (
+            create_mcp_http_client(headers={}) as http_client,
+            streamable_http_client(endpoint, http_client=http_client) as (read, write),
+            ClientSession(read, write, read_timeout_seconds=timeout_s) as session,
+        ):
+            await session.initialize()
+            result = await session.list_tools()
+    except Exception as exc:
+        raise ConfigError(f"could not list tools at {clean}: {type(exc).__name__}: {exc}") from exc
+    return [to_tool_spec(tool) for tool in result.tools]
+
+
 def error_text(result: CallToolResult) -> str:
     return " ".join(item.text for item in result.content if isinstance(item, TextContent))
 

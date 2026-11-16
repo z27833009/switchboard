@@ -25,6 +25,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from switchboard.config import read_yaml, settings_from_documents
 from switchboard.core.config import Settings
 from switchboard.core.errors import ConfigError
+from switchboard.core.models import ToolSpec
 
 CONFIG_KINDS = ("platform", "providers", "tenants", "prices")
 SEED_ACTOR = "system:yaml-seed"
@@ -178,17 +179,16 @@ class SettingsStore:
         *,
         name: str,
         url: str,
-        manifest: str,
         actor: str,
+        manifest: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
         adapter: str = "mcp",
     ) -> int:
         """Append one MCP tool source to the platform document.
 
-        A manifest is required until server-side tool discovery lands: the API
-        validates tenant allowlists against manifest wire names, and a source
-        without one would be invisible in the settings snapshot. The route is
-        deliberately restart-to-apply: the running process keeps the tool
-        sources it built at startup.
+        A source either points at a manifest or carries the tools discovered
+        from ``tools/list`` inline (V3.03). The running process rebuilds its
+        sources through ``POST /settings/apply``; the response says so.
         """
         clean_name = name.strip()
         if not clean_name or not clean_name.replace("-", "").replace("_", "").isalnum():
@@ -196,23 +196,33 @@ class SettingsStore:
         clean_url = url.strip()
         if not clean_url.startswith(("http://", "https://")):
             raise ConfigError("MCP server URL must start with http:// or https://")
-        manifest_path = Path(manifest.strip())
-        if not manifest_path.is_file():
-            raise ConfigError(f"MCP manifest not found: {manifest_path}")
+        source: dict[str, Any] = {
+            "name": clean_name,
+            "adapter": adapter,
+            "url": clean_url,
+        }
+        if manifest is not None and manifest.strip():
+            manifest_path = Path(manifest.strip())
+            if not manifest_path.is_file():
+                raise ConfigError(f"MCP manifest not found: {manifest_path}")
+            source["manifest"] = str(manifest_path)
+        else:
+            if not tools:
+                raise ConfigError("an MCP server without a manifest needs discovered tools")
+            try:
+                specs = [ToolSpec.model_validate(tool) for tool in tools]
+            except ValueError as exc:
+                raise ConfigError(f"discovered tool is invalid: {exc}") from exc
+            source["tools"] = [spec.model_dump(mode="json") for spec in specs]
         platform = await self._read_document("platform")
         sources = list(platform.get("tool_sources", []))
         if any(
-            str(source.get("name")) == clean_name for source in sources if isinstance(source, dict)
+            str(existing.get("name")) == clean_name
+            for existing in sources
+            if isinstance(existing, dict)
         ):
             raise ConfigError(f"MCP server {clean_name!r} already exists")
-        sources.append(
-            {
-                "name": clean_name,
-                "adapter": adapter,
-                "url": clean_url,
-                "manifest": str(manifest_path),
-            }
-        )
+        sources.append(source)
         platform["tool_sources"] = sources
         return await self.replace_document(
             "platform",

@@ -16,6 +16,7 @@ import {
   reindexDocument,
   restoreSession,
   saveProviderCredential,
+  testProviderConnection,
   updateProviderModel,
   updateTenantSettings,
   uploadDocument,
@@ -172,8 +173,8 @@ function McpServerForm({ onClose }: { onClose: () => void }) {
     <form className="mcp-add" onSubmit={submit}>
       <h4 className="settings-subheading">Add MCP server</h4>
       <p className="muted small">
-        The manifest is required until tool discovery lands. The new server is written to the
-        database and appears after an API restart.
+        Leave the manifest blank to read the tool list from the running server. The server and
+        its discovered tools are written to the database; Apply changes rebuilds the runtime.
       </p>
       <label className="field">
         <span className="field-label">Name</span>
@@ -194,12 +195,11 @@ function McpServerForm({ onClose }: { onClose: () => void }) {
         />
       </label>
       <label className="field">
-        <span className="field-label">Manifest path</span>
+        <span className="field-label">Manifest path (optional)</span>
         <input
           value={manifest}
           onChange={(event) => setManifest(event.target.value)}
-          placeholder="mcp_servers/crm/manifest.yaml"
-          required
+          placeholder="leave blank to discover via tools/list"
         />
       </label>
       <div className="mcp-add-actions">
@@ -889,6 +889,9 @@ function SectionBody({
   const [credentialBusy, setCredentialBusy] = useState(false);
   const [credentialMessage, setCredentialMessage] = useState<string | null>(null);
   const [credentialError, setCredentialError] = useState<string | null>(null);
+  const [testBusy, setTestBusy] = useState(false);
+  const [testMessage, setTestMessage] = useState<string | null>(null);
+  const [testError, setTestError] = useState<string | null>(null);
   const [tenantModelDraft, setTenantModelDraft] = useState(tenant.model ?? "");
   const [agentSelection, setAgentSelection] = useState<string[]>(tenant.agents_allow);
   const [toolsAllow, setToolsAllow] = useState<string[]>(tenant.tools_allow);
@@ -960,6 +963,26 @@ function SectionBody({
       setCredentialError(errorMessage(caught));
     } finally {
       setCredentialBusy(false);
+    }
+  }
+
+  async function testConnection() {
+    setTestBusy(true);
+    setTestMessage(null);
+    setTestError(null);
+    try {
+      const result = await testProviderConnection(provider.name);
+      if (result.status === "ok") {
+        setTestMessage(
+          `${result.detail}${result.models.length === 0 ? "" : `: ${result.models.join(", ")}`}`,
+        );
+      } else {
+        setTestError(result.detail);
+      }
+    } catch (caught) {
+      setTestError(errorMessage(caught));
+    } finally {
+      setTestBusy(false);
     }
   }
 
@@ -1242,8 +1265,8 @@ function SectionBody({
             />
           </label>
           <p className="muted small">
-            Saves to the providers document. The base URL remains in the environment. Restart the
-            API to apply.
+            Saves to the providers document. The base URL remains in the environment. Apply
+            changes to rebuild the runtime.
           </p>
           <div className="settings-edit-actions">
             <button type="submit" className="button button-primary" disabled={saveBusy}>
@@ -1293,12 +1316,20 @@ function SectionBody({
           </label>
           <p className="muted small">
             Stored as a Fernet ciphertext in <code>provider_credentials</code>; the key comes from
-            <code>SWITCHBOARD_SETTINGS_KEY</code> and is never returned by the API. Restart the API
+            <code>SWITCHBOARD_SETTINGS_KEY</code> and is never returned by the API. Apply changes
             to use it.
           </p>
           <div className="settings-edit-actions">
             <button type="submit" className="button button-primary" disabled={credentialBusy}>
               {credentialBusy ? "Saving..." : "Save API key"}
+            </button>
+            <button
+              type="button"
+              className="button button-quiet"
+              onClick={testConnection}
+              disabled={testBusy}
+            >
+              {testBusy ? "Testing..." : "Test connection"}
             </button>
           </div>
           {credentialMessage === null ? null : (
@@ -1307,6 +1338,12 @@ function SectionBody({
           {credentialError === null ? null : (
             <p className="error-text small" role="alert">
               {credentialError}
+            </p>
+          )}
+          {testMessage === null ? null : <p className="muted small">{testMessage}</p>}
+          {testError === null ? null : (
+            <p className="error-text small" role="alert">
+              {testError}
             </p>
           )}
         </form>

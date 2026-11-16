@@ -11,11 +11,12 @@ from __future__ import annotations
 import json
 import textwrap
 from collections.abc import AsyncIterator, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 from opentelemetry.sdk.trace import TracerProvider
 from tests.fakes import (
     AppHarness,
@@ -25,6 +26,7 @@ from tests.fakes import (
     make_provider,
 )
 
+from switchboard.api.app import create_app
 from switchboard.api.settings import (
     SECRET_KEYS,
     build_settings_snapshots,
@@ -35,7 +37,7 @@ from switchboard.api.step_events import StepEventPublisher
 from switchboard.config import load_settings
 from switchboard.core.config import Settings
 from switchboard.core.errors import ConfigError
-from switchboard.core.models import AgentSpec
+from switchboard.core.models import AgentSpec, ToolSpec
 from switchboard.registry import AGENTS, Registry
 
 REPO = Path(__file__).resolve().parents[2]
@@ -426,3 +428,92 @@ def test_snapshot_is_json_and_free_of_secrets(snapshot: dict[str, dict[str, Any]
     assert BASE_URL not in encoded
     for payload in snapshot.values():
         assert snapshot_contains_secret(payload) == []
+
+
+async def test_provider_test_returns_models_without_the_secret(
+    harness: AppHarness, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Store:
+        async def load(self) -> Settings:
+            return settings
+
+        async def apply_stored_credentials(self, value: Settings) -> Settings:
+            return value
+
+    seen: dict[str, str] = {}
+
+    def fake_check(base_url: str, api_key: str, adapter: str) -> dict[str, Any]:
+        seen.update(base_url=base_url, api_key=api_key, adapter=adapter)
+        return {
+            "status": "ok",
+            "detail": "provider returned 1 model(s)",
+            "models": ["test-model"],
+        }
+
+    monkeypatch.setattr("switchboard.api.app.check_provider", fake_check)
+    app = create_app(deps=replace(harness.deps, settings_store=Store()))
+    client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    try:
+        response = await client.post("/settings/providers/lmstudio/test")
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["status"] == "ok"
+        assert body["models"] == ["test-model"]
+        assert "api_key" not in response.text
+        assert seen["adapter"] == "openai_compatible"
+    finally:
+        await client.aclose()
+        await harness.client.aclose()
+
+
+async def test_add_mcp_server_discovers_tools_without_a_manifest(
+    harness: AppHarness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Store:
+        def __init__(self) -> None:
+            self.call: dict[str, Any] | None = None
+
+        async def add_tool_source(self, **kwargs: Any) -> int:
+            self.call = kwargs
+            return 9
+
+    store = Store()
+    app = create_app(deps=replace(harness.deps, settings_store=store))
+    client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    spec = ToolSpec(
+        name="crm_lookup",
+        version="1",
+        description="Look up one CRM account.",
+        input_schema={"type": "object"},
+        risk="read",
+        tenant_scoped=True,
+    )
+
+    async def discovered(_: str) -> list[ToolSpec]:
+        return [spec]
+
+    monkeypatch.setattr("switchboard.api.app.discover_tools", discovered)
+    try:
+        response = await client.post(
+            "/settings/mcp-servers",
+            json={"name": "crm", "url": "http://crm:9000/mcp"},
+        )
+        assert response.status_code == 201, response.text
+        assert "discovered 1 tools" in response.json()["note"]
+        assert store.call is not None
+        assert store.call["manifest"] is None
+        assert store.call["tools"][0]["name"] == "crm_lookup"
+
+        async def unreachable(_: str) -> list[ToolSpec]:
+            raise ConfigError("could not list tools at http://crm:9000/mcp")
+
+        monkeypatch.setattr("switchboard.api.app.discover_tools", unreachable)
+        failed = await client.post(
+            "/settings/mcp-servers",
+            json={"name": "broken", "url": "http://crm:9000/mcp"},
+        )
+        assert failed.status_code == 400
+        assert "could not list tools" in failed.json()["detail"]
+    finally:
+        await client.aclose()
+        await harness.client.aclose()
