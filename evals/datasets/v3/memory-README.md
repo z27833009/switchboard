@@ -1,8 +1,8 @@
-# Multi-session memory candidates (V3.16)
+# Multi-session memory dataset v1 (V3.16)
 
-Status: **candidate**. This file was generated as a first draft for the author to
-review and edit. It is not the frozen dataset until every case has
-`"review": "approved"` and the version is renamed to `memory-v1`.
+Status: **approved by the author on 2026-11-16**. The author reviewed the 20
+candidate cases and approved them as written. The file is frozen once a report
+references it; a later change creates `memory-v2`.
 
 ## What a case means
 
@@ -10,43 +10,45 @@ Each case has one fact and one question that requires that fact. The fact is
 deliberately not derivable from the demo corpus or from general knowledge, so a
 correct answer is evidence that the fact was carried across the turns.
 
-The runner will use two modes:
+The runner uses these modes:
 
 1. **history off**: the fact is said in session A, the question is asked in a new
    session B. No history is sent. This is the control.
-2. **layers 1 to 4**: the fact is said in session A, then the question is asked
-   in the same session. The current context policy and session history are the
-   only memory available.
+2. **layers 1 to 4, cross-session**: the same fact session, a second new question
+   session, with the current context policy. The current design has no
+   cross-session memory table, so this measures whether the existing layers carry
+   the fact across a session boundary.
+3. **layers 1 to 4, same session**: the fact and question share one session. This
+   is the within-session probe, so the report can separate "the model cannot
+   remember at all" from "the layers work inside one conversation but not across
+   conversations".
 
-A separate **cross-session** probe can keep the two session ids but enable a
-future tenant-scoped memory table. It is not part of the current V3.16 run.
+A separate future **tenant memory** probe can use the same cases after a
+tenant-scoped memory table exists.
 
-## Author review checklist
+## Author review
 
-For every case:
-
-- the fact is a single, unambiguous statement;
-- the question cannot be answered without the fact;
-- `expected_contains` lists only strings that must appear in a correct answer;
-- the wording is natural and does not leak `expected_contains` in the question;
-- the case is not a duplicate of another case;
-- the fact does not depend on a real person, employer or private dataset.
-
-Change `"review": "pending"` to `"review": "approved"` after editing. Do not
-edit a case after the report references it; create a new version instead.
+The author reviewed the candidates and approved them as written. The validator
+must report `20 approved` before the runner starts.
 
 ## Validation
 
 ```bash
-uv run python scripts/validate_memory_candidates.py evals/datasets/v3/memory-candidates.json
+uv run python scripts/validate_memory_candidates.py evals/datasets/v3/memory-v1.json
 ```
 
 The validator checks the count, unique ids, non-empty fields, review status and
 that `expected_contains` does not appear verbatim in the question.
 
-## Running after review
+## Running
 
-The runner is intentionally not added until the dataset is approved. It will
-create one session for the fact and one for the question, record both run ids
-and answers, and write a report under `evals/reports/`. The report will state
-whether T3.11 (long-term memory) is still needed.
+The runner is `scripts/run_memory_cases.py`. It needs the local API and LM Studio:
+
+```bash
+uv run --env-file .env python scripts/run_memory_cases.py \
+  --dataset evals/datasets/v3/memory-v1.json \
+  --out evals/reports/memory-v1.json
+```
+
+It writes the JSON results and a markdown report beside them. The report records
+the pass count for each mode and whether T3.11 (long-term memory) resumes.

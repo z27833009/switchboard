@@ -1,0 +1,752 @@
+{
+  "version": "memory-v1",
+  "dataset": "evals/datasets/v3/memory-v1.json",
+  "tenant": "default",
+  "provider": "lmstudio",
+  "model": "qwen3-8b",
+  "preset": "direct",
+  "summary": {
+    "history_off": {
+      "passed": 0,
+      "total": 20,
+      "failed_ids": [
+        "mem-001",
+        "mem-002",
+        "mem-003",
+        "mem-004",
+        "mem-005",
+        "mem-006",
+        "mem-007",
+        "mem-008",
+        "mem-009",
+        "mem-010",
+        "mem-011",
+        "mem-012",
+        "mem-013",
+        "mem-014",
+        "mem-015",
+        "mem-016",
+        "mem-017",
+        "mem-018",
+        "mem-019",
+        "mem-020"
+      ]
+    },
+    "cross_session": {
+      "passed": 0,
+      "total": 20,
+      "failed_ids": [
+        "mem-001",
+        "mem-002",
+        "mem-003",
+        "mem-004",
+        "mem-005",
+        "mem-006",
+        "mem-007",
+        "mem-008",
+        "mem-009",
+        "mem-010",
+        "mem-011",
+        "mem-012",
+        "mem-013",
+        "mem-014",
+        "mem-015",
+        "mem-016",
+        "mem-017",
+        "mem-018",
+        "mem-019",
+        "mem-020"
+      ]
+    },
+    "same_session": {
+      "passed": 20,
+      "total": 20,
+      "failed_ids": []
+    }
+  },
+  "t3_11": "remains deferred",
+  "cases": [
+    {
+      "id": "mem-001",
+      "category": "order_reference",
+      "fact": "The audit code for the March return is ZX-417.",
+      "question": "What audit code did I give you for the March return?",
+      "expected_contains": [
+        "ZX-417"
+      ],
+      "fact_session": "028e4b91-21f7-4483-aa44-75b9e2254c3d",
+      "fact_run": "825af917-13be-42e7-86ac-3d6744667e80",
+      "modes": {
+        "history_off": {
+          "session_id": "7774cbdb-b7c8-4bca-a336-4fc2856d8d6d",
+          "run_id": "081c1d71-437e-4ab4-982d-29c48476dd7d",
+          "status": "ok",
+          "answer": "I don’t have access to your specific audit code or any details about your returns. For assistance with your March return, please contact our support team at support@switchboard.com. They’ll be happy to help!",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "90afbb35-4645-4001-948b-ef0aa82a9dde",
+          "status": "ok",
+          "answer": "I don’t have access to your specific audit code or any details about your returns. For assistance with your March return, please contact our support team at support@switchboard.com. They’ll be happy to help!",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "028e4b91-21f7-4483-aa44-75b9e2254c3d",
+          "run_id": "0e6959a7-82e0-4775-b36e-8869307f4eb3",
+          "status": "ok",
+          "answer": "The audit code for the March return is ZX-417. Let me know if you need further assistance! 😊",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-002",
+      "category": "logistics",
+      "fact": "The preferred courier for seller 955fee is Northwind Express.",
+      "question": "Which courier did I say seller 955fee prefers?",
+      "expected_contains": [
+        "Northwind Express"
+      ],
+      "fact_session": "2de3ebf5-f58e-420b-8748-cd1e6276b8d5",
+      "fact_run": "2f5c9fe4-ee8a-42ce-9ce2-5151a89711c9",
+      "modes": {
+        "history_off": {
+          "session_id": "30a33dea-9f1a-4efa-85db-55c8f2b0edcb",
+          "run_id": "e849cf39-ea52-4c68-a25b-8c6d87a00b50",
+          "status": "ok",
+          "answer": "I don't have access to specific preferences of sellers regarding couriers. For such details, please check directly with Seller 955fee or their customer support. Let me know if you need help with anything else!",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "3ea904c7-4996-469a-876e-47ef3fb21a23",
+          "status": "ok",
+          "answer": "I don't have access to specific preferences of sellers regarding couriers. For such details, please check directly with Seller 955fee or their customer support. Let me know if you need help with anything else!",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "2de3ebf5-f58e-420b-8748-cd1e6276b8d5",
+          "run_id": "8fbdb26d-f145-4e2e-b586-3372e2feac14",
+          "status": "ok",
+          "answer": "The preferred courier for seller 955fee is Northwind Express. Let me know if you need anything else! 😊",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-003",
+      "category": "project_name",
+      "fact": "The internal name for the late-delivery pilot is Project Lantern.",
+      "question": "What is the internal name of the late-delivery pilot?",
+      "expected_contains": [
+        "Project Lantern"
+      ],
+      "fact_session": "87e14961-b112-4885-a888-c73d5b2d40ab",
+      "fact_run": "38a478e5-0522-43f7-a811-aabe85ed4f08",
+      "modes": {
+        "history_off": {
+          "session_id": "c511773b-ab11-4eb6-aca3-f13c68bcb8c2",
+          "run_id": "afee2b39-9fc2-4344-a2e8-a127a9dcff00",
+          "status": "ok",
+          "answer": "The internal name of the late-delivery pilot is \"Project Velocity.\" Let me know if you need further details!",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "b8a30c71-0a3d-4d27-a810-d9ab974982bd",
+          "status": "ok",
+          "answer": "The internal name of the late-delivery pilot is \"Project Velocity.\" Let me know if you need further details!",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "87e14961-b112-4885-a888-c73d5b2d40ab",
+          "run_id": "8bccd977-e332-4793-a509-3ba8e4b9b9dc",
+          "status": "ok",
+          "answer": "The internal name of the late-delivery pilot is **Project Lantern**. Let me know if you need anything else! 🌟",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-004",
+      "category": "return_window",
+      "fact": "The return window for the blue jacket is 12 calendar days.",
+      "question": "How many calendar days do I have to return the blue jacket?",
+      "expected_contains": [
+        "12"
+      ],
+      "fact_session": "5fe312da-5ee8-4c91-b9e1-ee5e6400502a",
+      "fact_run": "fd8d2736-e8d7-4292-ab4c-ddf31c1fdcab",
+      "modes": {
+        "history_off": {
+          "session_id": "4018643d-3902-4c57-936a-df2ff695177a",
+          "run_id": "1db9c355-e756-4ad1-9756-42fc9c09d255",
+          "status": "ok",
+          "answer": "That information is best answered by our Returns team. Would you like me to connect you with them?",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "4eeab514-8628-452f-abb4-e54c34850f82",
+          "status": "ok",
+          "answer": "That information is best answered by our Returns team. Would you like me to connect you with them?",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "5fe312da-5ee8-4c91-b9e1-ee5e6400502a",
+          "run_id": "33dc747c-6e4a-45b4-a8de-f4c592f0faee",
+          "status": "ok",
+          "answer": "You have 12 calendar days to return the blue jacket. Let me know if you need further assistance! 😊",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-005",
+      "category": "order_reference",
+      "fact": "The replacement order id is ORD-88231.",
+      "question": "What is the replacement order id?",
+      "expected_contains": [
+        "ORD-88231"
+      ],
+      "fact_session": "8bee114c-ed7a-4812-9167-6ab1470e01ff",
+      "fact_run": "07100640-9efc-4f45-810a-4fe78d38fcb6",
+      "modes": {
+        "history_off": {
+          "session_id": "f5ce6537-73c5-4a3f-93dc-229886682af9",
+          "run_id": "280349e3-639a-4375-b356-7f0d38cc13a1",
+          "status": "ok",
+          "answer": "I don't have access to your order details. Please check your email for confirmation or contact support for assistance.",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "a82f033d-4bc3-476c-87da-df64e6e486eb",
+          "status": "ok",
+          "answer": "I don't have access to your order details. Please check your email for confirmation or contact support for assistance.",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "8bee114c-ed7a-4812-9167-6ab1470e01ff",
+          "run_id": "7eb00f1f-f516-4f95-90cd-45211a10de19",
+          "status": "ok",
+          "answer": "The replacement order ID is **ORD-88231**. Let me know if you need further assistance! 😊",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-006",
+      "category": "contact",
+      "fact": "The warehouse contact is Mira Chen.",
+      "question": "Who is the warehouse contact?",
+      "expected_contains": [
+        "Mira Chen"
+      ],
+      "fact_session": "96513e24-fea6-4f6f-980a-66ee33285034",
+      "fact_run": "2e1790d4-f3a1-467c-8c73-8a836a8db92c",
+      "modes": {
+        "history_off": {
+          "session_id": "9e3dddf3-2de0-4b42-879c-8c770741a9c4",
+          "run_id": "c6178b63-2a24-467d-ac62-a486cd63e9ff",
+          "status": "ok",
+          "answer": "I'm sorry, but I can't provide specific contact information for warehouses. For assistance with orders or delivery details, please reach out to our customer support team. They’ll be happy to help!",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "3166a1fb-056e-4d19-897d-d41769dfc3c2",
+          "status": "ok",
+          "answer": "I'm sorry, but I can't provide specific contact information for warehouses. For assistance with orders or delivery details, please reach out to our customer support team. They’ll be happy to help!",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "96513e24-fea6-4f6f-980a-66ee33285034",
+          "run_id": "bcdd6ee0-a317-4304-8189-b3cfde99925e",
+          "status": "ok",
+          "answer": "The warehouse contact is Mira Chen. Let me know if you need anything else! 😊",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-007",
+      "category": "customer_profile",
+      "fact": "The customer's loyalty tier is Silver Oak.",
+      "question": "What loyalty tier did I mention for the customer?",
+      "expected_contains": [
+        "Silver Oak"
+      ],
+      "fact_session": "6482cf79-efc5-49a2-becf-732b1beae9dc",
+      "fact_run": "141efb3a-f4f8-4170-8c2b-ca7d486bd27f",
+      "modes": {
+        "history_off": {
+          "session_id": "7bbdb7e3-3705-43d4-b10b-044f058be2ca",
+          "run_id": "e64177a0-c4df-4a6a-b3dc-cd122145b643",
+          "status": "ok",
+          "answer": "I don't have access to your conversation history. Could you please share more details about the customer or the context of our discussion?",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "b74ece6f-81ce-4e1c-8796-cfe6214cbeac",
+          "status": "ok",
+          "answer": "I don't have access to your previous messages or conversation history. Could you please provide more context or clarify what you're asking about?",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "6482cf79-efc5-49a2-becf-732b1beae9dc",
+          "run_id": "7bcb975c-75a0-47ae-8d81-3fac1b4e9f93",
+          "status": "ok",
+          "answer": "You mentioned the customer's loyalty tier is Silver Oak. Let me know if you need anything else! 🌟",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-008",
+      "category": "refund",
+      "fact": "The approved refund amount is 47.25 USD.",
+      "question": "What refund amount was approved?",
+      "expected_contains": [
+        "47.25"
+      ],
+      "fact_session": "b907f84c-c03a-473d-a1c3-045b49ea4f8c",
+      "fact_run": "5919271d-1980-4282-a915-ae1b90fef060",
+      "modes": {
+        "history_off": {
+          "session_id": "eaac7bfa-6422-456f-82f2-8fb920716ced",
+          "run_id": "1bd92b29-4b95-4e3e-b5c7-9cb7fa4fa470",
+          "status": "ok",
+          "answer": "I don't have access to specific refund details. For information about your refund, please check your order confirmation email or contact our support team.",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "acf5a451-de82-435f-87e3-86d17bee6a4b",
+          "status": "ok",
+          "answer": "I don't have access to specific refund details. For information about your refund, please check your order confirmation email or contact our support team.",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "b907f84c-c03a-473d-a1c3-045b49ea4f8c",
+          "run_id": "385d77f2-e5f5-428a-8b42-fe9293034747",
+          "status": "ok",
+          "answer": "The approved refund amount is $47.25. Let me know if you need further assistance! 😊",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-009",
+      "category": "escalation",
+      "fact": "The escalation code is KITE-9.",
+      "question": "What escalation code should I use?",
+      "expected_contains": [
+        "KITE-9"
+      ],
+      "fact_session": "b6313150-b0a0-4c92-a3e5-7cbbf8096768",
+      "fact_run": "bfd978bc-b61f-44d2-ac48-30bc74345f50",
+      "modes": {
+        "history_off": {
+          "session_id": "d8e466ac-8932-45da-8b71-05d0dbaf864a",
+          "run_id": "601a83b7-38a0-46a2-ab8a-40c3aefb1381",
+          "status": "ok",
+          "answer": "You can use escalation code **123** for further assistance. Let me know how I can help!",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "10bb8469-9f70-44c2-b113-57057e6b2912",
+          "status": "ok",
+          "answer": "You can use escalation code **123** for further assistance. Let me know how I can help!",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "b6313150-b0a0-4c92-a3e5-7cbbf8096768",
+          "run_id": "6cee1467-4ae4-4f1c-91c0-b91fdb33b0e4",
+          "status": "ok",
+          "answer": "The escalation code you should use is **KITE-9**. Let me know if you need further assistance! 😊",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-010",
+      "category": "schedule",
+      "fact": "The pickup window is 14:00 to 16:00 on Friday.",
+      "question": "When is the pickup window?",
+      "expected_contains": [
+        "14:00",
+        "16:00",
+        "Friday"
+      ],
+      "fact_session": "41e40a08-9b59-4f84-9969-f34f4c3c46e4",
+      "fact_run": "60adea8c-f2c2-4f55-9620-33177c215695",
+      "modes": {
+        "history_off": {
+          "session_id": "fe49c961-cdec-4bef-93cc-7b0efb81b1aa",
+          "run_id": "ed3d012d-b578-46f5-ada2-b6895550526f",
+          "status": "ok",
+          "answer": "The pickup window varies depending on your order. For details, please check your confirmation email or message. Let me know if you need help!",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "fc5bea27-9908-4d00-a894-ac009d0f968f",
+          "status": "ok",
+          "answer": "The pickup window varies depending on your order. For details, please check your confirmation email or message. Let me know if you need help!",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "41e40a08-9b59-4f84-9969-f34f4c3c46e4",
+          "run_id": "43c830a5-65d7-40ba-97d2-072254cb46a9",
+          "status": "ok",
+          "answer": "The pickup window is 14:00 to 16:00 on Friday. Let me know if you need further assistance! 😊",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-011",
+      "category": "seller",
+      "fact": "The seller's display name is Harbor Goods.",
+      "question": "What is the seller's display name?",
+      "expected_contains": [
+        "Harbor Goods"
+      ],
+      "fact_session": "8388b33a-5c81-463f-92a7-80f975bd59f4",
+      "fact_run": "22d16a39-6708-4f21-9177-205b11837aaa",
+      "modes": {
+        "history_off": {
+          "session_id": "b8d3f58c-e3cc-4d86-94ad-f290efd4c700",
+          "run_id": "a7060d55-7583-4ddf-987b-e1ed6f9ece83",
+          "status": "ok",
+          "answer": "I'm here to help! For information about sellers, including their display names, please check the product page or contact the seller directly. Let me know if you need assistance with anything else!",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "5483e544-b6d2-4c7e-9bbf-fa0b27cff284",
+          "status": "ok",
+          "answer": "I'm here to help! For information about sellers, including their display names, I recommend checking the product page or contacting the seller directly. Let me know if you need assistance with anything else!",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "8388b33a-5c81-463f-92a7-80f975bd59f4",
+          "run_id": "6eb1f0f7-a3f8-4056-8bb1-32161c79a634",
+          "status": "ok",
+          "answer": "The seller's display name is **Harbor Goods**. Let me know if you need anything else! 😊",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-012",
+      "category": "product",
+      "fact": "The product SKU for the desk lamp is LMP-330.",
+      "question": "What is the SKU for the desk lamp?",
+      "expected_contains": [
+        "LMP-330"
+      ],
+      "fact_session": "a8952848-ce63-4681-91c8-31ad258726f3",
+      "fact_run": "5d153444-7440-4231-9513-d6b0181973b1",
+      "modes": {
+        "history_off": {
+          "session_id": "17783e1d-a76c-48cc-881d-586b1a6f42dd",
+          "run_id": "15a29e8e-6943-4a88-9f1b-059bcd868b50",
+          "status": "ok",
+          "answer": "I can't provide specific product details like SKUs. For assistance with product information, please contact our data and documents agent.",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "442a68eb-08f3-427e-a88f-34e0f1ee95fb",
+          "status": "ok",
+          "answer": "I can't provide specific product details like SKUs. For assistance with product information, please contact our data and documents agent.",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "a8952848-ce63-4681-91c8-31ad258726f3",
+          "run_id": "0f7c69e1-5282-42ce-83b3-6bb6037f41fc",
+          "status": "ok",
+          "answer": "The SKU for the desk lamp is LMP-330. Let me know if you need further assistance! 😊",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-013",
+      "category": "approval",
+      "fact": "The policy exception was approved by Dana Ruiz.",
+      "question": "Who approved the policy exception?",
+      "expected_contains": [
+        "Dana Ruiz"
+      ],
+      "fact_session": "6b066082-2a3b-4171-bc4c-32faaf01402f",
+      "fact_run": "2fcc097b-3ce1-4438-a04c-dbdf4b2d586b",
+      "modes": {
+        "history_off": {
+          "session_id": "6ee3c88d-1dca-4701-b12c-03db2f3bcf70",
+          "run_id": "a4853884-e7d5-41ae-b1d9-29b9ed639a3d",
+          "status": "ok",
+          "answer": "I can't provide details about who approved specific policy exceptions. For information on approvals or policies, please consult your organization's records or contact the relevant department. Let me know if you need help with anything else!",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "dbbb0c4c-563a-45b5-b1cb-22a7e29dc3c3",
+          "status": "ok",
+          "answer": "I don't have access to specific approval details or user-specific information. For questions about approvals or exceptions, please contact your account manager or the relevant team that handles such requests. Let me know how I can assist with anything else!",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "6b066082-2a3b-4171-bc4c-32faaf01402f",
+          "run_id": "cdbd2548-8bd4-4ab8-a2ba-d486642aec78",
+          "status": "ok",
+          "answer": "The policy exception was approved by Dana Ruiz. Let me know if you need anything else! 😊",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-014",
+      "category": "shipping",
+      "fact": "The free-shipping threshold is 89 USD.",
+      "question": "What is the free-shipping threshold?",
+      "expected_contains": [
+        "89"
+      ],
+      "fact_session": "22f5ab8f-22d1-42e4-aca9-e5fda6f85927",
+      "fact_run": "2d654609-d61b-4032-bfc6-9fad83f0f418",
+      "modes": {
+        "history_off": {
+          "session_id": "15abdc7a-b577-45b2-a02f-3e4b88c6926e",
+          "run_id": "08508830-bbb0-47f2-a466-3a1aead4895a",
+          "status": "ok",
+          "answer": "The free-shipping threshold varies depending on your location and the items in your cart. For specific details, please check your shopping cart or contact our support team.",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "be36caa6-13fb-4207-8297-8a371eaa3afa",
+          "status": "ok",
+          "answer": "The free-shipping threshold varies depending on your location and the items in your cart. For specific details, please check your shopping cart or contact our support team.",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "22f5ab8f-22d1-42e4-aca9-e5fda6f85927",
+          "run_id": "45dd89d9-de30-4fd7-afc2-5cbe150e9b58",
+          "status": "ok",
+          "answer": "The free-shipping threshold is $89. Let me know if you need help with anything else! 😊",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-015",
+      "category": "date",
+      "fact": "The order was placed on 2026-02-17.",
+      "question": "On what date was the order placed?",
+      "expected_contains": [
+        "2026-02-17"
+      ],
+      "fact_session": "eaca28c1-62ff-4410-bd40-0e43d0b1db58",
+      "fact_run": "3fc639aa-2e3f-4fe6-b8c4-9fb5530f5eb2",
+      "modes": {
+        "history_off": {
+          "session_id": "c19b753e-ebda-4e0c-a192-edcb9029618e",
+          "run_id": "3ee39bf2-0671-4239-8cf4-bbf8cd69b55f",
+          "status": "ok",
+          "answer": "I don't have access to order details. For information about your order, please check your account or contact customer support.",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "57085967-4297-4fff-997e-ac06e643ae96",
+          "status": "ok",
+          "answer": "I don't have access to order details. For information about your order, please check your account or contact customer support.",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "eaca28c1-62ff-4410-bd40-0e43d0b1db58",
+          "run_id": "b14da88f-271d-40e9-b411-ca843f1b693d",
+          "status": "ok",
+          "answer": "The order was placed on February 17, 2026. Let me know if you need further assistance! 😊",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-016",
+      "category": "invoice",
+      "fact": "The invoice number is INV-2026-0417.",
+      "question": "What is the invoice number?",
+      "expected_contains": [
+        "INV-2026-0417"
+      ],
+      "fact_session": "1b7f5c75-28a7-4085-a1bb-180c2fa0c213",
+      "fact_run": "5a66f084-867d-41d8-9efe-fda03cb7a53a",
+      "modes": {
+        "history_off": {
+          "session_id": "81ee6e04-4da2-4115-9c8e-7d69c63e2906",
+          "run_id": "705c3498-0637-4fda-8c6d-57fdf61c5bd7",
+          "status": "ok",
+          "answer": "I don't have access to specific invoice details. Please check your email or contact our support team for assistance.",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "62979707-2e47-4d0b-a31f-eea451784484",
+          "status": "ok",
+          "answer": "I don't have access to specific invoice details. Please check your email or contact our support team for assistance.",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "1b7f5c75-28a7-4085-a1bb-180c2fa0c213",
+          "run_id": "66b8c28c-d5d4-4342-859e-3353432cce8b",
+          "status": "ok",
+          "answer": "The invoice number is INV-2026-0417. Let me know if you need further assistance! 😊",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-017",
+      "category": "damage",
+      "fact": "The damaged item was a ceramic mug.",
+      "question": "Which item was damaged?",
+      "expected_contains": [
+        "ceramic mug"
+      ],
+      "fact_session": "85156e01-cde5-4a36-80cd-d558ff40f331",
+      "fact_run": "2a1f3810-3057-4d6b-8791-037d0bb86079",
+      "modes": {
+        "history_off": {
+          "session_id": "f48f2c94-e753-4d7c-9869-60a70d4f261f",
+          "run_id": "81a45606-ce6d-49bc-a4e4-ef89394ccb45",
+          "status": "ok",
+          "answer": "I'm sorry, but I don't have access to specific order details or shipment information. For questions about damaged items, please contact our support team for assistance.",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "c6cc9c53-173c-4cd9-acdb-61d2302a6342",
+          "status": "ok",
+          "answer": "I'm sorry, but I don't have access to specific order details or shipment information. For questions about damaged items, please contact our support team for assistance.",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "85156e01-cde5-4a36-80cd-d558ff40f331",
+          "run_id": "4699483d-6e24-4f31-96fb-13e6a2d780c5",
+          "status": "ok",
+          "answer": "The damaged item was a ceramic mug. Let me know if you need further assistance!",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-018",
+      "category": "logistics",
+      "fact": "The replacement carrier is Bluefin Logistics.",
+      "question": "Which carrier handles the replacement?",
+      "expected_contains": [
+        "Bluefin Logistics"
+      ],
+      "fact_session": "afbba2e1-5c2f-46cf-956c-cf5653131c7e",
+      "fact_run": "d970a6b0-1818-4254-8e3d-9cb98d7a3ed4",
+      "modes": {
+        "history_off": {
+          "session_id": "6283e0ac-5208-4afb-90b3-1c191ff6f8ad",
+          "run_id": "faa7a8fd-d4d2-46b7-9591-db02de6f9ed7",
+          "status": "ok",
+          "answer": "I'm here to help! For details about carriers or replacements, I recommend reaching out to our support team for assistance. They can provide you with accurate information tailored to your situation. Let me know if there's anything else I can help with! 😊",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "80e2765b-fe17-4282-9849-af34c239afae",
+          "status": "ok",
+          "answer": "I'm here to help! For details about carriers or replacements, I recommend reaching out to our support team for assistance. They can provide you with accurate information tailored to your situation. Let me know if there's anything else I can help with!",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "afbba2e1-5c2f-46cf-956c-cf5653131c7e",
+          "run_id": "d0fdf21f-c55a-41ea-94d5-011fb6c309fb",
+          "status": "ok",
+          "answer": "The replacement carrier is Bluefin Logistics. Let me know if you need further assistance!",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-019",
+      "category": "support",
+      "fact": "The support ticket is TCK-5521.",
+      "question": "What is the support ticket number?",
+      "expected_contains": [
+        "TCK-5521"
+      ],
+      "fact_session": "c3c2da6a-ef25-47d3-8d53-e00ed652bba8",
+      "fact_run": "084e374e-4edc-41c2-a158-c775e5179240",
+      "modes": {
+        "history_off": {
+          "session_id": "aff19b5c-df79-4408-9f9e-96e6a129c500",
+          "run_id": "f9a4621a-7522-4a7e-a25a-833a8894bbd1",
+          "status": "ok",
+          "answer": "I don't have access to your support ticket number. Please check your email or account dashboard for any confirmation messages. Let me know how I can assist you!",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "515d1a18-39cf-4525-8612-3c4d8bf40d5f",
+          "status": "ok",
+          "answer": "I don't have access to your support ticket number. Please check your email or account dashboard for any confirmation messages. If you need further assistance, feel free to ask!",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "c3c2da6a-ef25-47d3-8d53-e00ed652bba8",
+          "run_id": "d63118f2-ed28-4ac6-a581-4e3d5a7f0c8f",
+          "status": "ok",
+          "answer": "The support ticket number is TCK-5521. Let me know if you need further assistance! 😊",
+          "passed": true
+        }
+      }
+    },
+    {
+      "id": "mem-020",
+      "category": "promotion",
+      "fact": "The internal discount code is ORCHID-12.",
+      "question": "What internal discount code did I mention?",
+      "expected_contains": [
+        "ORCHID-12"
+      ],
+      "fact_session": "44461864-8660-40d3-a075-9151504bbe4b",
+      "fact_run": "4e13a416-582b-4932-baa2-01608eba7002",
+      "modes": {
+        "history_off": {
+          "session_id": "7056d002-5e98-4fbf-aecf-7360ce68af5a",
+          "run_id": "e4143dd6-71de-4e83-a0ed-9768a259696c",
+          "status": "ok",
+          "answer": "I don’t have access to your personal messages or conversation history. Let me know if you need help with anything else! 😊",
+          "passed": false
+        },
+        "cross_session": {
+          "session_id": null,
+          "run_id": "049fa5f6-fcc3-44a6-9831-479e3b6cf248",
+          "status": "ok",
+          "answer": "I don’t have access to your personal messages or conversation history. Let me know if you need help with anything else! 😊",
+          "passed": false
+        },
+        "same_session": {
+          "session_id": "44461864-8660-40d3-a075-9151504bbe4b",
+          "run_id": "a3122db3-6c3a-4819-9f7b-df180325eb38",
+          "status": "ok",
+          "answer": "The internal discount code you mentioned was **ORCHID-12**. Let me know if you need help with anything else! 😊",
+          "passed": true
+        }
+      }
+    }
+  ]
+}
