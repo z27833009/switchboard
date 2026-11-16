@@ -87,7 +87,7 @@ uv run --env-file .env switchboard eval compare
 
 ## Quick start
 
-This path is tested from a fresh clone on Windows 11 with Docker Desktop and LM Studio on the host. It starts four containers, loads the 1000-order sample and ingests five synthetic policy documents. The five minute tour is in [docs/demo.md](docs/demo.md).
+This path is tested from a fresh clone on Windows 11 with Docker Desktop and LM Studio on the host. It starts the compose stack, loads the 1000-order sample and ingests five synthetic policy documents. The five minute tour is in [docs/demo.md](docs/demo.md).
 
 ### Prerequisites
 
@@ -145,7 +145,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-The first build installs Python and Node dependencies inside the images, so it can take a few minutes on a cold cache. Wait until all six services (`postgres`, `mcp-olist`, `mcp-reviews`, `valkey`, `api`, `web`) show `healthy`.
+The first build installs Python and Node dependencies inside the images, so it can take a few minutes on a cold cache. Wait until all services (`postgres`, `mcp-olist`, `mcp-reviews`, `mcp-catalog`, `valkey`, `api`, `web`) show `healthy`.
 
 The `valkey` service is the second cache store from the v2 comparison. The default config keeps `cache: pg_semantic`, so nothing depends on it and the API never contacts it; leave it running (it is idle and small) or stop it with `docker compose stop valkey`. Switching the semantic cache to it is `cache: valkey_semantic` in `config/platform.yaml` plus `VALKEY_URL`, and the measured comparison is in [evals/reports/cache-adapters.md](evals/reports/cache-adapters.md).
 
@@ -201,6 +201,8 @@ On a fresh database this reports `documents added 5, updated 0, unchanged 0` and
 
 The cross-tenant demo uses a second tenant, `seller_a`, restricted to one seller. Give it the same documents with `uv run --env-file .env switchboard ingest data/documents --tenant seller_a`; retrieval, the run list and traces are then tenant isolated in the UI and the API. `seller_a` also allows the two review tools served by the second MCP server, `mcp-reviews` (TypeScript, port 8002): `review_summary@1` and `order_reviews@1`. The default tenant does not, so its tool list and the eval reports are unchanged. To try them, pick tenant `seller_a` in the UI and ask for the review score of an order, or run `uv run --env-file .env pytest tests/contracts/tools/test_mcp_reviews_source.py -q` against the running stack.
 
+The non-Olist connector is `mcp-catalog` on port 8003. It serves `catalog_search@1` over the self-written `data/catalog/products.json` and is allowed only for the `acme` tenant. The demo run `Search the catalog for 'Acme Wireless Mouse' and give its price.` with preset `data` returned `The price of the Acme Wireless Mouse is $39.00 [t1].` in 27.8 s.
+
 ### 7. Open it
 
 | What | URL |
@@ -212,6 +214,7 @@ The cross-tenant demo uses a second tenant, `seller_a`, restricted to one seller
 | Health through the web proxy | http://localhost:8080/api/health |
 | Tool server health | http://localhost:8001/health |
 | Reviews tool server health | http://localhost:8002/health |
+| Catalog tool server health | http://localhost:8003/health |
 
 Open the chat page, keep tenant `default` and ask:
 

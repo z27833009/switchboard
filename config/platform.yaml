@@ -15,10 +15,11 @@ tool_sources:
     adapter: mcp
     url: ${MCP_REVIEWS_URL}/mcp
     manifest: mcp_servers/reviews/manifest.yaml
-  # V3.08: a second non-Olist connector. It runs in-process and serves one
-  # read-only tool from a self-written catalog file.
+  # V3.08: a standalone non-Olist MCP server. It serves one read-only tool
+  # from a self-written catalog file and verifies the same run token.
   - name: catalog
-    adapter: catalog
+    adapter: mcp
+    url: ${MCP_CATALOG_URL:-http://localhost:8003}/mcp
     manifest: mcp_servers/catalog/manifest.yaml
 retriever: pgvector
 # The semantic cache (design 10, ADR 0007). Two registered adapters:

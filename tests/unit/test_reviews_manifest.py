@@ -16,6 +16,7 @@ REVIEWS_MANIFEST = REPO / "mcp_servers" / "reviews" / "manifest.yaml"
 ENV = {
     "MCP_OLIST_URL": "http://localhost:8001",
     "MCP_REVIEWS_URL": "http://localhost:8002",
+    "MCP_CATALOG_URL": "http://localhost:8003",
     "LMSTUDIO_BASE_URL": "http://localhost:18080/v1",
     "LMSTUDIO_MODEL": "qwen3-8b",
     "LMSTUDIO_EMBEDDING_MODEL": "bge-m3",
@@ -42,7 +43,8 @@ def test_the_committed_config_declares_both_sources() -> None:
     names = {source.name for source in settings.platform.tool_sources}
     assert names == {"catalog", "olist", "reviews"}
     catalog = next(s for s in settings.platform.tool_sources if s.name == "catalog")
-    assert catalog.adapter == "catalog"
+    assert catalog.adapter == "mcp"
+    assert catalog.url == "http://localhost:8003/mcp"
     reviews = next(s for s in settings.platform.tool_sources if s.name == "reviews")
     assert reviews.adapter == "mcp"
     assert reviews.url == "http://localhost:8002/mcp"
