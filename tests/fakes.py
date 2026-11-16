@@ -14,7 +14,7 @@ import json
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -70,6 +70,7 @@ class MemoryRunStore:
         self.session_audit: list[dict[str, Any]] = []
         self.users: dict[str, dict[str, Any]] = {}
         self.memberships: dict[tuple[str, str], str] = {}
+        self._last_started_at: datetime | None = None
 
     async def start_run(
         self,
@@ -82,6 +83,13 @@ class MemoryRunStore:
         provider: str | None = None,
         attachments: list[dict[str, Any]] | None = None,
     ) -> None:
+        # Keep insertion order stable even when two runs start inside the same
+        # clock tick. The real table orders by started_at; tests must not
+        # depend on how fast the event loop gets from one run to the next.
+        started_at = datetime.now(UTC)
+        if self._last_started_at is not None and started_at <= self._last_started_at:
+            started_at = self._last_started_at + timedelta(microseconds=1)
+        self._last_started_at = started_at
         self.runs[run_id] = {
             "id": run_id,
             "tenant_id": tenant_id,
@@ -103,7 +111,7 @@ class MemoryRunStore:
             "trace_complete": True,
             "pending_approval": None,
             "attachments": list(attachments or []),
-            "started_at": datetime.now(UTC),
+            "started_at": started_at,
             "ended_at": None,
         }
 
